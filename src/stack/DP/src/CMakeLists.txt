@@ -1,0 +1,5 @@
+add_subdirectory(dpfwk)
+add_subdirectory(dpitf)
+add_subdirectory(dpl2)
+add_subdirectory(dpl3)
+add_subdirectory(dpl4)
