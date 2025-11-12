@@ -1,5 +1,5 @@
 Summary:        libknet
-Name:           knet-libknet_acc
+Name:           ubs-knet
 Version:        1.0.0
 Release:        1
 License:        Proprietary
