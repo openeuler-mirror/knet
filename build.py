@@ -187,7 +187,7 @@ def build_securec():
     return 1
 
 def build_dpstack():
-    os.chdir(f"{KNET_SOURCE_DIR}/src/stack/DP")
+    os.chdir(f"{KNET_SOURCE_DIR}/src/stack/tcp")
     # build
 
     # 获取原始 LD_LIBRARY_PATH
@@ -201,14 +201,14 @@ def build_dpstack():
     os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/secure_c/lib:" \
         f"{os.environ.get('LD_LIBRARY_PATH', '')}"
 
-    cmd = ["cmake", f"{KNET_SOURCE_DIR}/src/stack/DP", "-B", f"{KNET_SOURCE_DIR}/build/DP"]
+    cmd = ["cmake", f"{KNET_SOURCE_DIR}/src/stack/tcp", "-B", f"{KNET_SOURCE_DIR}/build/tcp"]
 
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
         logging.error(f"exec cmd fail. [{cmd}]")
         return 1
 
-    cmd = ["make", "-C", f"{KNET_SOURCE_DIR}/build/DP", "-j"]
+    cmd = ["make", "-C", f"{KNET_SOURCE_DIR}/build/tcp", "-j"]
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
         logging.error(f"exec cmd fail. [{cmd}]")
