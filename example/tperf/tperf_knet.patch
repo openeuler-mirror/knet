@@ -1,0 +1,1860 @@
+# Please note that this patch is a modification to tperf under the libtpa/app.
+# It is intended for performance testing only.
+
+diff -ruN tperf/client.c tperf_knet/client.c
+--- tperf/client.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/client.c	2025-10-22 14:46:22.336000000 +0800
+@@ -1,91 +1,214 @@
+-/*
+- * SPDX-License-Identifier: BSD-3-Clause
+- * Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
+- * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
+- */
+-#include <stdio.h>
+-
+-#include "tperf.h"
+-
+-static struct connection *create_client_conn(struct test_thread *thread, int sid)
+-{
+-	struct connection *conn;
+-	int message_size = ctx.message_size;
+-
+-	conn = conn_create(thread, sid);
+-
+-	conn->is_client = 1;
+-	conn->test = ctx.test;
+-	conn->integrity_enabled = ctx.integrity_enabled;
+-	conn->integrity_off = get_time_in_ns();
+-	conn->enable_zwrite = ctx.enable_zwrite;
+-	conn->message_size = message_size;
+-
+-	switch (conn->test) {
+-	case TEST_READ:
+-		conn->read.budget  = message_size;
+-		conn->write.budget = 0;
+-		break;
+-
+-	case TEST_WRITE:
+-		conn->read.budget  = 0;
+-		conn->write.budget = message_size;
+-		break;
+-
+-	case TEST_RR:
+-	case TEST_CRR:
+-		conn->last_ns = get_time_in_ns();
+-		/* fallthrough */
+-	case TEST_RW:
+-		conn->read.budget  = message_size;
+-		conn->write.budget = message_size;
+-		break;
+-	}
+-
+-	return conn;
+-}
+-
+-static void bootstrap_test(struct test_thread *thread)
+-{
+-	int sid;
+-
+-	while (thread->nr_conn < ctx.nr_conn_per_thread) {
+-		sid = tpa_connect_to(ctx.server, ctx.port, NULL);
+-		if (sid < 0)
+-			break;
+-
+-		create_client_conn(thread, sid);
+-	}
+-}
+-
+-static void *client_test_loop(void *arg)
+-{
+-	struct test_thread *thread = arg;
+-	struct tpa_worker *worker;
+-
+-	worker = tpa_worker_init();
+-	if (!worker) {
+-		fprintf(stderr, "failed to init worker: %s\n", strerror(errno));
+-		return NULL;
+-	}
+-	thread->worker = worker;
+-
+-	while (1) {
+-		bootstrap_test(thread);
+-
+-		tpa_worker_run(thread->worker);
+-
+-		if (poll_and_process(thread) < 0)
+-			break;
+-	}
+-
+-	return NULL;
+-}
+-
+-int tperf_client(void)
+-{
+-	spawn_test_threads(client_test_loop);
+-	show_stats();
+-
+-	return 0;
+-}
++/*
++ * SPDX-License-Identifier: BSD-3-Clause
++ * Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
++ * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
++ */
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <errno.h>
++#include <unistd.h>
++#include <arpa/inet.h>
++#include <netdb.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <netinet/tcp.h>
++#include <fcntl.h>
++
++#include "tperf.h"
++
++static struct connection *create_client_conn(struct test_thread *thread, int sid)
++{
++	struct connection *conn;
++	int message_size = ctx.message_size;
++
++	conn = conn_create(thread, sid);
++
++	conn->is_client = 1;
++	conn->test = ctx.test;
++	conn->integrity_enabled = ctx.integrity_enabled;
++	conn->integrity_off = get_time_in_ns();
++	conn->enable_zwrite = ctx.enable_zwrite;
++	conn->message_size = message_size;
++
++	switch (conn->test) {
++	case TEST_READ:
++		conn->read.budget  = message_size;
++		conn->write.budget = 0;
++		break;
++
++	case TEST_WRITE:
++		conn->read.budget  = 0;
++		conn->write.budget = message_size;
++		break;
++
++	case TEST_RR:
++	case TEST_CRR:
++		conn->last_ns = get_time_in_ns();
++		/* fallthrough */
++	case TEST_RW:
++		conn->read.budget  = message_size;
++		conn->write.budget = message_size;
++		break;
++	}
++
++	return conn;
++}
++
++// 设置 socket 为非阻塞模式
++static void set_nonblocking(int fd) {
++    int flags = fcntl(fd, F_GETFL, 0);
++    if (flags == -1) {
++        perror("fcntl get");
++        return;
++    }
++    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
++        perror("fcntl set");
++    }
++}
++
++
++int connect_to(const char *server, uint16_t port, int thread_id)
++{
++    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
++    if (sockfd == -1) {
++        perror("socket failed");
++        return -1;
++    }
++#ifndef KNET
++    int opt = 1;
++    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
++#endif
++    if (ctx.cliports_count > 0) {
++        struct sockaddr_in src;
++        memset(&src, 0, sizeof(src));
++        src.sin_family = AF_INET;
++        // src.sin_addr.s_addr = INADDR_ANY;
++        inet_pton(AF_INET, ctx.local, &src.sin_addr); // 客户端可以使用-l指定ip
++        src.sin_port = htons(ctx.client_ports[thread_id]);
++ 
++        if (bind(sockfd, (struct sockaddr *)&src, sizeof(src)) < 0) {
++            perror("bind failed");
++            close(sockfd);
++            return -1;
++        }
++    }
++ 
++    struct sockaddr_in addr;
++    memset(&addr, 0, sizeof(addr));
++    addr.sin_family = AF_INET;
++    addr.sin_port = htons(port  + (thread_id % ctx.nr_thread_server));
++
++    if (inet_pton(AF_INET, server, &addr.sin_addr) <= 0) {
++        perror("inet_pton failed");
++        close(sockfd);
++        return -1;
++    }
++
++    // 非阻塞设置
++    set_nonblocking(sockfd);
++
++    int ret = connect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
++    if (ret == 0 || (ret == -1 && errno == EINPROGRESS)) {
++        // 将整数转换为字符串
++        char str[50];
++        sprintf(str, "%d", ctx.client_ports[thread_id]);
++        printf("Connection in progress...server port %d, sockfd %d, cli_port %s\n",
++            (port  + (thread_id % ctx.nr_thread_server)), sockfd, ctx.cliports_count > 0 ? str : "random");
++        return sockfd;
++    }
++ 
++    close(sockfd);
++    return -1;
++}
++
++static int bootstrap_test(struct test_thread *thread)
++{
++	int sid;
++ 
++	while (thread->nr_conn < ctx.nr_conn_per_thread) {
++		// sid = tpa_connect_to(ctx.server, ctx.port, NULL);
++		sid = connect_to(ctx.server, ctx.port, thread->id); // 客户端创建的sockfd
++ 
++		if (sid < 0)
++			return -1;
++        int err = 0;
++        socklen_t len = sizeof(err);
++        getsockopt(sid, SOL_SOCKET, SO_ERROR, &err, &len);
++        if (err == 0) {
++            // 连接成功，可以切换到监听读写事件了
++            printf("Connection established with sockfd %d\n", sid);
++        } else {
++            // 连接失败，关闭 fd
++            printf("Connection failed with sockfd %d, err %d\n", sid, err);
++            close(sid);
++            return -1;
++        }
++ 
++        if (ctx.test ==  TEST_RR) { // 时延模式下，禁用nagle算法，防止出现delay ack超时
++            int flag = 1;
++            int ret = setsockopt(sid, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
++            if (ret != 0) {
++                printf("setsockopt TCP_NODELAY failed with sockfd %d, errno %d\n", sid, errno);
++                close(sid);
++                return -1;
++            }
++        }
++ 
++		create_client_conn(thread, sid);
++	}
++    return 0;
++}
++
++
++static void *client_test_loop(void *arg)
++{
++    struct test_thread *thread = arg;
++#if defined(KNETCO) || defined(KNETCOZCOPY)
++    int ret = knet_worker_init();
++    if (ret < 0) {
++        printf("knet_worker_init failed in client\n");
++        pthread_exit(NULL);
++    }
++    ret = knet_is_worker_thread();
++    char thread_name[16];  // 确保足够长以容纳名称和 ID
++    if(ret < 0) {
++        snprintf(thread_name, sizeof(thread_name), "tperf_os%d", thread->id);
++        pthread_setname_np(pthread_self(), thread_name);
++        printf("[Client] Thread [%ld]: in kernel thread\n", pthread_self());
++    } else {
++ 
++        // 格式化线程名称，将 ID 添加到名称中
++        snprintf(thread_name, sizeof(thread_name), "tperf_knet%d", thread->id);
++        pthread_setname_np(pthread_self(), thread_name);
++        printf("[Client] Thread [%ld]: in knet user space thread\n", pthread_self());
++    }
++#endif
++ 
++    int epollfd = epoll_create(1);
++    if (epollfd < 0) {
++        perror("epoll_create failed");
++        return NULL;
++    }
++    thread->epollfd = epollfd;
++	while (ctx.duration) {
++		if (bootstrap_test(thread) < 0) break;
++ 
++#if defined(KNETCO) || defined(KNETCOZCOPY)
++    knet_worker_run();
++#endif
++
++		if (poll_and_process(thread) < 0)
++			break;
++	}
++
++	return NULL;
++}
++
++int tperf_client(void)
++{
++	spawn_test_threads(client_test_loop);
++	show_stats();
++    thread_join();
++	return 0;
++}
+diff -ruN tperf/conn.c tperf_knet/conn.c
+--- tperf/conn.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/conn.c	2025-10-22 14:46:22.336000000 +0800
+@@ -10,19 +10,34 @@
+ struct connection *conn_create(struct test_thread *thread, int sid)
+ {
+ 	struct connection *conn = zmalloc_assert(sizeof(struct connection));
+-	struct tpa_event event;
+-
+-	event.events = TPA_EVENT_IN | TPA_EVENT_OUT;
+-	event.data = conn;
+-	tpa_event_ctrl(sid, TPA_EVENT_CTRL_ADD, &event);
+-
++	struct epoll_event event;
++ 
++    // 内核中很难将缓冲区写满触发out事件，因此采用水平触发;KNET采用边缘触发
++	event.events = EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
++#ifdef KNET
++    event.events |= EPOLLET;
++#endif
++	event.data.ptr = conn;
++ 
++    epoll_ctl(thread->epollfd, EPOLL_CTL_ADD, sid, &event);
++ 
+ 	conn->sid = sid;
+ 	conn->thread = thread;
+-
++#if !defined(KNET) || defined(KNETCO)
++    // 如果是内核或者仅共线程：使用内核write接口需要申请空间
++    for (int i = 0; i < BATCH_SIZE; i++) {
++        conn->iov_read[i].iov_base = zmalloc_assert(4096);  // 每个iov_base指向固定的缓冲区
++        conn->iov_read[i].iov_len = 4096;
++    }
++#endif
+ 	TAILQ_INSERT_TAIL(&thread->conn_list, conn, thread_node);
+ 	thread->sid_mappings[sid] = conn;
+ 	thread->nr_conn += 1;
+ 	thread->stats->nr_conn_total += 1;
++    struct connection *ret;
++#ifdef KNETZCOPY
++    return conn_get_onlyzcopy(conn);
++#endif
+ 
+ 	return conn_get(conn);
+ }
+@@ -38,8 +53,10 @@
+ 	thread->sid_mappings[conn->sid] = NULL;
+ 	thread->nr_conn -= 1;
+ 
+-	tpa_event_ctrl(conn->sid, TPA_EVENT_CTRL_DEL, NULL);
+-	tpa_close(conn->sid);
++	// tpa_event_ctrl(conn->sid, TPA_EVENT_CTRL_DEL, NULL);
++	// tpa_close(conn->sid);
++    epoll_ctl(thread->epollfd, EPOLL_CTL_DEL, conn->sid, NULL);
++    close(conn->sid);
+ 
+ 	conn_put(conn);
+ }
+diff -ruN tperf/event.c tperf_knet/event.c
+--- tperf/event.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/event.c	2025-10-22 14:46:22.336000000 +0800
+@@ -15,13 +15,13 @@
+ 	events = conn->events;
+ 	conn->events = 0;
+ 
+-	if (events & (TPA_EVENT_IN | TPA_EVENT_ERR | TPA_EVENT_HUP))
++	if (events & (EPOLLIN | EPOLLERR | EPOLLHUP))
+ 		ret = conn_on_read(conn);
+ 
+-	if (ret >= 0 && (events & (TPA_EVENT_OUT | TPA_EVENT_ERR | TPA_EVENT_HUP)))
++	if (ret >= 0 && (events & (EPOLLOUT | EPOLLERR | EPOLLHUP)))
+ 		ret = conn_on_write(conn);
+ 
+-	if (ret < 0 || (events & (TPA_EVENT_ERR | TPA_EVENT_HUP)) || conn->to_close)
++	if (ret < 0 || (events & (EPOLLERR | EPOLLHUP)) || conn->to_close)
+ 		conn_close(conn);
+ }
+ 
+@@ -33,25 +33,30 @@
+ 	/* to avoid dead loop */
+ 	while (nr_event--) {
+ 		conn = event_queue_pop(thread);
+-
++#ifndef KNET
++    conn_get(conn);
++#endif
+ 		process_conn(conn);
++#ifndef KNET
++    conn_put(conn);
++#endif
+ 	}
+ }
+ 
+ int poll_and_process(struct test_thread *thread)
+ {
+-	struct tpa_event events[BATCH_SIZE];
++	struct epoll_event events[BATCH_SIZE];
+ 	int nr_event;
+ 	int i;
+ 
+-	nr_event = tpa_event_poll(thread->worker, events, BATCH_SIZE);
++	nr_event = epoll_wait(thread->epollfd, events, BATCH_SIZE, 0); // 非阻塞模式
+ 	if (nr_event < 0) {
+ 		fprintf(stderr, "err_epoll_wait: %s\n", strerror(errno));
+ 		return -1;
+ 	}
+ 
+ 	for (i = 0; i < nr_event; i++)
+-		event_queue_add(events[i].data, events[i].events);
++		event_queue_add(events[i].data.ptr, events[i].events);
+ 
+ 	process_event_queue(thread);
+ 
+diff -ruN tperf/include/conn.h tperf_knet/include/conn.h
+--- tperf/include/conn.h	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/include/conn.h	2025-10-22 14:46:22.336000000 +0800
+@@ -13,6 +13,7 @@
+ #define DEFAULT_MESSAGE_SIZE		1000
+ #define DEFAULT_DURATION		10
+ #define DEFAULT_NR_THREAD		1
++#define BATCH_SIZE			64
+ 
+ struct test_info {
+ 	uint32_t test;
+@@ -84,7 +85,9 @@
+ 		struct test_info info;
+ 		char info_raw[sizeof(struct test_info)];
+ 	};
+-
++#if !defined(KNET) || defined(KNETCO)
++    struct iovec iov_read[BATCH_SIZE];
++#endif
+ 	TAILQ_ENTRY(connection) thread_node;
+ };
+ 
+@@ -112,4 +115,23 @@
+ int conn_on_read(struct connection *conn);
+ int conn_on_write(struct connection *conn);
+ 
++#ifdef KNETZCOPY
++static inline struct connection *conn_get_onlyzcopy(struct connection *conn)
++{
++    // K-NET仅零拷贝+非共线程下需要原子操作
++    __sync_fetch_and_add_4(&conn->refcnt, 1);
++    return conn;
++}
++ 
++static inline void conn_put_onlyzcopy(struct connection *conn)
++{
++	assert(conn->refcnt >= 1);
++    // K-NET仅零拷贝+非共线程下需要原子操作
++    __sync_fetch_and_sub_4(&conn->refcnt, 1);
++ 
++	if (conn->refcnt == 0)
++		free(conn);
++}
++#endif
++
+ #endif
+diff -ruN tperf/include/mbuf.h tperf_knet/include/mbuf.h
+--- tperf/include/mbuf.h	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/include/mbuf.h	2025-10-22 14:46:22.336000000 +0800
+@@ -7,7 +7,8 @@
+ #define _MBUF_H_
+ 
+ #define MBUF_SIZE		(4096)
+-#define MBUF_POOL_SIZE		(512 << 20)
++// tpa原始为512<<20，对于大并发下存在性能下降问题，将其调大为<<21即可
++#define MBUF_POOL_SIZE		(512 << 21)
+ 
+ 
+ /* note that it's not thread safe */
+@@ -18,12 +19,18 @@
+ 	void *data;
+ 
+ 	void *private;
++#if defined(KNETZCOPY)
++    int index; // 仅零拷贝使用
++#endif
+ };
+ 
+ /* a stack-based allocator */
+ struct mbuf_pool {
+ 	uint32_t nr_mbuf;
+ 	uint32_t off;
++#if defined(KNETZCOPY)
++    uint32_t offindex; // 仅零拷贝使用
++#endif
+ 	uint32_t mbuf_size;
+ 
+ 	struct mbuf *bufs[0];
+@@ -78,4 +85,52 @@
+ struct mbuf_pool *mbuf_pool_create(void);
+ void mbuf_fill(struct connection *conn);
+ 
++#ifdef KNETZCOPY
++static inline struct mbuf *mbuf_alloc_onlyzcopy(struct mbuf_pool *pool)
++{
++	struct mbuf *mbuf;
++ 
++	if (pool->off == 0)
++		return NULL;
++ 
++	int index= -1;
++    int oldindex = pool->offindex;
++    for (int i = 0; i < pool->nr_mbuf; i++) {
++        if (pool->bufs[(oldindex + i) % pool->nr_mbuf]->refcnt == 0) {
++            index =  (oldindex + i) % pool->nr_mbuf;
++            break;
++        }
++    }
++    if (index == -1) {
++        return NULL;
++    }
++ 
++    mbuf = pool->bufs[index];
++    pool->offindex = index;
++	assert(mbuf->refcnt == 0);
++	mbuf->refcnt += 1;
++    __sync_fetch_and_sub_4(&pool->off, 1);
++	return mbuf;
++}
++ 
++static inline void mbuf_free_onlyzcopy(struct mbuf *mbuf)
++{
++	struct mbuf_pool *pool = mbuf->pool;
++ 
++	assert(mbuf->refcnt == 0);
++	assert(pool->off < pool->nr_mbuf);
++    pool->bufs[mbuf->index] = mbuf;
++    __sync_fetch_and_add_4(&pool->off, 1);
++}
++ 
++static inline void mbuf_put_onlyzcopy(struct mbuf *mbuf)
++{
++	assert(mbuf->refcnt > 0);
++ 
++	mbuf->refcnt -= 1;
++	if (mbuf->refcnt == 0) 
++        mbuf_free_onlyzcopy(mbuf); // 仅零拷贝场景下使用
++}
++#endif
++
+ #endif
+diff -ruN tperf/include/oputils.h tperf_knet/include/oputils.h
+--- tperf/include/oputils.h	1970-01-01 08:00:00.000000000 +0800
++++ tperf_knet/include/oputils.h	2025-10-22 14:46:22.336000000 +0800
+@@ -0,0 +1,19 @@
++#ifndef _OP_UTILS_H_
++#define _OP_UTILS_H_
++
++#include <stdlib.h>
++#include <stdint.h>
++#include <string.h>
++#include <assert.h>
++#include <unistd.h>
++#include <linux/limits.h>
++
++enum {
++	NUM_TYPE_NONE,
++	NUM_TYPE_SIZE,
++	NUM_TYPE_TIME,		/* in unit of seconds */
++	NUM_TYPE_TIME_US,	/* in unit of micro-seconds */
++};
++
++uint64_t parse_num(const char *val, int type);
++#endif
+\ No newline at end of file
+diff -ruN tperf/include/tperf.h tperf_knet/include/tperf.h
+--- tperf/include/tperf.h	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/include/tperf.h	2025-10-22 14:46:22.336000000 +0800
+@@ -13,15 +13,28 @@
+ #include <unistd.h>
+ #include <sys/queue.h>
+ 
+-#include <tpa.h>
+-
++// #include <tpa.h>
++#include <sys/epoll.h>
++#include <stdio.h>
++#include <string.h>
++#include <sys/types.h>
++#include <sys/socket.h>
++#include <netinet/in.h>
++#include <arpa/inet.h>
++#include <sys/uio.h>
++#include <pthread.h>
+ #include "conn.h"
+ #include "mbuf.h"
++#include "oputils.h"
++
++#ifdef KNET
++#include "knet_socket_api.h"
++#endif
+ 
+ #define MIN(a, b)		((a) < (b) ? (a) : (b))
+ 
+ #define TPERF_PORT			4096
+-#define BATCH_SIZE			64
++#define MAX_PORTS 32
+ 
+ enum {
+ 	TEST_READ,
+@@ -41,7 +54,8 @@
+ 
+ struct test_thread {
+ 	int id;
+-	struct tpa_worker *worker;
++	// struct tpa_worker *worker;
++    int epollfd;
+ 
+ 	struct thread_stats *stats;
+ 
+@@ -64,12 +78,15 @@
+ 	int duration;
+ 	int message_size;
+ 	int nr_thread;
++    int nr_thread_server;
+ 	int nr_conn_per_thread;
+ 	int start_cpu;
+ 	int integrity_enabled;
+ 	int enable_tso;
+ 	int enable_zwrite;
+ 	int port;
++    int client_ports[MAX_PORTS]; // 客户端的port
++    int cliports_count;
+ 	int quiet;
+ 
+ 	struct test_thread *threads;
+@@ -135,5 +152,6 @@
+ /* utils.c */
+ void *zmalloc_assert(int size);
+ int spawn_test_threads(void *(*func)(void *));
++void thread_join(void);
+ 
+ #endif
+diff -ruN tperf/Makefile tperf_knet/Makefile
+--- tperf/Makefile	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/Makefile	2025-10-22 14:46:22.336000000 +0800
+@@ -1,19 +1,117 @@
+-# SPDX-License-Identifier: BSD-3-Clause
+-# Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
+-# Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
+-
+-SRCS := tperf.c
+-SRCS += client.c
+-SRCS += server.c
+-SRCS += test.c
+-SRCS += conn.c
+-SRCS += integrity.c
+-SRCS += options.c
+-SRCS += utils.c
+-SRCS += mbuf.c
+-SRCS += event.c
+-SRCS += stats.c
++# 设置编译器
++CC := gcc
+ 
+-APP  := tperf
++# 源文件列表
++SRCS := tperf.c client.c server.c test.c conn.c integrity.c options.c oputils.c utils.c mbuf.c event.c stats.c
+ 
+-include ../app.mk
++# 目标可执行文件
++APP_OS  = tperf_os
++APP_KNETCO  = tperf_knetco
++APP_KNETZCOPY  = tperf_knetzcopy
++APP_KNETCOZCOPY  = tperf_knetcozcopy
++
++# 通用参数
++CFLAGS_COMMON  = -Wall -Wextra -O2
++LDFLAGS_COMMON = -lm -lpthread
++INCLUDES       = -Iinclude
++
++# # make knet=1编译
++# ifeq ($(knet),1)
++#         INCLUDES := $(INCLUDES) -I/usr/include/knet
++#         LDFLAGS := -lknet_frame $(LDFLAGS)
++#         APP = tperf_knet
++#         CFLAGS += -DKNET
++# endif
++
++# OS 版本参数
++CFLAGS_OS   = $(CFLAGS_COMMON) $(INCLUDES)
++LDFLAGS_OS  = $(LDFLAGS_COMMON)
++
++# KNET共线程、零拷贝、共线程+零拷贝 版本参数
++CFLAGS_KNETCO   = $(CFLAGS_COMMON) -DKNET -DKNETCO $(INCLUDES) -I/usr/include/knet
++CFLAGS_KNETZCOPY   = $(CFLAGS_COMMON) -DKNET -DKNETZCOPY $(INCLUDES) -I/usr/include/knet
++CFLAGS_KNETCOZCOPY   = $(CFLAGS_COMMON) -DKNET -DKNETCOZCOPY $(INCLUDES) -I/usr/include/knet
++
++LDFLAGS_KNET  = -lknet_frame $(LDFLAGS_COMMON)
++
++# 生成的对象文件
++BUILD_DIR := build
++OBJ_DIR := $(BUILD_DIR)/obj
++OBJ_OS := $(OBJ_DIR)/os
++OBJ_KNETCO := $(OBJ_DIR)/knetco
++OBJ_KNETZCOPY := $(OBJ_DIR)/knetzcopy
++OBJ_KNETCOZCOPY := $(OBJ_DIR)/knetcozcopy
++BIN_DIR := $(BUILD_DIR)/bin
++OUT_DIRS := $(OBJ_OS) $(OBJ_KNETCO) $(OBJ_KNETZCOPY) $(OBJ_KNETCOZCOPY) $(BIN_DIR)
++
++# 对象文件和依赖文件路径
++OBJS_0S := $(SRCS:%.c=$(OBJ_OS)/%.o)
++OBJS_KNETCO := $(SRCS:%.c=$(OBJ_KNETCO)/%.o)
++OBJS_KNETZCOPY := $(SRCS:%.c=$(OBJ_KNETZCOPY)/%.o)
++OBJS_KNETCOZCOPY := $(SRCS:%.c=$(OBJ_KNETCOZCOPY)/%.o)
++# DEPS := $(SRCS:%.c=$(OBJ_DIR)/%.d)
++
++# 可执行文件路径
++BIN_OS := $(BIN_DIR)/$(APP_OS)
++BIN_KNETCO := $(BIN_DIR)/$(APP_KNETCO)
++BIN_KNETZCOPY := $(BIN_DIR)/$(APP_KNETZCOPY)
++BIN_KNETCOZCOPY := $(BIN_DIR)/$(APP_KNETCOZCOPY)
++
++# 选择编译模式（默认为 release）
++# 通过 make [knet=1] debug=1 切换到调试模式
++# 编译选项
++# 编译选项（根据模式选择）
++# ifeq ($(debug),1)
++# 	CFLAGS += -Wall -Wextra -Og -g $(INCLUDES)  # `-Og` 适用于调试，保留优化但不影响 GDB
++# else
++# 	CFLAGS += -Wall -Wextra -O2 $(INCLUDES)  # `-O2` 适用于优化
++# endif
++
++# 默认目标：编译并链接生成4个可执行文件
++all: $(BIN_OS) $(BIN_KNETCO) $(BIN_KNETZCOPY) $(BIN_KNETCOZCOPY)
++
++# 生成可执行文件
++$(BIN_OS): $(OBJS_0S) | $(OUT_DIRS)
++	$(Q)echo "  LD $(notdir $@)"
++	$(Q)$(CC) $^ -o $@ $(LDFLAGS_OS)
++
++$(BIN_KNETCO): $(OBJS_KNETCO) | $(OUT_DIRS)
++	$(Q)echo "  LD $(notdir $@)"
++	$(Q)$(CC) $^ -o $@ $(LDFLAGS_KNET)
++
++$(BIN_KNETZCOPY): $(OBJS_KNETZCOPY) | $(OUT_DIRS)
++	$(Q)echo "  LD $(notdir $@)"
++	$(Q)$(CC) $^ -o $@ $(LDFLAGS_KNET)
++
++$(BIN_KNETCOZCOPY): $(OBJS_KNETCOZCOPY) | $(OUT_DIRS)
++	$(Q)echo "  LD $(notdir $@)"
++	$(Q)$(CC) $^ -o $@ $(LDFLAGS_KNET)
++
++# 编译对象文件
++$(OBJ_OS)/%.o: %.c | $(OBJ_OS)
++	$(Q)echo "  CC $(notdir $@) [OS]"
++	$(Q)$(CC) $(CFLAGS_OS) -MMD -MP -c $< -o $@
++
++$(OBJ_KNETCO)/%.o: %.c | $(OBJ_KNETCO)
++	$(Q)echo "  CC $(notdir $@) [knetco]"
++	$(Q)$(CC) $(CFLAGS_KNETCO) -MMD -MP -c $< -o $@
++
++$(OBJ_KNETZCOPY)/%.o: %.c | $(OBJ_KNETZCOPY)
++	$(Q)echo "  CC $(notdir $@) [knetzcopy]"
++	$(Q)$(CC) $(CFLAGS_KNETZCOPY) -MMD -MP -c $< -o $@
++
++$(OBJ_KNETCOZCOPY)/%.o: %.c | $(OBJ_KNETCOZCOPY)
++	$(Q)echo "  CC $(notdir $@) [knetcozcopy]"
++	$(Q)$(CC) $(CFLAGS_KNETCOZCOPY) -MMD -MP -c $< -o $@
++
++# 创建输出目录
++$(OUT_DIRS):
++	$(Q)mkdir -p $(OBJ_OS) $(OBJ_KNETCO) $(OBJ_KNETZCOPY) $(OBJ_KNETCOZCOPY) $(BIN_DIR)
++
++# 清理编译生成的文件
++clean:
++	rm -rf $(BUILD_DIR)
++
++# 生成依赖文件（.d）
++-include $(DEPS)
++.PHONY: all clean
+diff -ruN tperf/mbuf.c tperf_knet/mbuf.c
+--- tperf/mbuf.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/mbuf.c	2025-10-22 14:46:22.336000000 +0800
+@@ -16,27 +16,40 @@
+ 	void *addr;
+ 	int i;
+ 
+-	addr = mmap(NULL, MBUF_POOL_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+-	assert(addr != MAP_FAILED);
+-
+-	nr_mbuf = MBUF_POOL_SIZE / MBUF_SIZE;
+-	pool = zmalloc_assert(sizeof(struct mbuf_pool) + sizeof(void *) * nr_mbuf);
+-	pool->nr_mbuf = nr_mbuf;
+-
+-	mbufs = zmalloc_assert(sizeof(struct mbuf) * nr_mbuf);
+-	for (i = 0; i < nr_mbuf; i++) {
+-		mbufs[i].refcnt = 0;
+-		mbufs[i].pool = pool;
+-		mbufs[i].data = addr + i * MBUF_SIZE;
+-
+-		mbuf_free(&mbufs[i]);
+-	}
+-
+-	if (tpa_extmem_register(addr, MBUF_POOL_SIZE, NULL,
+-				   MBUF_POOL_SIZE / MBUF_SIZE, MBUF_SIZE) != 0) {
+-		fprintf(stderr, "err_tpa_extmem_register: %s", strerror(errno));
+-		exit(1);
+-	}
+-
++    nr_mbuf = MBUF_POOL_SIZE / MBUF_SIZE;
++    pool = zmalloc_assert(sizeof(struct mbuf_pool) + sizeof(void *) * nr_mbuf);
++    pool->nr_mbuf = nr_mbuf;
++ 
++    mbufs = zmalloc_assert(sizeof(struct mbuf) * nr_mbuf);
++#if defined(KNETCOZCOPY)
++    for (i = 0; i < nr_mbuf; i++) {
++        mbufs[i].refcnt = 0;
++        mbufs[i].pool = pool;
++ 
++        mbufs[i].data = knet_mp_alloc(MBUF_SIZE);
++        assert(mbufs[i].data != NULL);
++        mbuf_free(&mbufs[i]);
++    }
++#elif defined(KNETZCOPY)
++    for (i = 0; i < nr_mbuf; i++) {
++        mbufs[i].refcnt = 0;
++        mbufs[i].pool = pool;
++ 
++        mbufs[i].data = knet_mp_alloc(MBUF_SIZE);
++        assert(mbufs[i].data != NULL);
++        mbufs[i].index = i; // 仅零拷贝下设置mbuf index
++        mbuf_free_onlyzcopy(&mbufs[i]);
++    }
++#else
++    // 仅共线程或者内核
++    addr = mmap(NULL, MBUF_POOL_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++    assert(addr != MAP_FAILED);
++    for (i = 0; i < nr_mbuf; i++) {
++        mbufs[i].refcnt = 0;
++        mbufs[i].pool = pool;
++        mbufs[i].data = addr + i * MBUF_SIZE;
++        mbuf_free(&mbufs[i]);
++    }
++#endif
+ 	return pool;
+ }
+diff -ruN tperf/options.c tperf_knet/options.c
+--- tperf/options.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/options.c	2025-10-22 14:46:22.336000000 +0800
+@@ -5,8 +5,6 @@
+  */
+ #include <stdio.h>
+ 
+-#include <utils.h>
+-
+ #include "tperf.h"
+ 
+ void usage(void)
+@@ -23,12 +21,13 @@
+ 			"                    address (default: 127.0.0.1)\n"
+ 			"  -t test           specifies the test mode, which is listed below\n"
+ 			"  -p port           specifies the port to connect to (default: %d)\n"
++            "  -P port1,port2,.. specifies the client port to connect from, one for each thread.\n"
+ 			"  -d duration       specifies the test duration (default: 10s)\n"
+ 			"  -m message_size   specifies the message size (default: %d)\n"
+ 			"  -n nr_thread      specifies the thread count (default: 1)\n"
+ 			"  -i                do integrity verification (default: off)\n"
+ 			"  -C nr_conn        specifies the connection to be created for each thread (default: 1)\n"
+-			"  -W 0|1            disable/enable zero copy write (default: on)\n"
++			"  -W 0|1            disable/enable zero copy write (default: on in K-NET zcopy/cozcopy, off in os and others)\n"
+ 			"  -S start_cpu      specifies the starting cpu to bind\n"
+ 			"\n"
+ 			"Server options:\n"
+@@ -55,13 +54,31 @@
+ }
+ 
+ #define PARSE_NUM(var, optarg, type, name)	do {			\
+-	var = tpa_parse_num(optarg, type);				\
++	var = parse_num(optarg, type);				\
+ 	if (errno) {							\
+ 		fprintf(stderr, "invalid %s: %s\n", name, optarg);	\
+ 		exit(1);						\
+ 	}								\
+ } while (0)
+ 
++// 解析 ports 字符串到数组
++int parse_ports(const char *arg, int ports[], int max_ports) {
++    char *tmp = strdup(arg);   // 拷贝一份，避免破坏原始字符串
++    if (!tmp) return -1;
++ 
++    int count = 0;
++    char *saveptr;
++    char *token = strtok_r(tmp, ",", &saveptr);
++ 
++    while (token != NULL && count < max_ports) {
++        ports[count++] = atoi(token);
++        token = strtok_r(NULL, ",", &saveptr);
++    }
++ 
++    free(tmp);
++    return count;  // 返回端口数量
++}
++
+ int parse_options(int argc, char **argv)
+ {
+ 	int opt;
+@@ -74,14 +91,20 @@
+ 	ctx.test          = -1;
+ 	ctx.port          = TPERF_PORT;
+ 	ctx.nr_thread     = DEFAULT_NR_THREAD;
++    ctx.nr_thread_server = DEFAULT_NR_THREAD;
+ 	ctx.duration      = DEFAULT_DURATION;
+ 	ctx.message_size  = DEFAULT_MESSAGE_SIZE;
+ 	ctx.enable_tso    = 1;
++// 只要有零拷贝就默认开启零拷贝，其他模式不开启零拷贝
++#if defined(KNETZCOPY) || defined(KNETCOZCOPY)
+ 	ctx.enable_zwrite = 1;
++#else
++    ctx.enable_zwrite = 0;
++#endif
+ 	ctx.start_cpu     = -4096;
+ 	ctx.nr_conn_per_thread = 1;
+ 
+-	while ((opt = getopt(argc, argv, "c:C:t:d:l:m:n:p:S:W:isqh")) != -1) {
++	while ((opt = getopt(argc, argv, "c:C:t:d:l:m:n:N:p:P:S:W:isqh")) != -1) {
+ 		switch (opt) {
+ 		case 's':
+ 			ctx.is_client = 0;
+@@ -124,6 +147,10 @@
+ 			PARSE_NUM(ctx.nr_thread, optarg, NUM_TYPE_NONE, "thread count");
+ 			break;
+ 
++        case 'N':
++			PARSE_NUM(ctx.nr_thread_server, optarg, NUM_TYPE_NONE, "server thread count");
++			break;
++
+ 		case 'p':
+ 			PARSE_NUM(ctx.port, optarg, NUM_TYPE_NONE, "port");
+ 			if (ctx.port <= 0 || ctx.port >= 65536) {
+@@ -132,6 +159,10 @@
+ 			}
+ 			break;
+ 
++        case 'P':
++            ctx.cliports_count = parse_ports(optarg, ctx.client_ports, MAX_PORTS);
++			break;
++
+ 		case 'W':
+ 			PARSE_NUM(ctx.enable_zwrite, optarg, NUM_TYPE_NONE, "zwrite enabling");
+ 			break;
+@@ -167,5 +198,10 @@
+ 		usage();
+ 	}
+ 
++    if (ctx.is_client && ctx.cliports_count > 0 && (ctx.cliports_count != ctx.nr_thread)) {
++        fprintf(stderr, "error: the number of ports %d must match the number of threads %d\n\n", ctx.cliports_count, ctx.nr_thread);
++        usage();
++    }
++
+ 	return 0;
+ }
+diff -ruN tperf/oputils.c tperf_knet/oputils.c
+--- tperf/oputils.c	1970-01-01 08:00:00.000000000 +0800
++++ tperf_knet/oputils.c	2025-10-22 14:46:22.336000000 +0800
+@@ -0,0 +1,104 @@
++#include <stdio.h>
++#include <stdarg.h>
++#include <unistd.h>
++#include <sys/stat.h>
++#include <sys/types.h>
++#include <sys/time.h>
++#include <time.h>
++#include <errno.h>
++
++#include "tperf.h"
++
++#define IS_DIGIT(x)			((x) >= '0' && (x) <= '9')
++#define _MATCHES2(x, a, b)              (strcmp((x), (a)) == 0 || strcmp((x), (b)) == 0)
++#define _MATCHES4(x, a, b, c, d)        (_MATCHES2((x), (a), (b)) || _MATCHES2((x), (c), (d)))
++
++static uint64_t get_base(const char *val, int *unit_off)
++{
++	char base[32];
++	int len;
++	int i;
++
++	len = strlen(val);
++	if (len >= sizeof(base)) {
++		errno = EINVAL;
++		return UINT64_MAX;
++	}
++
++	for (i = 0; i < strlen(val); i++) {
++		if (!IS_DIGIT(val[i]))
++			break;
++		base[i] = val[i];
++	}
++
++	base[i] = '\0';
++	*unit_off = i;
++
++	errno = 0;
++	return strtoul(base, NULL, 10);
++}
++
++uint64_t parse_num(const char *val, int type)
++{
++	uint64_t num;
++	char *unit;
++	int off;
++
++	num = get_base(val, &off);
++	if (errno)
++		return UINT64_MAX;
++
++	unit = (char *)(uintptr_t)&val[off];
++	if (strlen(unit) == 0)
++		return num;
++
++	switch (type) {
++	case NUM_TYPE_SIZE:
++		if (_MATCHES4(unit, "G", "g", "GB", "gb"))
++			num *= 1024 * 1024 * 1024ull;
++		else if (_MATCHES4(unit, "M", "m", "MB", "mb"))
++			num *= 1024 * 1024ull;
++		else if (_MATCHES4(unit, "K", "k", "KB", "kb"))
++			num *= 1024ull;
++		else if (_MATCHES2(unit, "B", "b"))
++			;
++		else
++			errno = EINVAL;
++		break;
++
++	case NUM_TYPE_TIME:
++		if (_MATCHES2(unit, "h", "H"))
++			num *= 60 * 60ull;
++		else if (_MATCHES2(unit, "m", "M"))
++			num *= 60ull;
++		else if (_MATCHES2(unit, "s", "S"))
++			;
++		else
++			errno = EINVAL;
++		break;
++
++	case NUM_TYPE_TIME_US:
++		if (_MATCHES2(unit, "h", "H"))
++			num *= 60 * 60 * 1000 * 1000ull;
++		else if (_MATCHES2(unit, "m", "M"))
++			num *= 60 * 1000 * 1000ull;
++		else if (_MATCHES2(unit, "s", "S"))
++			num *= 1000 * 1000ull;
++		else if (_MATCHES2(unit, "ms", "MS"))
++			num *= 1000ull;
++		else if (_MATCHES2(unit, "us", "US"))
++			;
++		else
++			errno = EINVAL;
++		break;
++
++	default:
++		errno = EINVAL;
++		break;
++	}
++
++	if (errno)
++		return UINT64_MAX;
++
++	return num;
++}
+diff -ruN tperf/server.c tperf_knet/server.c
+--- tperf/server.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/server.c	2025-10-22 14:46:22.336000000 +0800
+@@ -4,9 +4,13 @@
+  * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
+  */
+ #include <stdio.h>
+-
++#include <fcntl.h>
++#include <netinet/tcp.h>
++#include <signal.h>
+ #include "tperf.h"
+-
++#define MAX_EVENTS 10
++ 
++__thread  int g_listenfd = 0;//服务端的监听socket
+ void init_server_conn(struct connection *conn)
+ {
+ 	int message_size = conn->info.message_size;
+@@ -16,12 +20,12 @@
+ 	conn->integrity_off = conn->info.integrity_off;;
+ 	conn->enable_zwrite = conn->info.enable_zwrite;
+ 	conn->message_size = message_size;
+-
++    int tcpNoDelayFlag = 1;
+ 	switch (conn->test) {
+ 	case TEST_READ:
+ 		conn->read.budget  = 0;
+ 		conn->write.budget = message_size;
+-		event_queue_add(conn, TPA_EVENT_OUT);
++		event_queue_add(conn, EPOLLOUT);
+ 		break;
+ 
+ 	case TEST_WRITE:
+@@ -30,12 +34,17 @@
+ 		break;
+ 
+ 	case TEST_RW:
+-		event_queue_add(conn, TPA_EVENT_OUT);
++		event_queue_add(conn, EPOLLOUT);
+ 		conn->write.budget = message_size;
+ 		conn->read.budget  = message_size;
+ 		break;
+ 
+ 	case TEST_RR:
++        /* 时延模式下，禁用nagle算法，防止出现delay ack超时 */
++        if (setsockopt(conn->sid, IPPROTO_TCP, TCP_NODELAY, &tcpNoDelayFlag, sizeof(tcpNoDelayFlag)) != 0) {
++            printf("setsockopt TCP_NODELAY failed with sockfd %d, errno %d\n", conn->sid, errno);
++        }
++
+ 	case TEST_CRR:
+ 		conn->read.budget  = message_size;
+ 		conn->write.budget = 0; /* write only after we got the req */
+@@ -43,55 +52,162 @@
+ 	}
+ }
+ 
+-static void start_server(void)
++int posix_listen_on(const char *local, uint16_t port, int backlog) {
++    int sockfd;
++    struct sockaddr_in addr;
++    int opt = 1;
++ 
++    if (port == 0) {
++        errno = EINVAL;
++        return -1;
++    }
++ 
++    sockfd = socket(AF_INET, SOCK_STREAM, 0);
++    if (sockfd < 0) {
++        perror("socket creation failed");
++        return -1;
++    }
++ 
++    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
++ 
++    memset(&addr, 0, sizeof(addr));
++    addr.sin_family = AF_INET;
++    addr.sin_port = htons(port);
++ 
++    if (inet_pton(AF_INET, local, &addr.sin_addr) <= 0) {
++        perror("invalid IP address");
++        close(sockfd);
++        return -1;
++    }
++ 
++    if (bind(sockfd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
++        perror("bind failed");
++        close(sockfd);
++        return -1;
++    }
++ 
++    if (listen(sockfd, backlog) < 0) {
++        perror("listen failed");
++        close(sockfd);
++        return -1;
++    }
++ 
++    printf("Listening on %s:%d\n", local, port);
++    return sockfd;
++}
++// 设置 socket 为非阻塞模式
++static void set_nonblocking(int fd) {
++    int flags = fcntl(fd, F_GETFL, 0);
++    if (flags == -1) {
++        perror("fcntl get");
++        return;
++    }
++    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
++        perror("fcntl set");
++    }
++}
++ 
++static void start_server(int *listen_fd, int thread_id)
+ {
+-	struct tpa_sock_opts opts;
+ 	int sid;
+-
+-	memset(&opts, 0, sizeof(opts));
+-	opts.listen_scaling = 1;
+-
+-	sid = tpa_listen_on(ctx.local, ctx.port, &opts);
+-	if (sid < 0) {
+-		fprintf(stderr, "failed to listen on port %hu\n", ctx.port);
+-		exit(1);
+-	}
++ 
++ 
++ 
++    int backlog = 4096;
++	*listen_fd = posix_listen_on(ctx.local, (ctx.port + thread_id), backlog);
++    set_nonblocking(*listen_fd);
+ }
+-
+-static void accept_socks(struct test_thread *thread)
++int posix_accept_burst(int listen_fd, int *sid, int nr_sid)
+ {
+-	int sid[BATCH_SIZE];
+-	int nr_sock;
+-	int i;
+-
+-	nr_sock = tpa_accept_burst(thread->worker, sid, BATCH_SIZE);
+-	for (i = 0; i < nr_sock; i++)
+-		conn_create(thread, sid[i]);
++    int nr_valid_sock = 0;
++    struct sockaddr_in cli_addr;
++    socklen_t cli_len = sizeof(cli_addr);
++    while (nr_valid_sock < nr_sid) {
++        int client_fd = accept(listen_fd, (struct sockaddr*)&cli_addr, &cli_len);
++        if (client_fd < 0) {
++            if (errno == EWOULDBLOCK || errno == EAGAIN) {
++                break;  // 非阻塞模式下，没有新连接时返回
++            }
++            perror("accept failed");
++            return nr_valid_sock > 0 ? nr_valid_sock : -1;
++        }
++        printf("Accepted connection: fd = %d, cli_addr=%s, cli_port=%d\n", client_fd, inet_ntoa(cli_addr.sin_addr), ntohs(cli_addr.sin_port));
++        set_nonblocking(client_fd);
++        sid[nr_valid_sock++] = client_fd;
++    }
++ 
++    return nr_valid_sock;
++}
++ 
++static void accept_socks(struct test_thread *thread, int listen_fd, int epoll_listenfd)
++{
++	struct epoll_event events[MAX_EVENTS];
++    int wait_count = epoll_wait(epoll_listenfd, events, MAX_EVENTS, 0);
++    for (int i = 0; i < wait_count; ++i) {
++        uint32_t event = events[i].events;
++        if (event & EPOLLIN) {
++            /* 判断是否为服务器套接字，是则表示为客户请求连接 */
++            if (events[i].data.fd == listen_fd) {
++                int sid[BATCH_SIZE];
++                int nr_sock;
++                int j;
++ 
++                nr_sock = posix_accept_burst(listen_fd, sid, BATCH_SIZE);
++                if (nr_sock > 0)
++                    printf("nr_sock :%d\n", nr_sock);
++                for (j = 0; j < nr_sock; j++)
++                    conn_create(thread, sid[j]);
++            }
++        }
++    }
+ }
+ 
+ static void *server_thread_loop(void *arg)
+ {
+-	struct test_thread *thread = arg;
+-	struct tpa_worker *worker;
+-
+-	worker = tpa_worker_init();
+-	if (!worker) {
+-		fprintf(stderr, "failed to init worker: %s\n", strerror(errno));
+-		return NULL;
+-	}
+-	thread->worker = worker;
+-
+-	if (thread->id == 0)
+-		start_server();
+-
++#if defined(KNETCO) || defined(KNETCOZCOPY)
++    int ret = knet_worker_init();
++    if (ret < 0) {
++        printf("knet_worker_init failed in server\n");
++        pthread_exit(NULL);
++    }
++    ret = knet_is_worker_thread();
++    if(ret < 0) {
++        printf("[Server] Thread [%ld]: in kernel thread\n", pthread_self());
++    } else {
++        printf("[Server] Thread [%ld]: in knet user space thread\n", pthread_self());
++    }
++#endif
++ 
++    struct test_thread *thread = arg;
++    int epollfd = epoll_create(1);
++    if (epollfd < 0) {
++        perror("epoll_create failed");
++        return NULL;
++    }
++    thread->epollfd = epollfd;
++ 
++    int epoll_listenfd = epoll_create(1);
++    if (epoll_listenfd < 0) {
++        perror("epoll_create failed");
++        return NULL;
++    }
++    start_server(&g_listenfd, thread->id);
++    struct epoll_event event;
++    event.data.fd = g_listenfd;
++    event.events = EPOLLIN | EPOLLET;
++    epoll_ctl(epoll_listenfd, EPOLL_CTL_ADD, g_listenfd, &event);
++ 
+ 	while (1) {
+-		tpa_worker_run(thread->worker);
+-
+-		accept_socks(thread);
+-
+-		poll_and_process(thread);
++#if defined(KNETCO) || defined(KNETCOZCOPY)
++        knet_worker_run();
++#endif
++		accept_socks(thread, g_listenfd, epoll_listenfd);
++ 
++        if (poll_and_process(thread) < 0) {
++            break;
++        }
+ 	}
+-
++ 
+ 	return NULL;
+ }
+ 
+diff -ruN tperf/test.c tperf_knet/test.c
+--- tperf/test.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/test.c	2025-10-22 14:46:22.336000000 +0800
+@@ -7,7 +7,8 @@
+ 
+ #include "tperf.h"
+ 
+-static int read_test_info(struct connection *conn, struct tpa_iovec *iov, int size)
++#ifdef KNET
++static int read_test_info_knet(struct connection *conn, struct knet_iovec *iov, int size)
+ {
+ 	uint32_t off = conn->info_off;
+ 	int bytes_eaten = 0;
+@@ -37,36 +38,114 @@
+ 	return bytes_eaten;
+ }
+ 
+-static void read_test_data(struct connection *conn, struct tpa_iovec *iov,
++static void read_test_data_knet(struct connection *conn, struct knet_iovec *iov, int bytes_read, int bytes_eaten)
++{
++	char *base;
++	int len;
++	int sum = 0;
++	int i = 0;
++    int beginLen = 0;
++ 
++	while (sum < bytes_read) {
++		base = iov[i].iov_base;
++		// 计算当前iov实际数据长度
++        if (bytes_read - sum < iov[i].iov_len) {
++            beginLen = bytes_read - sum;
++        } else {
++            beginLen = iov[i].iov_len;
++        }
++        len = beginLen;
++
++		if(sum < bytes_eaten) {
++            /* is this iov completely consumed? */
++            if (sum + len < bytes_eaten)
++                goto next;
++            
++            base = iov[i].iov_base + bytes_eaten - sum;
++            len -= bytes_eaten - sum;
++         }
++        if (conn->integrity_enabled)
++            integrity_verify(base, len, conn->integrity_off + conn->stats.bytes_read);
++        
++        UPDATE_STATS(conn, bytes_read, len);
++
++	next:
++
++		sum += beginLen;
++		iov[i].free_cb(iov[i].iov_base, iov[i].opaque);
++		i += 1;
++	}
++ 
++	conn->read.off += bytes_read - bytes_eaten;
++}
++#endif
++ 
++static int read_test_info(struct connection *conn, struct iovec *iov, int size)
++{
++	uint32_t off = conn->info_off;
++	int bytes_eaten = 0;
++	int idx = 0;
++	int len;
++
++	/* if already parsed? */
++	if (off == sizeof(struct test_info))
++		return 0;
++
++	while (off < sizeof(struct test_info)) {
++		len = MIN(iov[idx].iov_len, sizeof(struct test_info) - off);
++		memcpy(&conn->info_raw[off], iov[idx].iov_base, len);
++
++		off += len;
++		bytes_eaten += len;
++
++		size -= len;
++		if (size == 0)
++			break;
++	}
++
++	conn->info_off = off;
++	if (off == sizeof(struct test_info))
++		init_server_conn(conn);
++
++	return bytes_eaten;
++}
++
++static void read_test_data(struct connection *conn, struct iovec *iov,
+ 			   int bytes_read, int bytes_eaten)
+ {
+ 	char *base;
+ 	int len;
+ 	int sum = 0;
+ 	int i = 0;
++    int beginLen = 0;
+ 
+ 	while (sum < bytes_read) {
+ 		base = iov[i].iov_base;
+-		len  = iov[i].iov_len;
++
++        // 计算当前iov实际数据长度
++        if (bytes_read - sum < iov[i].iov_len) {
++            beginLen = bytes_read - sum;
++        } else {
++            beginLen = iov[i].iov_len;
++        }
++        len = beginLen;
+ 
+ 		if (sum < bytes_eaten) {
+ 			/* is this iov completely consumed? */
+ 			if (sum + len < bytes_eaten)
+ 				goto next;
+-
++ 
+ 			base = iov[i].iov_base + bytes_eaten - sum;
+ 			len -= bytes_eaten - sum;
+ 		}
+ 
+ 		if (conn->integrity_enabled)
+ 			integrity_verify(base, len, conn->integrity_off + conn->stats.bytes_read);
+-
++ 
+ 		UPDATE_STATS(conn, bytes_read, len);
+ 
+ 	next:
+-		iov[i].iov_read_done(iov[i].iov_base, iov[i].iov_param);
+-
+-		sum += iov[i].iov_len;
++		sum += beginLen;
+ 		i += 1;
+ 	}
+ 
+@@ -93,7 +172,7 @@
+ 	 */
+ 	if (!conn->is_client || conn->test == TEST_RR) {
+ 		conn->write.budget = conn->message_size;
+-		event_queue_add(conn, TPA_EVENT_OUT);
++		event_queue_add(conn, EPOLLOUT);
+ 	}
+ 
+ 	conn->read.off = 0;
+@@ -114,28 +193,51 @@
+ 
+ int conn_on_read(struct connection *conn)
+ {
+-	struct tpa_iovec iov[BATCH_SIZE];
++#if defined(KNETZCOPY) || defined(KNETCOZCOPY)
++    struct knet_iovec iov[BATCH_SIZE] = {0};
++#endif
++ 
+ 	int bytes_read;
+ 	int bytes_eaten;
+-
++ 
+ 	while (1) {
+-		bytes_read = tpa_zreadv(conn->sid, iov, BATCH_SIZE);
+-		if (bytes_read < 0) {
+-			if (errno == EAGAIN)
+-				break;
+-
+-			return -1;
+-		}
+-
+-		if (bytes_read == 0)
+-			return -1;
+-
+-		bytes_eaten = read_test_info(conn, iov, bytes_read);
+-		read_test_data(conn, iov, bytes_read, bytes_eaten);
+-
++#if defined(KNETZCOPY) || defined(KNETCOZCOPY)
++        bytes_read = knet_zreadv(conn->sid, iov, BATCH_SIZE);
++        if (bytes_read < 0) {
++            if (errno == EAGAIN || errno == EWOULDBLOCK){
++                break;
++            }
++            perror("err_readv");
++ 
++            return -1;
++        }
++ 
++        if (bytes_read == 0) {
++            return -1;
++        }
++        bytes_eaten = read_test_info_knet(conn, iov, bytes_read);
++        read_test_data_knet(conn, iov, bytes_read, bytes_eaten);
++#else
++        bytes_read = readv(conn->sid, conn->iov_read, BATCH_SIZE);
++        if (bytes_read < 0) {
++            if (errno == EAGAIN || errno == EWOULDBLOCK){
++                break;
++            }
++            perror("err_readv");
++ 
++            return -1;
++        }
++ 
++        if (bytes_read == 0) {
++            return -1;
++        }
++        bytes_eaten = read_test_info(conn, conn->iov_read, bytes_read);
++        read_test_data(conn, conn->iov_read, bytes_read, bytes_eaten);
++#endif
++ 
+ 		on_read_done(conn);
+-	}
+-
++    }
++ 
+ 	return 0;
+ }
+ 
+@@ -153,7 +255,7 @@
+ 	info->enable_zwrite = conn->enable_zwrite;
+ 	info->message_size = conn->message_size;
+ 
+-	ret = tpa_write(conn->sid, info, sizeof(*info));
++	ret = write(conn->sid, info, sizeof(*info));
+ 	if (ret != sizeof(*info)) {
+ 		if (ret == -1 && errno == EAGAIN)
+ 			return 0;
+@@ -176,7 +278,19 @@
+ 	conn_put(conn);
+ }
+ 
+-static int setup_test_data(struct test_thread *thread, struct connection *conn, struct tpa_iovec *iov)
++#ifdef KNETZCOPY
++static void zwrite_done_onlyzcopy(void *iov_base, void *iov_param)
++{
++	struct mbuf *mbuf = iov_param;
++	struct connection *conn = mbuf->private;
++ 
++	mbuf_put_onlyzcopy(mbuf);
++	conn_put_onlyzcopy(conn);
++}
++#endif
++ 
++#ifdef KNET
++static int setup_test_data_knet(struct test_thread *thread, struct connection *conn, struct knet_iovec *iov)
+ {
+ 	int budget = conn->write.budget;
+ 	size_t off = conn->write.off;
+@@ -185,6 +299,48 @@
+ 	int len;
+ 
+ 	while (off < budget) {
++#ifdef KNETCOZCOPY
++        mbuf = mbuf_alloc(thread->mbuf_pool);
++        assert(mbuf != NULL);
++        mbuf->private = conn_get(conn);
++        len = MIN(budget - off, MBUF_SIZE);
++        iov[nr_iov].iov_base = mbuf->data;
++        iov[nr_iov].iov_len  = len;
++        iov[nr_iov].free_cb = zwrite_done;
++#elif defined(KNETZCOPY)
++        mbuf = mbuf_alloc_onlyzcopy(thread->mbuf_pool);
++        assert(mbuf != NULL);
++        mbuf->private = conn_get_onlyzcopy(conn);
++        len = MIN(budget - off, MBUF_SIZE);
++        iov[nr_iov].iov_base = mbuf->data;
++        iov[nr_iov].iov_len  = len;
++        iov[nr_iov].free_cb = zwrite_done_onlyzcopy;
++#endif
++ 
++		iov[nr_iov].opaque = mbuf;
++ 
++		if (conn->integrity_enabled)
++			integrity_fill(mbuf->data, len, conn->integrity_off + conn->stats.bytes_write + off);
++ 
++		nr_iov += 1;
++		off += len;
++	}
++ 
++	return nr_iov;
++}
++#endif
++ 
++static int setup_test_data(struct test_thread *thread, struct connection *conn, struct iovec *iov, struct mbuf **mbufArr)
++{
++	int budget = conn->write.budget;
++	size_t off = conn->write.off;
++	size_t offnow = 0; // 之前因为纯内核demo问题：记录每次while循环integrity_fill数据的偏移量，如果不改的话，会导致数据多跨越1个conn->write.off去写
++    // 失败场景如：上次writev返回值为864，但是在on_write_done中将conn->stats.bytes_write和conn->write.off都加了864，在integrity_fill填充时就会多跨越一下864去写
++	struct mbuf *mbuf;
++	int nr_iov = 0;
++	int len;
++
++	while (off < budget) {
+ 		mbuf = mbuf_alloc(thread->mbuf_pool);
+ 		assert(mbuf != NULL);
+ 
+@@ -193,27 +349,26 @@
+ 		len = MIN(budget - off, MBUF_SIZE);
+ 		iov[nr_iov].iov_base = mbuf->data;
+ 		iov[nr_iov].iov_len  = len;
+-		iov[nr_iov].iov_phys = conn->enable_zwrite;
+-		iov[nr_iov].iov_write_done = zwrite_done;
+-		iov[nr_iov].iov_param = mbuf;
++		mbufArr[nr_iov] = mbuf;
+ 
+ 		if (conn->integrity_enabled)
+-			integrity_fill(mbuf->data, len, conn->integrity_off + conn->stats.bytes_write + off);
++			integrity_fill(mbuf->data, len, conn->integrity_off + conn->stats.bytes_write + offnow);
+ 
+ 		nr_iov += 1;
+ 		off += len;
++        offnow += len;
+ 	}
+ 
+ 	return nr_iov;
+ }
+ 
+-static void on_write_done(struct connection *conn, int bytes_write)
++static int on_write_done(struct connection *conn, int bytes_write)
+ {
+ 	UPDATE_STATS(conn, bytes_write, bytes_write);
+ 	conn->write.off += bytes_write;
+ 
+ 	if (conn->write.off < conn->write.budget)
+-		return;
++		return 0;
+ 	assert(conn->write.off == conn->write.budget);
+ 
+ 	/* disable futher writes unless we get the response */
+@@ -221,6 +376,7 @@
+ 		conn->write.budget = 0;
+ 
+ 	conn->write.off = 0;
++    return 1;
+ }
+ 
+ int conn_on_write(struct connection *conn)
+@@ -229,33 +385,72 @@
+ 	int bytes_write;
+ 	int nr_iov;
+ 	int i;
++    int ret = 0;
+ 
+ 	if (ctx.is_client && emit_test_info(conn) < 0)
+ 		return -1;
+ 
+ 	while (conn->write.budget) {
+-		struct tpa_iovec iov[conn->write.budget / MBUF_SIZE + 1];
+-
+-		if (mbuf_pool_free_count(thread->mbuf_pool) * MBUF_SIZE < conn->write.budget) {
+-			event_queue_add(conn, TPA_EVENT_OUT);
+-			break;
+-		}
+-
+-		nr_iov = setup_test_data(thread, conn, iov);
+-		bytes_write = tpa_zwritev(conn->sid, iov, nr_iov);
+-		if (bytes_write < 0) {
+-			int err = errno;
+-
+-			for (i = 0; i < nr_iov; i++)
+-				iov[i].iov_write_done(iov[i].iov_base, iov[i].iov_param);
+-
+-			if (err == EAGAIN)
+-				break;
+-
+-			return -1;
+-		}
+-
+-		on_write_done(conn, bytes_write);
++		#if defined(KNETZCOPY) || defined(KNETCOZCOPY)
++        struct knet_iovec knet_iov[conn->write.budget / MBUF_SIZE + 1];
++ 
++        if (mbuf_pool_free_count(thread->mbuf_pool) * MBUF_SIZE < conn->write.budget) {
++            event_queue_add(conn, EPOLLOUT);
++            printf("mbuf is not enougt for conn: %d, mbuf count is %zu\n", conn->sid, mbuf_pool_free_count(thread->mbuf_pool));
++            break;
++        }
++ 
++        nr_iov = setup_test_data_knet(thread, conn, knet_iov);
++        bytes_write = knet_zwritev(conn->sid, knet_iov, nr_iov);
++        if (bytes_write < 0) {
++            int err = errno;
++ 
++            for (i = 0; i < nr_iov; i++) {
++                knet_iov[i].free_cb(knet_iov[i].iov_base, knet_iov[i].opaque);
++            }
++ 
++            if (err == EAGAIN) {
++                break;
++            }
++ 
++            perror("err_writev");
++            return -1;
++        }
++        on_write_done(conn, bytes_write);
++ 
++#else
++        struct iovec iov[conn->write.budget / MBUF_SIZE + 1];
++        struct mbuf *mbufArr[conn->write.budget / MBUF_SIZE + 1];
++ 
++        if (mbuf_pool_free_count(thread->mbuf_pool) * MBUF_SIZE < conn->write.budget) {
++            event_queue_add(conn, EPOLLOUT);
++            printf("mbuf is not enougt for conn: %d, mbuf count is %zu\n", conn->sid, mbuf_pool_free_count(thread->mbuf_pool));
++            break;
++        }
++        nr_iov = setup_test_data(thread, conn, iov, mbufArr);
++        bytes_write = writev(conn->sid, iov, nr_iov);
++        if (bytes_write < 0) {
++            int err = errno;
++ 
++            for (i = 0; i < nr_iov; i++)
++                zwrite_done(iov[i].iov_base, mbufArr[i]);
++ 
++            if (err == EAGAIN) {
++                break;
++            }
++ 
++            perror("err_writev");
++            return -1;
++        }
++ 
++        ret += on_write_done(conn, bytes_write);
++        for (i = 0; i < nr_iov; i++)
++            zwrite_done(iov[i].iov_base, mbufArr[i]);
++#endif
++#ifndef KNET
++        if (ret == 5) // 写了5次就退出,内核有此约束
++            break;
++#endif
+ 	}
+ 
+ 	return 0;
+diff -ruN tperf/utils.c tperf_knet/utils.c
+--- tperf/utils.c	2023-12-27 07:16:35.000000000 +0800
++++ tperf_knet/utils.c	2025-10-22 14:46:22.336000000 +0800
+@@ -15,41 +15,57 @@
+ 
+ #include "tperf.h"
+ 
+-static int spawn_thread(void *(*func)(void *), void *arg, int cpu)
++static pthread_t spawn_thread(void *(*func)(void *), void *arg, int cpu)
+ {
+ 	pthread_t tid;
+-
+-	if (pthread_create(&tid, NULL, func, arg) < 0) {
+-		fprintf(stderr, "err_spawn_thread: %s\n", strerror(errno));
+-		exit(1);
+-	}
+-
+-	if (cpu >= 0) {
++    pthread_attr_t attr;
++    pthread_attr_init(&attr);
++ 
++    if (cpu >= 0) {
+ 		cpu_set_t cpuset;
+-
++ 
+ 		CPU_ZERO(&cpuset);
+ 		CPU_SET(cpu, &cpuset);
+-		if (pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset)) {
+-			fprintf(stderr, "warn: failed to bind to cpu %d: %s\n",
++		if (pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset)) {
++			printf("warn: failed to bind to cpu %d: %s\n",
+ 				cpu, strerror(cpu));
+ 		}
+ 	}
+-
+-	return 0;
++ 
++	if (pthread_create(&tid, &attr, func, arg) < 0) {
++		fprintf(stderr, "err_spawn_thread: %s\n", strerror(errno));
++		exit(1);
++	}
++ 
++	return tid;
+ }
+-
++ 
++pthread_t *threads = NULL;
+ int spawn_test_threads(void *(*func)(void *))
+ {
+ 	struct test_thread *thread;
+ 	int i;
+ 
+-	if (tpa_init(ctx.nr_thread) < 0) {
+-		fprintf(stderr, "err_tpa_init: failed to init tcp stack: %s\n", strerror(errno));
+-		exit(1);
+-	}
++#if defined(KNETCO) || defined(KNETCOZCOPY)
++    if (knet_init() < 0) {
++        printf("err_knet_init\n");
++        exit(1);
++    }
++#elif defined(KNETZCOPY)
++    // 单纯在非共线程模式下初始化KNET
++    if (socket(AF_INET, SOCK_STREAM, 0) < 0) {
++        printf("err_knet_init\n");
++        exit(1);
++    }
++#endif
+ 
+ 	ctx.threads = zmalloc_assert(ctx.nr_thread * sizeof(struct test_thread));
+ 	ctx.stats = zmalloc_assert(ctx.nr_thread * sizeof(struct thread_stats));
++    threads = calloc(ctx.nr_thread, sizeof(pthread_t));
++    if (!threads) {
++        perror("Failed to allocate threads array");
++        exit(EXIT_FAILURE);
++    }
+ 
+ 	for (i = 0; i < ctx.nr_thread; i++) {
+ 		thread = &ctx.threads[i];
+@@ -64,12 +80,20 @@
+ 		TAILQ_INIT(&thread->event_queue);
+ 		TAILQ_INIT(&thread->conn_list);
+ 
+-		spawn_thread(func, thread, ctx.start_cpu + i);
++		threads[i] = spawn_thread(func, thread, ctx.start_cpu + i);
+ 	}
+ 
+ 	return 0;
+ }
+ 
++void thread_join(void)
++{
++    for (int i = 0; i < ctx.nr_thread; i++) {
++        pthread_join(threads[i], NULL);
++    }
++    free(threads);
++}
++
+ void *zmalloc_assert(int size)
+ {
+ 	void *addr;
