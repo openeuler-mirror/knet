@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-// COOKIE触发门限，与FSP、VISP控制面保持一致，使用 4/5
+// COOKIE触发门限，与控制面保持一致，使用 4/5
 #define TCP_COOKIE_THRESHOLD(x) (((x) << 2) / 5)
 
 // 在cookie情况下,存储在tsVal中的syn选项，所占位，共占6位
