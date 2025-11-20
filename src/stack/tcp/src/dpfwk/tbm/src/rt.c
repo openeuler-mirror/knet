@@ -56,7 +56,7 @@ static void CreateFibTbl(RtTbl_t* tbl)
 
     fib4TblCfg.entrySize = sizeof(uint32_t);
     fib4TblCfg.entryNum = (uint32_t)tbl->maxCnt;
-    fib4TblCfg.vpnNum = 4096; /* 来自FSP的默认配置4096，暂时保持不变 */
+    fib4TblCfg.vpnNum = 4096; /* 来自默认配置4096，暂时保持不变 */
     fib4TblCfg.flag = 1;
     fib4TblCfg.createType = 0;
     fib4TblCfg.updateFreq = 0;

@@ -1,0 +1,9 @@
+cmake-build-*
+unpack_open_source
+.idea
+.vscode
+.cache
+.clion*
+opensource
+build
+output*
