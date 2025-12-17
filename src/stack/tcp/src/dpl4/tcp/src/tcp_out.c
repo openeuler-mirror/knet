@@ -9,10 +9,16 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_tcp.h"
+
+#include "pbuf.h"
+#include "pmgr.h"
+#include "utils_base.h"
+#include "utils_cksum.h"
+#include "utils_debug.h"
+#include "utils_log.h"
 
 #include "tcp_types.h"
 #include "tcp_sock.h"
@@ -20,48 +26,74 @@
 #include "tcp_cookie.h"
 #include "tcp_sack.h"
 #include "tcp_cc.h"
+#include "tcp_rate.h"
 #include "tcp_out.h"
 
-#include "pbuf.h"
-#include "pmgr.h"
-#include "utils_base.h"
-#include "utils_cksum.h"
-#include "utils_debug.h"
+#define DP_TCP_STAT_SND(tcp, _pktLen)                                           \
+    do {                                                                        \
+        if ((tcp)->connType == TCP_ACTIVE) {                                    \
+            DP_ADD_TCP_STAT((tcp)->wid, DP_TCP_ACTIVE_SND_BYTE, (_pktLen));     \
+        } else {                                                                \
+            DP_ADD_TCP_STAT((tcp)->wid, DP_TCP_PASSIVE_SND_BYTE, (_pktLen));    \
+        }                                                                       \
+    } while (0)
+
+#define DP_TCP_STAT_SND_NEW_DATA(tcp, _pktLen)                                  \
+    do {                                                                        \
+        DP_INC_TCP_STAT((tcp)->wid, DP_TCP_SND_PACKET);                         \
+        DP_ADD_TCP_STAT((tcp)->wid, DP_TCP_SND_BYTE, (_pktLen));                \
+        DP_INC_PKT_STAT((tcp)->wid, DP_PKT_SEND_BUF_IN);                        \
+    } while (0)
+
+#define DP_TCP_STAT_SND_REXMIT_DATA(tcp, _pktLen)                               \
+    do {                                                                        \
+        DP_INC_TCP_STAT((tcp)->wid, DP_TCP_SND_REXMT_PACKET);                   \
+        DP_ADD_TCP_STAT((tcp)->wid, DP_TCP_SND_REXMT_BYTE, (_pktLen));          \
+    } while (0)
+
+#define DP_TCP_STAT_SND_DATA(tcp, _dataLen, isRexmit)                           \
+    do {                                                                        \
+        DP_INC_TCP_STAT((tcp)->wid, DP_TCP_SND_TOTAL);                          \
+        if (isRexmit) {                                                         \
+            DP_TCP_STAT_SND_REXMIT_DATA(tcp, _dataLen);                         \
+        } else {                                                                \
+            DP_TCP_STAT_SND_NEW_DATA(tcp, _dataLen);                            \
+        }                                                                       \
+        DP_TCP_STAT_SND(tcp, _dataLen);                                         \
+    } while (0)
 
 static inline uint8_t TcpCalcWs(uint32_t win)
 {
     uint8_t i = 0;
     uint32_t temp = win;
 
-    while (temp > (0xFFFF >> 1)) {
+    while (temp > DP_TCP_MAXWIN) {
         i++;
         temp >>= 1;
     }
 
-    return i > 14 ? 14 : i; // 14: tcp 的窗口缩放因子最大为 14
+    return (i > DP_TCP_MAX_WINSHIFT) ? DP_TCP_MAX_WINSHIFT : i;
 }
 
-static inline int TcpAddTstampAppa(TcpSk_t* tcp, uint8_t* opts)
+static inline uint8_t TcpGetRcvWs(uint32_t win)
+{
+    uint8_t cfgWs = (uint8_t)CFG_GET_TCP_VAL(CFG_TCP_WIN_SCALE);
+    if (cfgWs != 0) {
+        return cfgWs;
+    }
+    return TcpCalcWs(win);
+}
+
+static inline uint8_t TcpAddTstampAppa(TcpSk_t* tcp, uint8_t* opts)
 {
     *opts++                = DP_TCPOPT_NOP;
     *opts++                = DP_TCPOPT_NOP;
     *opts++                = DP_TCPOPT_TIMESTAMP;
     *opts++                = DP_TCPOLEN_TIMESTAMP;
-    tcp->tsVal = TcpGetRttTick(tcp);
     *(uint32_t*)opts       = UTILS_HTONL(tcp->tsVal);
     *(uint32_t*)(opts + 4) = UTILS_HTONL(tcp->tsEcho); // 4: 后四位赋值
 
     return DP_TCPOLEN_TSTAMP_APPA;
-}
-
-static inline uint8_t TcpAddTstamp(TcpSk_t* tcp, uint8_t* opts)
-{
-    *opts++                = DP_TCPOPT_TIMESTAMP;
-    *opts++                = DP_TCPOLEN_TIMESTAMP;
-    tcp->tsVal = TcpGetRttTick(tcp);
-    *(uint32_t*)opts       = UTILS_HTONL(tcp->tsVal);
-    *(uint32_t*)(opts + 4) = UTILS_HTONL(tcp->tsEcho); // 4: 后四位赋值
-    return DP_TCPOLEN_TIMESTAMP;
 }
 
 static uint8_t TcpAddSackOpt(TcpSk_t* tcp, uint8_t* opts, uint8_t optLen)
@@ -70,10 +102,12 @@ static uint8_t TcpAddSackOpt(TcpSk_t* tcp, uint8_t* opts, uint8_t optLen)
     int remainLen = optLen;
     TcpSackBlock_t sackBlock;
 
+    *opts++ = DP_TCPOPT_NOP;
+    *opts++ = DP_TCPOPT_NOP;
     *opts++ = DP_TCPOPT_SACK;
     uint8_t* sackOptLen = opts;
     *opts++ = TCP_OPTLEN_BASE_SACK;
-    remainLen -= TCP_OPTLEN_BASE_SACK;
+    remainLen = remainLen - TCP_OPTLEN_BASE_SACK - 2;    // 2: 在前面补充对齐的2个NOP
     // opt长度的判断能够保证sackNum不会超出sackBlock数组大小范围
     while (tcp->sackInfo->sackBlockNum > sackNum) {      // sackBlock中还有内容未填写
         if (remainLen < TCP_OPTLEN_SACK_PERBLOCK) {      // opt中还有位置填
@@ -87,7 +121,7 @@ static uint8_t TcpAddSackOpt(TcpSk_t* tcp, uint8_t* opts, uint8_t optLen)
         *sackOptLen += TCP_OPTLEN_SACK_PERBLOCK;
         remainLen -= TCP_OPTLEN_SACK_PERBLOCK;
     }
-    return *sackOptLen;
+    return *sackOptLen + 2; // 2: 在前面补充对齐的2个NOP
 }
 
 uint16_t TcpCalcTxCksum(uint32_t pseudoHdrCksum, Pbuf_t* pbuf)
@@ -114,7 +148,7 @@ uint16_t TcpCalcTxCksum(uint32_t pseudoHdrCksum, Pbuf_t* pbuf)
     }
 
     cksum = pseudoHdrCksum + UTILS_HTONS(len);
-    cksum += PBUF_CalcCksum(pbuf);
+    cksum += PBUF_CalcCksumAcc(pbuf);
 
     return UTILS_CksumSwap(cksum);
 }
@@ -125,8 +159,19 @@ static void TcpFillHdr(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thFlags, int optLen)
     uint32_t     rcvWnd;
     uint8_t      l4Len;
 
-    rcvWnd = tcp->rcvWnd >> tcp->rcvWs;
-    rcvWnd = rcvWnd > 0xFFFF ? 0xFFFF : rcvWnd;
+    if ((tcp == NULL) || (pbuf == NULL)) {
+        DP_LOG_ERR("TcpFillHdr! tcp is NULL or pbuf is NULL\n");
+        return;
+    }
+
+    /* SYN、SYN ACK报文首部窗口不计算Ws缩放 */
+    if ((thFlags & DP_TH_SYN) != 0) {
+        rcvWnd = tcp->rcvWnd;
+    } else {
+        rcvWnd = tcp->rcvWnd >> tcp->rcvWs;
+    }
+
+    rcvWnd = (rcvWnd > DP_TCP_MAXWIN) ? DP_TCP_MAXWIN : rcvWnd;
 
     l4Len = (uint8_t)((uint32_t)optLen + sizeof(*tcpHdr));
 
@@ -138,7 +183,11 @@ static void TcpFillHdr(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thFlags, int optLen)
     tcpHdr->sport  = TcpGetLport(tcp);
     tcpHdr->dport  = TcpGetPport(tcp);
     tcpHdr->seq    = UTILS_HTONL(tcp->sndNxt);
-    tcpHdr->ack    = UTILS_HTONL(tcp->rcvNxt);
+    if ((thFlags & DP_TH_ACK) == 0) {
+        tcpHdr->ack = 0;   // 若报文thFlags不带ack标识，首部ack置0
+    } else {
+        tcpHdr->ack = UTILS_HTONL(tcp->rcvNxt); // 数据报文或synack/rstack/finack报文均会携带ack标识，正常填充
+    }
     tcpHdr->off    = l4Len >> 2; // 2: TCP头部的长度是以32位（4字节）为单位，此处除以4
     tcpHdr->resv   = 0;
     tcpHdr->flags  = thFlags;
@@ -146,7 +195,11 @@ static void TcpFillHdr(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thFlags, int optLen)
     tcpHdr->chksum = 0;
     tcpHdr->urg    = 0;
 
-    tcpHdr->chksum = TcpCalcTxCksum(tcp->pseudoHdrCksum, pbuf);
+    if (PBUF_GET_DEV(pbuf) == NULL) {
+        DP_LOG_ERR("TcpFillHdr! pbuf->dev = NULL, rcvWnd = %u, rcvWs = %u\n", tcp->rcvWnd, tcp->rcvWs);
+    } else {
+        tcpHdr->chksum = TcpCalcTxCksum(tcp->pseudoHdrCksum, pbuf);
+    }
 
     tcp->accDataCnt  = 0; // 清理累计数据计数
 }
@@ -157,17 +210,11 @@ static int TcpAddEstablishOpt(TcpSk_t* tcp, Pbuf_t* pbuf)
     uint8_t* opts = establishOpts;
     uint8_t  optLen = 0;
 
-    // 当前establish状态下仅支持ts和sack，如果只有ts，则使用时间戳快处理填写
-    if (TcpNegTs(tcp) && (!TCP_SACK_AVAILABLE(tcp) || tcp->sackInfo->sackBlockNum == 0)) {
-        PBUF_PUT_HEAD(pbuf, DP_TCPOLEN_TSTAMP_APPA);
-        opts = PBUF_MTOD(pbuf, uint8_t*);
-        return TcpAddTstampAppa(tcp, opts);
-    }
-
     // 写入时间戳信息
     if (TcpNegTs(tcp)) {
-        optLen += TcpAddTstamp(tcp, opts);
-        opts += DP_TCPOLEN_TIMESTAMP;
+        tcp->tsVal = TcpGetRttTick(tcp);
+        optLen += TcpAddTstampAppa(tcp, opts);
+        opts += optLen;
     }
 
     // 写入sack块
@@ -191,11 +238,22 @@ static int TcpAddEstablishOpt(TcpSk_t* tcp, Pbuf_t* pbuf)
     return (int)optLen;
 }
 
+static void TcpAddTimeStampOpt(TcpSk_t* tcp, uint8_t* opts)
+{
+    uint32_t tsVal = UTILS_HTONL(tcp->tsVal);
+    uint32_t echo = UTILS_HTONL(tcp->tsEcho);
+    *opts++ = DP_TCPOPT_TIMESTAMP;
+    *opts++ = DP_TCPOLEN_TIMESTAMP;
+    UTILS_LONG2BYTE(opts, tsVal);
+    UTILS_LONG2BYTE(opts + 4, echo); // 4: 为后四个字节赋值
+}
+
 static int TcpAddSynOpt(TcpSk_t* tcp, uint8_t sndOptions, Pbuf_t* pbuf)
 {
     uint8_t  tcpOpts[DP_TCPOLEN_MAX];
     uint8_t* opts = tcpOpts;
     uint8_t  optLen;
+    // 可能通过setsockopt修改缓冲区大小，需要更新tcp->rcvWs
 
     if ((sndOptions & TCP_SYN_OPT_MSS) != 0) {
         *opts++          = DP_TCPOPT_MAXSEG;
@@ -205,27 +263,33 @@ static int TcpAddSynOpt(TcpSk_t* tcp, uint8_t sndOptions, Pbuf_t* pbuf)
     }
 
     if ((sndOptions & TCP_SYN_OPT_WINDOW) != 0) {
+        tcp->rcvWs = TcpGetRcvWs(TcpSk2Sk(tcp)->rcvHiwat);
         *opts++ = DP_TCPOPT_WINDOW;
         *opts++ = DP_TCPOLEN_WINDOW;
         *opts++ = tcp->rcvWs;
         *opts++ = DP_TCPOPT_NOP; // 补齐一个字节
+    } else {
+        tcp->rcvWs = 0;
     }
 
-    if ((sndOptions & TCP_SYN_OPT_SACK_PERMITTED) != 0) {
-        *opts++ = DP_TCPOPT_SACK_PERMITTED;
-        *opts++ = DP_TCPOLEN_SACK_PERMITTED;
-    }
-
+    tcp->tsVal = TcpGetRttTick(tcp);
     if ((sndOptions & TCP_SYN_OPT_TIMESTAMP) != 0) {
-        tcp->tsVal = TcpGetRttTick(tcp);
-        uint32_t tsVal = UTILS_HTONL(tcp->tsVal);
-        uint32_t echo = UTILS_HTONL(tcp->tsEcho);
-        *opts++        = DP_TCPOPT_TIMESTAMP;
-        *opts++        = DP_TCPOLEN_TIMESTAMP;
-
-        UTILS_LONG2BYTE(opts, tsVal);
-        UTILS_LONG2BYTE(opts + 4, echo); // 4: 为后四个字节赋值
-        opts += 8; // 8: 移动到下一个TCP选项位置
+        if ((sndOptions & TCP_SYN_OPT_SACK_PERMITTED) != 0) {
+            *opts++ = DP_TCPOPT_SACK_PERMITTED;
+            *opts++ = DP_TCPOLEN_SACK_PERMITTED;
+        } else {
+            *opts++ = DP_TCPOPT_NOP;
+            *opts++ = DP_TCPOPT_NOP;
+        }
+        TcpAddTimeStampOpt(tcp, opts);
+        opts += DP_TCPOLEN_TIMESTAMP;
+    } else {
+        if ((sndOptions & TCP_SYN_OPT_SACK_PERMITTED) != 0) {
+            *opts++ = DP_TCPOPT_NOP;
+            *opts++ = DP_TCPOPT_NOP;
+            *opts++ = DP_TCPOPT_SACK_PERMITTED;
+            *opts++ = DP_TCPOLEN_SACK_PERMITTED;
+        }
     }
 
     optLen = (uint8_t)(opts - tcpOpts);
@@ -298,7 +362,7 @@ static int TcpGetXmitInfo(TcpSk_t* tcp, TcpXmitInfo_t* info)
     if (TcpSk2Sk(tcp)->family == DP_AF_INET) {
         return g_tcpInetOps->getXmitInfo(TcpSk2Sk(tcp), info);
     }
-    return g_tcpInet6Ops->getXmitInfo(TcpSk2Sk(tcp), info);
+    return -1;
 }
 
 static inline bool TcpIsTsoSend(TcpSk_t* tcp, uint32_t dataLen, uint16_t mss)
@@ -313,10 +377,12 @@ static void TcpSetXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, TcpXmitInfo_t* xmitInfo)
     PBUF_SET_L4_TYPE(pbuf, DP_IPPROTO_TCP);
     PBUF_SET_ENTRY(pbuf, xmitInfo->pentry);
     PBUF_SET_QUE_ID(pbuf, (uint8_t)tcp->txQueid);
-    PBUF_SET_WID(pbuf, (uint8_t)tcp->wid);
+    DP_PBUF_SET_WID(pbuf, (uint8_t)tcp->wid);
     PBUF_SET_PKT_TYPE(pbuf, PBUF_PKTTYPE_HOST);
     PBUF_SET_DEV(pbuf, xmitInfo->dev);
     PBUF_SET_FLOW(pbuf, xmitInfo->flow);
+    DP_PBUF_SET_VPNID(pbuf, TcpSk2Sk(tcp)->vpnid);
+    PBUF_SET_USER_DATA(pbuf, TcpSk2Sk(tcp)->userData);
 
     if (TcpIsTsoSend(tcp, PBUF_GET_PKT_LEN(pbuf), xmitInfo->mss)) {
         DP_PBUF_SET_OLFLAGS_BIT(pbuf, DP_PBUF_OLFLAGS_TX_TSO);
@@ -328,6 +394,14 @@ static inline void TcpUpdateRcvWnd(TcpSk_t* tcp)
 {
     tcp->rcvWnd = TcpSelectRcvWnd(tcp);
     tcp->rcvWup = tcp->rcvNxt;
+}
+
+static inline void TcpUpdateRcvAdertise(TcpSk_t *tcp)
+{
+    if (tcp->rcvWnd > 0 && TcpSeqGt(tcp->rcvNxt + tcp->rcvWnd, tcp->rcvAdvertise)) {
+        tcp->rcvAdvertise = tcp->rcvNxt + tcp->rcvWnd;
+    }
+    return;
 }
 
 Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd)
@@ -357,6 +431,7 @@ Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd)
         TcpUpdateRcvWnd(tcp);
     }
 
+    TcpUpdateRcvAdertise(tcp);
     TcpFillHdr(tcp, ret, thflags, optLen);
 
     if ((thflags & (DP_TH_FIN | DP_TH_SYN)) != 0) {
@@ -376,6 +451,7 @@ Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd)
 
     DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_CONTROL);
     DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_TOTAL);
+    DP_TCP_STAT_SND(tcp, PBUF_GET_PKT_LEN(ret) - (sizeof(DP_TcpHdr_t) + optLen));
 
     if ((thflags & (DP_TH_ACK)) != 0 && TCP_IS_IN_DELAY(tcp)) {
         TcpDeactiveDelayAckTimer(tcp);
@@ -384,8 +460,7 @@ Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd)
     return ret;
 }
 
-Pbuf_t* TcpGenCookieSynAckPktByPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t* pi, TcpSynOpts_t* opts,
-                                   TcpCookieInetHashInfo_t* info)
+Pbuf_t* TcpGenCookieSynAckPktByPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t* pi, TcpSynOpts_t* opts, uint32_t iss)
 {
     DP_TcpHdr_t* origTcpHdr = (DP_TcpHdr_t *)PBUF_GET_L4_HDR(pbuf);
 
@@ -394,18 +469,21 @@ Pbuf_t* TcpGenCookieSynAckPktByPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t* 
         return NULL;
     }
     uint32_t rcvWnd = TcpSk2Sk(parent)->rcvHiwat;
-    uint16_t rcvWs = TcpCalcWs(rcvWnd);
-    rcvWnd >>= rcvWs;
-    rcvWnd = rcvWnd > 0xFFFF ? 0xFFFF : rcvWnd;
+    uint16_t rcvWs = TcpGetRcvWs(rcvWnd);
+
+    /* SYN ACK报文中携带窗口为未缩放值 */
+    rcvWnd = (rcvWnd > DP_TCP_MAXWIN) ? DP_TCP_MAXWIN : rcvWnd;
 
     int optLen = TcpAddSynCookieOpt(ret, opts, rcvWs, parent->synOpt);
 
     PBUF_PUT_HEAD(ret, sizeof(DP_TcpHdr_t));
+    PBUF_SET_L4_OFF(pbuf);
+    PBUF_SET_L4_LEN(pbuf, sizeof(DP_TcpHdr_t) + optLen);
 
     DP_TcpHdr_t* tcpHdr = PBUF_MTOD(ret, DP_TcpHdr_t*);
     tcpHdr->sport  = origTcpHdr->dport;
     tcpHdr->dport  = origTcpHdr->sport;
-    tcpHdr->seq    = UTILS_HTONL(info->iss);
+    tcpHdr->seq    = UTILS_HTONL(iss);
     tcpHdr->ack    = UTILS_HTONL(pi->endSeq);
     tcpHdr->off    = (uint8_t)(((uint32_t)optLen + sizeof(*tcpHdr)) >> 2); // 2: TCP头部的长度是以32位（4字节）为单位，此处除以4
     tcpHdr->resv   = 0;
@@ -425,18 +503,21 @@ Pbuf_t* TcpGenRstPktByPkt(DP_TcpHdr_t* origTcpHdr, TcpPktInfo_t* pi)
     }
 
     PBUF_PUT_HEAD(ret, sizeof(DP_TcpHdr_t));
+    PBUF_SET_L4_OFF(ret);
+    PBUF_SET_L4_LEN(ret, sizeof(DP_TcpHdr_t));
 
     DP_TcpHdr_t* tcpHdr = PBUF_MTOD(ret, DP_TcpHdr_t*);
     tcpHdr->sport  = origTcpHdr->dport;
     tcpHdr->dport  = origTcpHdr->sport;
     if ((origTcpHdr->flags & DP_TH_ACK) != 0) {
+        tcpHdr->ack = 0;  // 回复rst不带ack标识时，ack置0
         tcpHdr->seq = origTcpHdr->ack;
         tcpHdr->flags  = DP_TH_RST;
     } else {
+        tcpHdr->ack = UTILS_HTONL(pi->endSeq);
         tcpHdr->seq = 0;
         tcpHdr->flags  = DP_TH_RST | DP_TH_ACK;
     }
-    tcpHdr->ack    = UTILS_HTONL(pi->endSeq);
     tcpHdr->off    = sizeof(DP_TcpHdr_t) >> 2; // 2: TCP头部的长度是以32位（4字节）为单位，此处除以4
     tcpHdr->resv   = 0;
     tcpHdr->win    = 0;
@@ -460,40 +541,33 @@ uint32_t TcpCalcFreeWndSize(TcpSk_t* tcp)
     cwnd = ((tcp->cwnd >= inflight)) ? (tcp->cwnd - inflight) : 0; // 拥塞窗口的剩余空间
     // 窗口大小取通告窗口和拥塞窗口的最小值
     wndSize = UTILS_MIN(swnd, cwnd);
+    if (cwnd == 0) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_CWND_LIMIT);
+    } else if (swnd == 0) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SWND_LIMIT);
+    }
 
     return wndSize;
 }
 
-static Pbuf_t* TcpTrySplicePbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint32_t maxSndLen, uint16_t mss)
+static bool TcpCanMergePbuf(Pbuf_t* pbuf, Pbuf_t* mergedPbuf, uint32_t pktLen, uint16_t maxSegNum)
 {
-    Pbuf_t* ret = pbuf;
-    uint32_t pktLen = PBUF_GET_PKT_LEN(pbuf);
-    uint32_t spliceLen;
-
-    spliceLen = UTILS_MIN(pktLen, maxSndLen);
-    if (spliceLen > mss) {
-        // TSO 发送时，dataLen 必须为 mss 整数倍
-        spliceLen = spliceLen - (spliceLen % mss);
-    }
-
-    if (spliceLen == pktLen) {
-        return ret;
-    }
-
-    Pbuf_t* newBuf = PBUF_Splice(ret, (uint16_t)spliceLen, IP_INET_MAX_HDR_LEN);
-    if (newBuf == NULL) {
-        PBUF_ChainPushHead(&tcp->sndQue, ret);
-        return NULL;
-    }
-    PBUF_ChainPushHead(&tcp->sndQue, newBuf);
-
-    return ret;
-}
-
-static inline bool TcpCanMergePbuf(Pbuf_t* pbuf, uint32_t pktLen, uint32_t mergedLen, uint16_t mss)
-{
-    if (mergedLen < mss) {
+    uint32_t mergedLen = (mergedPbuf == NULL ? 0 : PBUF_GET_PKT_LEN(mergedPbuf));
+    uint16_t segNum = (mergedPbuf == NULL ? 0 : PBUF_GET_SEGS(mergedPbuf));
+    if (mergedLen == 0) {
         return true;
+    }
+
+    if (segNum >= maxSegNum) {    // pbuf 的 seg num 达到上限时，不在进行聚合
+        return false;
+    }
+
+    if ((pbuf->flags & DP_PBUF_FLAGS_REFERENCED) == DP_PBUF_FLAGS_REFERENCED) {
+        if (mergedLen < pktLen) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     if (mergedLen + PBUF_GET_PKT_LEN(pbuf) > pktLen) {
@@ -503,28 +577,185 @@ static inline bool TcpCanMergePbuf(Pbuf_t* pbuf, uint32_t pktLen, uint32_t merge
     return true;
 }
 
-static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen, uint16_t mss)
+static Pbuf_t* TcpGetOneSeg(PBUF_Chain_t* sndQue, uint32_t pktLen, uint32_t segNum)
 {
-    Pbuf_t* ret = PBUF_CHAIN_POP(&tcp->sndQue);
-    ASSERT(ret != NULL);
-    uint32_t dataLen = PBUF_GET_PKT_LEN(ret);
+    Pbuf_t* ret = NULL;
+    Pbuf_t* pbuf = NULL;
 
-    while (dataLen < pktLen && tcp->sndQue.pktCnt > 0) {
-        if (!TcpCanMergePbuf(PBUF_CHAIN_FIRST(&tcp->sndQue), pktLen, dataLen, mss)) {
+    pbuf = PBUF_CHAIN_FIRST(sndQue);
+    if (pbuf == NULL) {
+        return NULL;
+    }
+
+    if ((pbuf->flags & DP_PBUF_FLAGS_REFERENCED) == DP_PBUF_FLAGS_REFERENCED) {
+        ret = PBUF_BuildZcopy(pbuf, pktLen, segNum, (uint16_t)pktLen);      // pktLen不超过uint16_t的tsoSize，无风险
+        if (ret != NULL) {
+            sndQue->bufLen -= PBUF_GET_PKT_LEN(ret);
+        }
+        if (PBUF_GET_PKT_LEN(pbuf) == 0) {
+            pbuf = PBUF_CHAIN_POP(sndQue);
+            PBUF_RefPbufFree(pbuf);
+        }
+    } else {
+        ret = PBUF_CHAIN_POP(sndQue);
+    }
+
+    return ret;
+}
+
+static Pbuf_t* TcpTrySplicePbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint32_t maxSndLen)
+{
+    Pbuf_t* ret = pbuf;
+    uint32_t pktLen = PBUF_GET_PKT_LEN(pbuf);
+    if (pktLen <= maxSndLen) {
+        return ret;
+    }
+
+    Pbuf_t* newBuf = PBUF_Splice(ret, (uint16_t)maxSndLen, IP_INET_MAX_HDR_LEN);
+    if (newBuf == NULL) {
+        PBUF_ChainPushHead(&tcp->sndQue, ret);
+        return NULL;
+    }
+    PBUF_ChainPushHead(&tcp->sndQue, newBuf);
+
+    return ret;
+}
+
+static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
+{
+    Pbuf_t* ret = NULL;
+    uint32_t dataLen = 0;
+    uint16_t segNum = 0;
+    uint16_t maxSegNum = tcp->maxSegNum - 1;    // 零拷贝场景下，考虑额外添加的一个作为头部的pbuf
+    Pbuf_t* nxt = tcp->sndQue.head;
+    Pbuf_t* pbuf = NULL;
+
+    while (nxt != NULL && dataLen < pktLen && tcp->sndQue.pktCnt > 0) {
+        if (!TcpCanMergePbuf(PBUF_CHAIN_FIRST(&tcp->sndQue), ret, pktLen, maxSegNum)) {
             break;
         }
 
-        Pbuf_t* nxt = PBUF_CHAIN_POP(&tcp->sndQue);
-        PBUF_Merge(ret, nxt, false);
+        pbuf = TcpGetOneSeg(&tcp->sndQue, pktLen - dataLen, maxSegNum - segNum);
+        if (pbuf == NULL) {
+            break;
+        }
+
+        if (ret == NULL) {
+            ret = pbuf;
+        } else {
+            PBUF_Concat(ret, pbuf);
+        }
+
         dataLen = PBUF_GET_PKT_LEN(ret);
+        segNum = PBUF_GET_SEGS(ret);
+        nxt = tcp->sndQue.head;
     }
-    return TcpTrySplicePbuf(tcp, ret, pktLen, mss);
+
+    if (ret == NULL) {
+        return NULL;
+    }
+
+    return TcpTrySplicePbuf(tcp, ret, pktLen);
+}
+
+static inline uint32_t TcpCalcTcTimeInc(uint32_t timeNow, SOCK_Pacing_t* pacing)
+{
+    if (pacing->timeStamp == 0) {
+        return 0;
+    }
+
+    if (timeNow < pacing->timeStamp) {
+        return TCP_PACING_TICK_SEC * pacing->cir;
+    }
+
+    if (((timeNow - pacing->timeStamp) / TCP_PACING_TICK_SEC) < ((uint32_t)PACING_RATE_NOLIMIT / pacing->cir)) {
+        return (timeNow - pacing->timeStamp) / TCP_PACING_TICK_SEC * pacing->cir;
+    }
+
+    return pacing->cbs; // 时间间隔过长，直接返回最大值
+}
+
+static bool TcpCalcPacingTc(TcpSk_t* tcp, uint32_t pktLen)
+{
+    SOCK_Lock(TcpSk2Sk(tcp));
+    SOCK_Pacing_t* pacing = TcpSk2Sk(tcp)->pacingCb;
+    uint32_t timeNow = UTILS_TimeNow();
+
+    pacing->tc += TcpCalcTcTimeInc(timeNow, pacing);
+    pacing->tc = pacing->tc < pacing->cbs ? pacing->tc : pacing->cbs;
+
+    pacing->timeStamp = timeNow; // 记录本次发送的时间点
+
+    if (pacing->tc < pktLen) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_PACING_LIMIT);
+        TcpActivePacingTimer(tcp); // 当前限速不发送则启动pacing定时器
+        SOCK_Unlock(TcpSk2Sk(tcp));
+        return false;
+    }
+
+    pacing->tc -= pktLen;
+    SOCK_Unlock(TcpSk2Sk(tcp));
+    return true;
+}
+
+static bool TcpCalcPacingByBbr(TcpSk_t* tcp, uint32_t pktLen)
+{
+    SOCK_Lock(TcpSk2Sk(tcp));
+    if (TcpSk2Sk(tcp)->pacingCb == NULL) {
+        TcpSk2Sk(tcp)->pacingCb = MEM_MALLOC(sizeof(SOCK_Pacing_t), MOD_SOCKET, DP_MEM_FREE);
+        if (TcpSk2Sk(tcp)->pacingCb == NULL) {
+            SOCK_Unlock(TcpSk2Sk(tcp));
+            return false;
+        }
+        TcpSk2Sk(tcp)->pacingCb->timeStamp = 0;
+    }
+
+    SOCK_Pacing_t* pacing = TcpSk2Sk(tcp)->pacingCb;
+    // 依照BBR更新令牌桶
+    uint32_t rate = tcp->pacingRate / PACING_BYTES_10MS_PER_SEC; // 令牌承诺速率，bytes/s转换为bytes/10ms
+    pacing->cir = rate > PACING_RATE_DEFAULT ? rate : PACING_RATE_DEFAULT;
+    pacing->cbs = pacing->cir;
+    pacing->tc = pacing->cbs;
+
+    uint32_t timeNow = UTILS_TimeNow();
+
+    pacing->tc += TcpCalcTcTimeInc(timeNow, pacing);
+    pacing->timeStamp = timeNow; // 记录本次发送的时间点
+
+    if (pacing->tc < pktLen) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_BBR_PACING_LIMIT);
+        TcpActivePacingTimer(tcp); // 当前限速不发送则启动pacing定时器
+        SOCK_Unlock(TcpSk2Sk(tcp));
+        return false;
+    }
+
+    pacing->tc -= pktLen;
+    SOCK_Unlock(TcpSk2Sk(tcp));
+    return true;
+}
+
+static bool TcpPacingProc(TcpSk_t* tcp, uint32_t pktLen)
+{
+    if (tcp->pacingRate != PACING_RATE_NOLIMIT) { // bbr算法场景更新令牌桶
+        return TcpCalcPacingByBbr(tcp, pktLen);
+    }
+
+    // 非bbr场景
+    if (TcpSk2Sk(tcp)->bandWidth == 0) {
+        return true;    // 不限速场景，直接发送
+    }
+
+    return TcpCalcPacingTc(tcp, pktLen);
 }
 
 bool TcpCanSendPbuf(TcpSk_t* tcp, uint32_t pktLen, uint16_t mss, int force)
 {
     // 报文长度比 mss 大，立即发送
     if (pktLen >= mss) {
+        return true;
+    }
+
+    if (tcp->force == 1) {
         return true;
     }
 
@@ -535,6 +766,13 @@ bool TcpCanSendPbuf(TcpSk_t* tcp, uint32_t pktLen, uint16_t mss, int force)
 
     // 开启了CORK选项且不强制发送小报文则一定不能发送小报文
     if ((tcp->cork) != 0 && (force == 0)) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_CORK_LIMIT);
+        return false;
+    }
+
+    // 开启了MSG_MORE选项且不强制发送小报文则一定不能发送小报文。
+    if ((TcpSk2Sk(tcp)->flags & SOCK_FLAGS_MSG_MORE) != 0 && (force == 0)) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_MSGMORE_LIMIT);
         return false;
     }
 
@@ -547,8 +785,14 @@ bool TcpCanSendPbuf(TcpSk_t* tcp, uint32_t pktLen, uint16_t mss, int force)
     if (tcp->sndUna == tcp->sndMax) {
         return true;
     }
+    // 有小包在途则不允许发送。若sndSml > sndNxt说明序号已回绕；
+    // 存在发送窗口足够大，sndSml > sndUna误判的可能，但需要一直不发小包，后果只是多发一个小包，忽略该风险。
+    if (TcpSeqGt(tcp->sndSml, tcp->sndUna) && !TcpSeqGt(tcp->sndSml, tcp->sndNxt)) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_NAGLE_LIMIT);
+        return false;
+    }
 
-    return false;
+    return true;
 }
 
 static void TcpTryActiveTimer(TcpSk_t* tcp)
@@ -563,6 +807,15 @@ static void TcpTryActiveTimer(TcpSk_t* tcp)
     }
 }
 
+static void TcpXmitPbufProcCC(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t dataLen)
+{
+    if (tcp->caMeth->algId == TCP_CAMETH_BBR) {
+        TcpBwOnSent(tcp, PBUF_GET_SCORE_BOARD(pbuf), dataLen);
+        tcp->inflight += dataLen;
+        TcpUpdateMstamp(tcp);
+    }
+}
+
 static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo_t* xmitInfo)
 {
     int      optLen;
@@ -570,6 +823,12 @@ static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo
     uint16_t dataOff = PBUF_GET_HEADROOM(pbuf);
 
     PBUF_ChainPush(&tcp->rexmitQue, pbuf);
+
+    if (tcp->rttFlag == 0) {        // 收到ack后/重传后，第一个正常发送的报文
+        tcp->tsVal = TcpGetRttTick(tcp);
+        tcp->rttStartSeq = tcp->sndNxt;
+        tcp->rttFlag = 1;
+    }
 
     TcpSetXmitPbuf(tcp, pbuf, xmitInfo);
 
@@ -583,13 +842,24 @@ static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo
         dataLen += 1;
     }
 
+    if (TcpPacketInPipe(tcp) == 0) {
+        TcpCaCwndEvent(tcp, DP_TCP_CA_EVENT_TX_START);
+    }
+
+    TcpXmitPbufProcCC(tcp, pbuf, dataLen);
+
     tcp->sndMax += dataLen;
     tcp->sndNxt += dataLen;
+    // 报文长度小于mss时记录小包的结束序号。开启TSO时可能出现报文由网卡分片后存在小包的情况，此处简单实现，忽略该场景。
+    if (dataLen < xmitInfo->mss) {
+        tcp->sndSml = tcp->sndNxt;
+    }
 
     if (TCP_IS_IN_DELAY(tcp)) {
         TcpDeactiveDelayAckTimer(tcp);
     }
 
+    DP_TCP_STAT_SND_DATA(tcp, PBUF_GET_PKT_LEN(pbuf) - DP_PBUF_GET_L4_LEN(pbuf), false);
     PBUF_REF(pbuf);
     PMGR_Dispatch(pbuf);
 
@@ -597,14 +867,55 @@ static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo
     DP_PBUF_SET_OLFLAGS(pbuf, 0);
 }
 
-void TcpXmitData(TcpSk_t *tcp, int force)
+static int TcpXmitCtrlPktAfterData(TcpSk_t *tcp, int force, int isNeedRst, uint32_t snded)
+{
+    /* 在主动调用close情况下，收到对端的数据，可以继续发送缓冲区的报文
+     * 数据发送完成后发送RST报文，通知对端之前的数据报文数据丢失，并释放socket
+     */
+    if ((tcp->sndQue.pktCnt == 0) && (isNeedRst != 0)) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_RCVDATA_AFTER_CLOSE);
+        TcpXmitRstPkt(tcp);
+        TcpDone(tcp);
+        return -1;
+    }
+
+    // 当没有发送数据报文且需要强制发送报文时，需要发送一个 Ack 报文，窗口更新场景需要
+    if (snded == 0 && force != 0) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_WND_UPDATE);
+        TcpXmitAckPkt(tcp);
+    }
+    return 0;
+}
+
+static inline void TcpUpdateFlags(TcpSk_t *tcp, uint8_t *flags, int isNeedRst)
+{
+    uint8_t tempFlags = *flags;
+    // 已发送完全部数据，这个报文是缓冲区的最后一个报文
+    if (tcp->sndQue.pktCnt == 0) {
+        tempFlags |= DP_TH_PUSH;
+        if ((tcp->state == TCP_FIN_WAIT1 || tcp->state == TCP_LAST_ACK) && (isNeedRst == 0)) {
+            DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_FIN);
+            tempFlags |= DP_TH_FIN;
+        }
+    }
+    *flags = tempFlags;
+}
+
+int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
 {
     /* 这个时候代表上次重传数据未重传全部数据，需要重传剩下的数据 */
     if (tcp->sndNxt != tcp->sndMax) {
         TcpRexmitQue(tcp);
-        return;
     }
 
+    // 数据还没有完全重传完，但已经没有窗口了
+    if (TcpSeqLt(tcp->sndNxt, tcp->sndMax)) {
+        return 0;
+    }
+
+    uint8_t wndUpdateForce = force;
+    uint8_t isFirstPkt = 1;
+    // 仍有窗口可以继续发送新的数据
     uint32_t totalSndLen = UTILS_MIN((uint32_t)tcp->sndQue.bufLen, TcpCalcFreeWndSize(tcp));
     uint32_t snded = 0;
     uint8_t  thflags = DP_TH_ACK;
@@ -612,7 +923,7 @@ void TcpXmitData(TcpSk_t *tcp, int force)
     TcpXmitInfo_t xmitInfo;
 
     if (TcpGetXmitInfo(tcp, &xmitInfo) != 0) {
-        return;
+        return 0;
     }
 
     TcpUpdateRcvWnd(tcp);
@@ -621,41 +932,42 @@ void TcpXmitData(TcpSk_t *tcp, int force)
     while (totalSndLen > 0 && tcp->sndQue.pktCnt > 0) {
         uint32_t pktLen = UTILS_MIN(xmitInfo.tsoSize, totalSndLen);
         // 判断能否发送，不能发送就没必要聚合。tcp发送缓冲区高水位类型为uint32_t，这里转换后不会截断
-        if (!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, force)) {
+        if (!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, wndUpdateForce) || !TcpPacingProc(tcp, pktLen)) {
             break;
         }
 
         // 从发送队列中尝试聚合一个 pbuf
-        pbuf = TcpTryMergePbuf(tcp, pktLen, xmitInfo.mss);
+        pbuf = TcpTryMergePbuf(tcp, pktLen);
         if (pbuf == NULL) {
-            return;
+            return 0;
         }
 
-        // 已发送完全部数据，这个报文是缓冲区的最后一个报文
-        if (tcp->sndQue.pktCnt == 0) {
-            thflags |= DP_TH_PUSH;
-            if (tcp->state == TCP_FIN_WAIT1 || tcp->state == TCP_LAST_ACK) {
-                thflags |= DP_TH_FIN;
+        TcpUpdateFlags(tcp, &thflags, isNeedRst);
+
+        if ((pbuf->flags & DP_PBUF_FLAGS_EXTERNAL) == DP_PBUF_FLAGS_EXTERNAL) {
+            if (Pbuf_Zcopy_Alloc(&pbuf) != 0) {
+                return 0;
             }
         }
 
         // 发送报文
         totalSndLen -= PBUF_GET_PKT_LEN(pbuf);
         snded += PBUF_GET_PKT_LEN(pbuf);
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_PACKET);
-        DP_ADD_TCP_STAT(tcp->wid, DP_TCP_SND_BYTE, PBUF_GET_PKT_LEN(pbuf));
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_TOTAL);
-        DP_INC_PKT_STAT(tcp->wid, DP_PKT_SEND_BUF_IN);
         TcpXmitPbuf(tcp, pbuf, thflags, &xmitInfo);
+        if (isFirstPkt > 0) {
+            TcpUpdateRcvAdertise(tcp);
+            isFirstPkt = 0;
+            // 在发送数据报文时实际已经告知了对端窗口，可以不用再发窗口更新报文
+            wndUpdateForce = 0;
+        }
     }
 
     TcpTryActiveTimer(tcp);
 
-    // 当没有发送数据报文且需要强制发送报文时，需要发送一个 Ack 报文，窗口更新场景需要
-    if (snded == 0 && force != 0) {
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_WND_UPDATE);
-        TcpXmitAckPkt(tcp);
-    }
+    // 不管有没有发送数据，强制发送置为 0
+    tcp->force = 0;
+
+    return TcpXmitCtrlPktAfterData(tcp, wndUpdateForce, isNeedRst, snded);
 }
 
 void TcpXmitCtrlPkt(TcpSk_t* tcp, uint8_t thflags)
@@ -684,26 +996,43 @@ static void TcpRexmitCtrlPkt(TcpSk_t* tcp)
     uint32_t thFlags = 0;
     switch (TcpState(tcp)) {
         case TCP_SYN_SENT:
+            DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMIT_SYN);
             thFlags = DP_TH_SYN;
             break;
         case TCP_SYN_RECV:
+            DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMIT_SYNACK);
             thFlags = DP_TH_SYN | DP_TH_ACK;
             break;
         case TCP_CLOSING:
         case TCP_FIN_WAIT1:
         case TCP_LAST_ACK:
+            DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMIT_FIN);
             thFlags = DP_TH_FIN | DP_TH_ACK;
             break;
         case TCP_CLOSED:
+            DP_INC_TCP_STAT(tcp->wid, DP_TCP_REXMIT_RST);
             thFlags = DP_TH_RST | DP_TH_ACK;
             break;
         default:
             thFlags = DP_TH_ACK;
     }
+    if (tcp->rttFlag == 1 && (thFlags & DP_TH_SYN) != 0) {
+        tcp->rttFlag = 0;       // 重传syn、syn/ack报文后，不更新rtt
+    }
     TcpXmitCtrlPkt(tcp, (uint8_t)thFlags);
 }
 
-static void TcpRexmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, TcpXmitInfo_t* xmitInfo)
+static void TcpRexmitPbufProcCC(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t dataLen)
+{
+    if (tcp->caMeth->algId == TCP_CAMETH_BBR) {
+        TcpBwOnSent(tcp, PBUF_GET_SCORE_BOARD(pbuf), dataLen);
+        TcpUpdateMstamp(tcp);
+        PBUF_GET_SCORE_BOARD(pbuf)->state |= TF_SEG_RETRANSMITTED;
+        tcp->connLostCnt++;
+    }
+}
+
+static void TcpRexmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, TcpXmitInfo_t* xmitInfo, bool reservePbuf)
 {
     DP_TcpHdr_t *tcpHdr = (DP_TcpHdr_t *)PBUF_GET_L4_HDR(pbuf);
     uint8_t thFlags = tcpHdr->flags;
@@ -716,41 +1045,36 @@ static void TcpRexmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, TcpXmitInfo_t* xmitInfo)
 
     TcpFillHdr(tcp, pbuf, thFlags, optLen);
 
+    TcpRexmitPbufProcCC(tcp, pbuf, dataLen);
+    tcp->sndNxt += dataLen;
     if ((thFlags & DP_TH_FIN) != 0) {
-        dataLen += 1;
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMIT_FIN);
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_CONTROL);
+        tcp->sndNxt++;
+    }
+    tcp->rexmitCnt++;
+    DP_TCP_STAT_SND_DATA(tcp, PBUF_GET_PKT_LEN(pbuf) - DP_PBUF_GET_L4_LEN(pbuf), true);
+    if (reservePbuf) {
+        PBUF_REF(pbuf);
     }
 
-    tcp->sndNxt += dataLen;
-
-    DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMT_PACKET);
-    DP_ADD_TCP_STAT(tcp->wid, DP_TCP_SND_REXMT_BYTE, dataLen);
-    PBUF_REF(pbuf);
     PMGR_Dispatch(pbuf);
 
-    PBUF_SET_HEAD(pbuf, dataOff);
-    DP_PBUF_SET_OLFLAGS(pbuf, 0);
+    if (reservePbuf) {
+        PBUF_SET_HEAD(pbuf, dataOff);
+        DP_PBUF_SET_OLFLAGS(pbuf, 0);
+    }
 }
 
 static Pbuf_t* TcpRexmitQueSplit(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t len)
 {
+    ASSERT(len <= pbuf->totLen);
+
     Pbuf_t* ret;
-    Pbuf_t* curSeg;
-    uint16_t remain = len;
-    uint16_t appendLen;
 
-    ASSERT(len < pbuf->totLen);
-
-    ret = PBUF_Alloc(pbuf->l4Off + sizeof(DP_TcpHdr_t), len);
+    ret = PBUF_BuildFromPbuf(pbuf, len, pbuf->l4Off + sizeof(DP_TcpHdr_t));
     if (ret == NULL) {
         return NULL;
-    }
-
-    curSeg = pbuf;
-    while (curSeg != NULL && remain > 0) {
-        appendLen = PBUF_GET_SEG_LEN(curSeg) > remain ? remain : PBUF_GET_SEG_LEN(curSeg);
-        PBUF_Append(ret, PBUF_MTOD(curSeg, uint8_t*), appendLen);
-        remain -= appendLen;
-        curSeg = curSeg->next;
     }
 
     PBUF_CUT_DATA(pbuf, len);
@@ -761,6 +1085,11 @@ static Pbuf_t* TcpRexmitQueSplit(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t len)
     ret->l4Off = pbuf->l4Off;
     ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(ret))->flags = ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(pbuf))->flags;
 
+    if (DP_PBUF_GET_TOTAL_LEN(pbuf) == 0) {
+        PBUF_ChainRemove(&tcp->rexmitQue, pbuf);
+        PBUF_Free(pbuf);
+    }
+
     return ret;
 }
 
@@ -769,30 +1098,49 @@ void TcpRexmitQue(TcpSk_t* tcp)
     uint16_t     pktLen;
     uint32_t     sndWin;
     Pbuf_t *pbuf = tcp->rtxHead;
+    Pbuf_t *tempPbuf = NULL;
     TcpXmitInfo_t xmitInfo;
+    uint8_t      isFirstPkt = 1;
 
     if (TcpGetXmitInfo(tcp, &xmitInfo) != 0) {
         return;
     }
 
-    sndWin = tcp->sndWnd - (tcp->sndNxt - tcp->sndUna);
-    sndWin = (tcp->cwnd > sndWin) ? sndWin : tcp->cwnd;
+    sndWin = (tcp->cwnd > tcp->sndWnd) ? tcp->sndWnd : tcp->cwnd;
+    // 减去在途数据后为真实窗口值
+    sndWin -= (tcp->sndNxt - tcp->sndUna);
 
     TcpUpdateRcvWnd(tcp);
-
+    tcp->rttFlag = 0;       // 重传过报文，无法确认ack对应发送时间，不更新rtt
     while (pbuf != NULL) {
         pktLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
         if (pktLen > xmitInfo.mss) {
             // TSO 使能时，重传队列中 pbuf 长度可能会大于 mss ，此时从 pbuf 中分割一个 mss 大小报文
-            pbuf = TcpRexmitQueSplit(tcp, pbuf, xmitInfo.mss);
-            pktLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
+            tempPbuf = TcpRexmitQueSplit(tcp, pbuf, xmitInfo.mss);
+        } else if (PBUF_GET_SEGS(pbuf) != 1) {
+            // 1、如果重传发送原pbuf链，则会在dpdk释放缓冲区中存放两次相同的mbuf链。dpdk释放mbuf链时会拆链，导致只能释放一次链，mbuf泄漏
+            // 2、发现pbuf链中存在seglen = 0的分片时，dpdk发送失败。通过拷贝来避免发送这样的报文
+            tempPbuf = TcpRexmitQueSplit(tcp, pbuf, pktLen);
+        } else {
+            tempPbuf = pbuf;
         }
 
+        if (tempPbuf == NULL) {
+            DP_LOG_ERR("TcpRexmitQueSplit malloc PBUF fail\n");
+            break;
+        }
+
+        pbuf = tempPbuf;
+        pktLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
         if (pktLen > sndWin) {
             break;
         }
 
-        TcpRexmitPbuf(tcp, pbuf, &xmitInfo);
+        TcpRexmitPbuf(tcp, pbuf, &xmitInfo, true);
+        if (isFirstPkt > 0) {
+            TcpUpdateRcvAdertise(tcp);
+            isFirstPkt = 0;
+        }
 
         sndWin -= pktLen;
 
@@ -802,14 +1150,38 @@ void TcpRexmitQue(TcpSk_t* tcp)
     tcp->rtxHead = pbuf;
 }
 
+void TcpRexmitAll(TcpSk_t* tcp)
+{
+    if (tcp->rexmitQue.pktCnt == 0) {
+        return;
+    }
+    tcp->rtxHead = PBUF_CHAIN_FIRST(&tcp->rexmitQue);
+    tcp->sndNxt = tcp->sndUna;
+    if (TCP_SACK_AVAILABLE(tcp)) {
+        TcpClearSackInfo(tcp->sackInfo, tcp->sndUna);
+    }
+    TcpActiveRexmitTimer(tcp);
+    Pbuf_t* tempPbuf = tcp->rtxHead;
+    while (tcp->rtxHead != NULL) {
+        TcpRexmitQue(tcp);
+        if (tempPbuf == tcp->rtxHead) {
+            break;          // 避免TcpRexmitQue内部发送失败，导致死循环
+        }
+        tempPbuf = tcp->rtxHead;
+    }
+}
+
 void TcpRexmitPkt(TcpSk_t* tcp)
 {
     DP_INC_TCP_STAT(tcp->wid, DP_TCP_REXMT_TIMEOUT);
     tcp->rtxHead = PBUF_CHAIN_FIRST(&tcp->rexmitQue);
     tcp->sndNxt = tcp->sndUna;
+    if (tcp->caMeth->algId == TCP_CAMETH_BBR && (tcp->state >= TCP_ESTABLISHED)) {
+        TcpCaSetState(tcp, TCP_CA_LOSS);
+    }
     if (tcp->rexmitQue.pktCnt > 0) {
         if (TCP_SACK_AVAILABLE(tcp)) {
-            TcpClearSackHole(&tcp->sackInfo->sackHoleHead);
+            TcpClearSackInfo(tcp->sackInfo, tcp->sndUna);
         }
         TcpRexmitQue(tcp);
     } else {
@@ -824,6 +1196,7 @@ void TcpFastRexmitPkt(TcpSk_t* tcp)
         (void)TcpFastRexmitSack(tcp);
         return;
     }
+    DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_FAST_REXMT_PACKET);
     DP_Pbuf_t* oldHead = tcp->rtxHead;
     tcp->rtxHead = PBUF_CHAIN_FIRST(&tcp->rexmitQue);
     uint32_t temp = tcp->sndNxt;
@@ -845,15 +1218,17 @@ void TcpFastRecoryPkt(TcpSk_t* tcp)
         }
     }
     // 不支持SACK 或 无SACK空洞可以重传
-    if (tcp->sndQue.bufLen > 0) {
+    if (tcp->sndQue.bufLen > 0 || tcp->rexmitQue.bufLen > 0) {
         TcpTsqAddQue(tcp, TCP_TSQ_SEND_DATA);
     }
+    TcpCaSetState(tcp, TCP_CA_RECOVERY);
 }
 
 int TcpFastRexmitSack(TcpSk_t* tcp)     // 返回是否有sack空洞需要重传
 {
     TcpXmitInfo_t xmitInfo;
     uint32_t sndSeq;
+    bool reservePbuf = true; // 是否需要保留原始pbuf。默认为true，pbuf链分片情况下需要克隆pbuf，发送后释放克隆的pbuf
 
     if (TcpGetXmitInfo(tcp, &xmitInfo) != 0) {
         return -1;
@@ -863,42 +1238,29 @@ int TcpFastRexmitSack(TcpSk_t* tcp)     // 返回是否有sack空洞需要重传
     if (pbuf == NULL) {
         return -1;
     }
+    if (PBUF_GET_SEGS(pbuf) != 1) {
+        // 1、如果重传发送原pbuf链，则会在dpdk释放缓冲区中存放两次相同的mbuf链。dpdk释放mbuf链时会拆链，导致只能释放一次链，mbuf泄漏
+        // 2、发现pbuf链中存在seglen = 0的分片时，dpdk发送失败。通过拷贝来避免发送这样的报文
+        Pbuf_t* tempPbuf = PBUF_Clone(pbuf);
+        if (tempPbuf == NULL) {
+            return -1;
+        }
+        ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(tempPbuf))->flags = ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(pbuf))->flags;
+        reservePbuf = false;
+        pbuf = tempPbuf;
+    }
 
+    DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_SACK_REXMT_PACKET);
     uint32_t temp = tcp->sndNxt;
     tcp->sndNxt = sndSeq;
-    TcpRexmitPbuf(tcp, pbuf, &xmitInfo);
+    TcpRexmitPbuf(tcp, pbuf, &xmitInfo, reservePbuf);
     tcp->sndNxt = temp;
     return 0;
 }
 
-void TcpXmitZeroWndProbePkt(TcpSk_t* tcp)
+void TcpSndProbePkt(TcpSk_t* tcp)
 {
-    if (tcp->backoff == 1) {
-        // 首次发送需要发送窗口大小为1的报文
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_PROBE);
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_TOTAL);
-        tcp->sndWnd = 1;
-        TcpXmitData(tcp, 1);
-        tcp->sndWnd = 0;
-    } else {
-        // 其余场景下触发重传即可
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_PROBE);
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_TOTAL);
-        tcp->rtxHead = PBUF_CHAIN_FIRST(&tcp->rexmitQue);
-        tcp->sndNxt  = tcp->sndUna;
-        tcp->sndWnd = 1;
-        TcpRexmitQue(tcp);
-        tcp->sndWnd = 0;
-    }
-}
-
-void TcpSndKeepProbe(TcpSk_t* tcp)
-{
-    // 没有未发送数据才能发送保活报文
-    if (TcpSk2Sk(tcp)->sndBuf.pktCnt != 0 || tcp->sndQue.pktCnt != 0) {
-        return;
-    }
-    DP_INC_TCP_STAT(tcp->wid, DP_TCP_KEEP_PROBE);
+    DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_TOTAL);
     tcp->sndNxt -= 1;
     TcpXmitAckPkt(tcp);
     tcp->sndNxt += 1;

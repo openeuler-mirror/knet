@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 内存池操作钩子函数注册相关
+ */
+/**
+ * @file dp_mp_api.h
+ * @brief 内存池操作钩子函数注册相关
  */
 
 #ifndef DP_MEMPOOL_API_H
@@ -37,15 +40,16 @@ typedef void* DP_MempoolAttr_S; /**< 内存池属性，预留参数 */
 
 /**
  * @ingroup dp_mp
- * 内存池MBUF类型
+ * 内存池类型
  */
-#define DP_MEMPOOL_TYPE_PBUF (1)
-
-/**
- * @ingroup dp_mp
- * 内存池固定内存长度类型
- */
-#define DP_MEMPOOL_TYPE_FIXED_MEM (2)
+enum {
+    DP_MEMPOOL_TYPE_MIN = 0,
+    DP_MEMPOOL_TYPE_PBUF,         /**< 内存池MBUF类型 */
+    DP_MEMPOOL_TYPE_FIXED_MEM,    /**< 内存池固定内存长度类型 */
+    DP_MEMPOOL_TYPE_EBUF,         /**< 内存池EBUF PBUF类型，用于零拷贝 */
+    DP_MEMPOOL_TYPE_REF_PBUF,     /**< 内存池REF PBUF类型，用于零拷贝 */
+    DP_MEMPOOL_TYPE_MAX
+};
 
 /**
  * @ingroup dp_mp
@@ -71,13 +75,13 @@ typedef struct {
  * @param[OUT] handler: 内存池handler
  *
  * @retval 0 成功
- * @retval 错误码 失败
+ * @retval 其他值 失败
 
  * @see DP_MempoolDestroyHook | DP_MempoolAllocHook | DP_MempoolFreeHook
  */
 typedef int32_t (*DP_MempoolCreateHook)(const DP_MempoolCfg_S* cfg,
-                                        const DP_MempoolAttr_S* attr,
-                                        DP_Mempool* handler);
+                                          const DP_MempoolAttr_S* attr,
+                                          DP_Mempool* handler);
 
 /**
  * @ingroup dp_mp
@@ -131,13 +135,32 @@ typedef void (*DP_MempoolFreeHook)(DP_Mempool mp, void* ptr);
 
 /**
  * @ingroup dp_mp
+ * @brief 根据指定的一段内存来构造一个内存单元
+ *
+ * @par 描述: 根据指定的一段内存来构造一个内存单元
+ * @attention
+ * NA
+ *
+ * @param mp [IN]  内存池handler
+ * @param addr [IN] 内存起始虚拟地址
+ * @param offset [IN] 偏移量
+ * @param len [IN] 内存长度
+ *
+ * @retval 非NULL 构造成功
+ * @retval NULL 构造失败
+ */
+typedef void* (*DP_MempoolConstructHook)(DP_Mempool mp, void* addr, uint64_t offset, uint16_t len);
+
+/**
+ * @ingroup dp_mp
  * 内存池操作集
  */
 typedef struct {
-    DP_MempoolCreateHook  mpCreate;  /**< 内存池申请接口, 必须接口 */
-    DP_MempoolDestroyHook mpDestroy; /**< 内存池销毁接口, 非必须接口 */
-    DP_MempoolAllocHook   mpAlloc;   /**< 申请一个内存单元, 必须接口 */
-    DP_MempoolFreeHook    mpFree;    /**< 释放一个内存单元, 必须接口 */
+    DP_MempoolCreateHook  mpCreate;       /**< 内存池申请接口, 必须接口 */
+    DP_MempoolDestroyHook mpDestroy;      /**< 内存池销毁接口, 非必须接口 */
+    DP_MempoolAllocHook   mpAlloc;        /**< 申请一个内存单元, 必须接口 */
+    DP_MempoolFreeHook    mpFree;         /**< 释放一个内存单元, 必须接口 */
+    DP_MempoolConstructHook  mpConstruct; /**< 根据外部缓冲区构造一个内存单元，零拷贝所需接口 */
 } DP_MempoolHooks_S;
 
 /**
@@ -146,12 +169,12 @@ typedef struct {
  *
  * @par 描述: 内存池操作接口注册函数
  * @attention
- * 必须在初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param pstHooks [IN]  内存池操作集<非NULL>
  *
  * @retval 0 成功
- * @retval #错误码 失败
+ * @retval 其他值 失败
 
  * @see DP_MempoolHooks_S
  */

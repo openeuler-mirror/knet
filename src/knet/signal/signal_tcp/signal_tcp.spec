@@ -1,0 +1,4 @@
+{
+    "depends" : "base, log, securec, knet_init, osapi, tcp_os",
+    "description" : "knet signal tcp moudle"
+}

@@ -79,14 +79,14 @@ typedef struct DP_EthHdr {
     ((mac)->addr[0] == 0xFF && (mac)->addr[1] == 0xFF && (mac)->addr[2] == 0xFF && (mac)->addr[3] == 0xFF && \
         (mac)->addr[4] == 0xFF && (mac)->addr[5] == 0xFF)
 
-#define DP_MAC_IS_MUTICAST(mac) ((((uint8_t*)(mac))[0] & 0x1) == 0x1 && !DP_MAC_IS_BROADCAST(mac))
+#define DP_MAC_IS_MUTICAST(mac) ((((uint8_t*)(mac))[0] & 0x1) == 0x1 && !DP_MAC_IS_BROADCAST(mac)) || \
+                                (((uint8_t*)(mac))[0] == 0x33 && ((uint8_t*)(mac))[1] == 0x33)
 
 #define DP_MAC_IS_UNICAST(mac) ((((uint8_t*)(mac))[0] & 0x1) == 0)
 
 #define DP_MAC_IS_DUMMY(mac)                                                                             \
     ((mac)->addr[0] == 0 && (mac)->addr[1] == 0 && (mac)->addr[2] == 0 && (mac)->addr[3] == 0 && \
         (mac)->addr[4] == 0 && (mac)->addr[5] == 0)
-
 
 #ifdef __cplusplus
 }

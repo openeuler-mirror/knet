@@ -30,13 +30,15 @@ typedef enum {
     PMGR_ENTRY_IP6_OUT,
     PMGR_ENTRY_ARP_IN,
     PMGR_ENTRY_TCP_IN,
+    PMGR_ENTRY_TCP6_IN,
     PMGR_ENTRY_UDP_IN,
-    PMGR_ENTRY_UDP_ERR_IN,
     PMGR_ENTRY_UDP6_IN,
     PMGR_ENTRY_ROUTE_OUT,
+    PMGR_ENTRY_ROUTE6_OUT,
     PMGR_ENTRY_ND_OUT,
     PMGR_ENTRY_ND_SOLICIT, // arp 探测
     PMGR_ENTRY_VLAN_OUT,
+    PMGR_ENTRY_DELAY_KERNEL_IN, // 内核转发特殊场景的延后处理
     PMGR_ENTRY_BUTT,
 } PMGR_Entry_t;
 
@@ -55,51 +57,6 @@ int PMGR_Init(int slave);
 void PMGR_Deinit(int slave);
 
 PMGR_ProtoEntry_t* GetProtoEntrys(void);
-
-#define ATTR_WEAK __attribute__((weak))
-
-#ifndef DPL2_ETH
-#define ETH_INIT_ATTR ATTR_WEAK
-#else
-#define ETH_INIT_ATTR
-#endif
-
-#ifndef DPL3_IP
-#define IP_INIT_ATTR ATTR_WEAK
-#else
-#define IP_INIT_ATTR
-#endif
-
-#ifndef DPL3_IP6
-#define IP6_INIT_ATTR ATTR_WEAK
-#else
-#define IP6_INIT_ATTR
-#endif
-
-#ifndef DPL4_UDP
-#define UDP_INIT_ATTR ATTR_WEAK
-#else
-#define UDP_INIT_ATTR
-#endif
-
-#ifndef DPL4_TCP
-#define TCP_INIT_ATTR ATTR_WEAK
-#else
-#define TCP_INIT_ATTR
-#endif
-
-// 以下协议初始声明，由各协议实现，在pmgr.c中通过模块宏控进行裁剪
-extern int ETH_Init(int slave) ETH_INIT_ATTR;
-extern int IP_Init(int slave) IP_INIT_ATTR;
-extern int IP6_Init(int slave) IP6_INIT_ATTR;
-extern int UDP_Init(int slave) UDP_INIT_ATTR;
-extern int TCP_Init(int slave) TCP_INIT_ATTR;
-
-extern void ETH_Deinit(int slave) ETH_INIT_ATTR;
-extern void IP_Deinit(int slave) IP_INIT_ATTR;
-extern void IP6_Deinit(int slave) IP6_INIT_ATTR;
-extern void UDP_Deinit(int slave) UDP_INIT_ATTR;
-extern void TCP_Deinit(int slave) TCP_INIT_ATTR;
 
 #ifdef __cplusplus
 }

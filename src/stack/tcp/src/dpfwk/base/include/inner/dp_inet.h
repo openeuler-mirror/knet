@@ -67,6 +67,7 @@ int DP_InetPton(int af, const char* src, void* dst);
 #define DP_MAKE_IP_ADDR(aa, bb, cc, dd) ((uint32_t)(aa) << 24 | (uint32_t)(bb) << 16 | (uint32_t)(cc) << 8 | (dd))
 #endif
 
+#define DP_INET_BITS_IN_BYTE 8
 #define DP_INET_MASK_LEN 32
 static inline uint32_t DP_MakeNetmask(uint32_t n)
 {

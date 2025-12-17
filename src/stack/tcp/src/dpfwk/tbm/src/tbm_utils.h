@@ -9,11 +9,11 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TBM_UTILS_H
 #define TBM_UTILS_H
 
 #include <stddef.h>
+
 
 #include "dp_hashtbl_api.h"
 #include "dp_fib4tbl_api.h"
@@ -54,6 +54,14 @@ void ClearFib4tblHook(void);
 #define TbmFib4LmpEntry              GetFib4tblHook()->lmpEntry
 #define TbmFib4EntryGetFirst         GetFib4tblHook()->fib4EntryGetFirst
 #define TbmFib4EntryGetNext          GetFib4tblHook()->fib4EntryGetNext
+
+/* 兼容DP_Fib6Key_t结构体中IPV6地址字段定义格式 */
+#define DP_IP6_ADDR32_COPY(dst, src) do { \
+    (dst)[0] = (src)[0]; \
+    (dst)[1] = (src)[1]; \
+    (dst)[2] = (src)[2]; \
+    (dst)[3] = (src)[3]; \
+} while (0)
 
 typedef void (*NodeFreeHook)(void*);
 typedef uint32_t (*NodeWalkerHook)(void* para, int32_t id, void *out);

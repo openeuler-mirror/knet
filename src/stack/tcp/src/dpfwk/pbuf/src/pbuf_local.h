@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef PBUF_LOCAL_H
 #define PBUF_LOCAL_H
 
@@ -22,8 +21,6 @@ extern "C" {
 #define PBUF_MAX_SEG_LEN 65535
 
 void PbufReset(Pbuf_t* pbuf);
-
-Pbuf_t* PBUF_Build(const uint8_t* data, uint16_t dataLen, uint16_t headroom);
 
 #ifdef __cplusplus
 }

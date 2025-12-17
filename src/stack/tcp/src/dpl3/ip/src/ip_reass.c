@@ -9,20 +9,20 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "ip_reass.h"
 
 #include <securec.h>
 
-#include "utils_base.h"
 #include "utils_cfg.h"
 #include "utils_log.h"
+#include "utils_base.h"
 #include "utils_debug.h"
+#include "utils_mem_pool.h"
 #include "utils_statistic.h"
 #include "netdev.h"
 #include "worker.h"
 
-#define MAX_UNORDER_FRAG_NUM (64)
+#define MAX_UNORDER_FRAG_NUM (CFG_GET_IP_VAL(DP_CFG_IP_FRAG_DIST_MAX))
 
 typedef struct IpReassTbl IpReassTbl_t;
 
@@ -32,6 +32,7 @@ typedef struct IpReassNode {
     uint8_t       proto;
     uint16_t      totLen;
     uint16_t      ipid;
+    uint16_t      pktSum;      // 收到的报文数量
     DP_InAddr_t   dst;
     DP_InAddr_t   src;
     Netdev_t*     dev;
@@ -68,6 +69,9 @@ typedef enum {
 
 static IpReassTbl_t* g_reassTbls;
 
+static char* g_ipNodeMpName = "DP_IP_NODE_MP";
+static DP_Mempool g_ipNodeMemPool = {0};
+
 static inline IpReassTbl_t* GetReassTbl(int wid)
 {
     return &g_reassTbls[wid];
@@ -86,14 +90,17 @@ static inline void SetReassOffset(Pbuf_t* pbuf, uint16_t offset)
 static IpReassNode_t* NewReassNode(IpReassTbl_t* tbl, DP_IpHdr_t* ipHdr, DP_Pbuf_t* pbuf)
 {
     IpReassNode_t* reassNode = NULL;
-    int ipReassTimeo = WORKER_TIME2_TICK(CFG_GET_IP_VAL(DP_CFG_IP_REASS_TIMEOUT) * 1000);
+    uint32_t tick = (uint32_t)UTILS_MAX(CFG_GET_IP_VAL(DP_CFG_IP_REASS_TIMEOUT) * 1000, 1);
+    uint32_t ipReassTimeo = WORKER_TIME2_TICK(tick);
 
     if (tbl->cnt >= tbl->max) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_REASS_OVER_TBL_LIMIT);
         return NULL;
     }
 
-    reassNode = MEM_MALLOC(sizeof(IpReassNode_t), MOD_IP, DP_MEM_FREE);
+    reassNode = MEMPOOL_ALLOC(g_ipNodeMemPool);
     if (reassNode == NULL) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_REASS_MALLOC_FAIL);
         DP_LOG_ERR("Malloc memory failed for ip reassNode.");
         return NULL;
     }
@@ -102,7 +109,7 @@ static IpReassNode_t* NewReassNode(IpReassTbl_t* tbl, DP_IpHdr_t* ipHdr, DP_Pbuf
     reassNode->dst     = ipHdr->dst;
     reassNode->src     = ipHdr->src;
     reassNode->ipid    = ipHdr->ipid;
-    reassNode->expired = WORKER_GetTick(PBUF_GET_WID(pbuf)) + (uint32_t)ipReassTimeo;
+    reassNode->expired = WORKER_GetTick(DP_PBUF_GET_WID(pbuf)) + ipReassTimeo;
     reassNode->dev     = (Netdev_t*)PBUF_GET_DEV(pbuf);
     reassNode->tbl     = tbl;
 
@@ -121,7 +128,7 @@ static void DeleteReassNode(IpReassNode_t* reassNode)
     LIST_REMOVE(&tbl->rnLists, reassNode, node);
     tbl->cnt--;
 
-    MEM_FREE(reassNode, DP_MEM_FREE);
+    MEMPOOL_FREE(g_ipNodeMemPool, reassNode);
 }
 
 static bool MatchReassNode(IpReassNode_t* reassNode, DP_IpHdr_t* ipHdr, DP_Pbuf_t* pbuf)
@@ -151,7 +158,7 @@ static IpReassNode_t* IpReassGetNode(DP_IpHdr_t* ipHdr, DP_Pbuf_t* pbuf)
 {
     IpReassNode_t* reassNode = NULL;
 
-    IpReassTbl_t* tbl = GetReassTbl(PBUF_GET_WID(pbuf));
+    IpReassTbl_t* tbl = GetReassTbl(DP_PBUF_GET_WID(pbuf));
 
     ASSERT(tbl != NULL);
 
@@ -161,20 +168,6 @@ static IpReassNode_t* IpReassGetNode(DP_IpHdr_t* ipHdr, DP_Pbuf_t* pbuf)
     }
 
     return NewReassNode(tbl, ipHdr, pbuf);
-}
-
-static void IpReassMergeBuf(IpReassNode_t* reassNode, DP_Pbuf_t* dst, DP_Pbuf_t* src, bool cpyChainNode)
-{
-    if (dst == NULL) {
-        return;
-    }
-
-    PBUF_Merge(dst, src, cpyChainNode);
-    if (dst->chainNext == NULL) {
-        reassNode->reassChain.tail = dst;
-    }
-
-    reassNode->reassChain.pktCnt--;
 }
 
 static ReassPolicy_t ReassLocationPhase(IpReassNode_t* node, ReassInfo_t* info)
@@ -210,7 +203,9 @@ static ReassPolicy_t ReassLocationPhase(IpReassNode_t* node, ReassInfo_t* info)
     如果 C 是最后一片，移除 B 及后面的报文后再进行后面的处理
      */
     if (info->curIsLastFrag && next != NULL) {
-        PBUF_ChainRemoveAfter(&node->reassChain, next);
+        uint16_t pktCnt = PBUF_ChainRemoveAfter(&node->reassChain, next);
+        // 报文总数减少已经释放的报文数量
+        node->pktSum -= pktCnt;
         next = NULL;
     }
     /*
@@ -224,6 +219,7 @@ static ReassPolicy_t ReassLocationPhase(IpReassNode_t* node, ReassInfo_t* info)
     while (prev != NULL && info->curOffset < info->prevOffset) {
         Pbuf_t* tmp = PBUF_CHAIN_PREV(prev);
         PBUF_ChainRemove(&node->reassChain, prev);
+        node->pktSum -= prev->nsegs; // 报文总数减少prev的pbuf数量
         PBUF_Free(prev);
         prev = tmp;
         if (prev != NULL) {
@@ -260,6 +256,7 @@ static ReassPolicy_t ReassCutPhase(IpReassNode_t* node, ReassInfo_t* info)
          (info->curEndOffset < info->nextOffset))) {
         SetReassOffset(cur, info->curOffset);
         PBUF_ChainInsertBefore(&node->reassChain, next, cur);
+        node->pktSum += cur->nsegs; // 新报文加入报文计数增加
         return REASS_POLICY_STOP;
     }
 
@@ -344,16 +341,17 @@ static ReassPolicy_t ReassMergePhase(IpReassNode_t* node, ReassInfo_t* info)
     // 先将pbuf插入到reasschain中
     SetReassOffset(cur, info->curOffset);
     PBUF_ChainInsertBefore(&node->reassChain, next, cur);
+    node->pktSum += cur->nsegs; // 新加入报文计数增加
 
     // 前一片和本片可以合并，如果前一片不存在，则插入到head
     if (prev != NULL && info->curOffset == info->prevEndOffset) {
-        IpReassMergeBuf(node, prev, cur, true);
+        PBUF_ChainMergeNext(&node->reassChain, prev);
         cur = prev;
     }
 
     // 后一片和本片可以合并
     if (next != NULL && info->curEndOffset == info->nextOffset) {
-        IpReassMergeBuf(node, cur, next, true);
+        PBUF_ChainMergeNext(&node->reassChain, cur);
     }
 
     return REASS_POLICY_NEXT_PHASE;
@@ -368,7 +366,8 @@ static Pbuf_t* DoReass(IpReassNode_t* node, ReassInfo_t* info)
         ReassCutPhase,
         ReassMergePhase,
     };
-    for (int i = 0; i < (int)ARRAY_SIZE(reassPhases); i++) {
+
+    for (int i = 0; i < (int)DP_ARRAY_SIZE(reassPhases); i++) {
         if (reassPhases[i](node, info) != REASS_POLICY_NEXT_PHASE) {
             return NULL;
         }
@@ -397,7 +396,8 @@ DP_Pbuf_t* IpReass(DP_Pbuf_t* pbuf, DP_IpHdr_t* ipHdr, uint8_t hdrLen)
         goto drop;
     }
 
-    if (node->reassChain.pktCnt >= MAX_UNORDER_FRAG_NUM) {
+    if (node->pktSum >= (uint16_t)MAX_UNORDER_FRAG_NUM) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_REASS_NODE_OVER_LIMIT);
         PBUF_ChainClean(&node->reassChain);
         DeleteReassNode(node);
         goto drop;
@@ -440,6 +440,7 @@ void IpReassTimer(int wid, uint32_t tickNow)
         nxtReassNode = LIST_NEXT(reassNode, node);
 
         if (tickNow > reassNode->expired) {
+            DP_ADD_ABN_STAT(DP_INET_REASS_TIME_OUT);
             PBUF_ChainClean(&reassNode->reassChain);
             DeleteReassNode(reassNode);
         }
@@ -482,15 +483,27 @@ static void IpReassTblDeinit(IpReassTbl_t* tbl)
     }
 }
 
+static int IpNodeMemPoolInit(void)
+{
+    /* 内存块最大数量为最大表数量与每个表IpNode最大数量的乘积 */
+    DP_MempoolCfg_S mpCfg = {0};
+    mpCfg.name = g_ipNodeMpName;
+    mpCfg.count = (uint32_t)(CFG_GET_VAL(DP_CFG_WORKER_MAX) * g_reassTbls[0].max);
+    mpCfg.size = sizeof(IpReassNode_t);
+    mpCfg.type = DP_MEMPOOL_TYPE_FIXED_MEM;
+
+    int32_t mod = MOD_IP;
+    DP_MempoolAttr_S attr = (void*)&mod;
+    return MEMPOOL_CREATE(&mpCfg, &attr, &g_ipNodeMemPool);
+}
+
 int IpReassInit()
 {
-    size_t allocSize = sizeof(IpReassTbl_t) * CFG_GET_VAL(DP_CFG_WORKER_MAX);
-
     if (g_reassTbls != NULL) {
         return -1;
     }
 
-    WORKER_AddWork(&g_reassTimer);
+    size_t allocSize = sizeof(IpReassTbl_t) * CFG_GET_VAL(DP_CFG_WORKER_MAX);
 
     g_reassTbls = MEM_MALLOC(allocSize, MOD_IP, DP_MEM_FIX);
     if (g_reassTbls == NULL) {
@@ -503,6 +516,12 @@ int IpReassInit()
         IpReassTblInit(&g_reassTbls[i]);
     }
 
+    /* DP_MEMPOOL_TYPE_FIXED_MEM 类型的内存池创建失败时会使用MEM_MALLOC代替 */
+    if (IpNodeMemPoolInit() != 0) {
+        DP_LOG_INFO("IpNodeMemPoolInit failed.");
+    }
+
+    WORKER_AddWork(&g_reassTimer);
     return 0;
 }
 
@@ -518,4 +537,9 @@ void IpReassDeinit(void)
 
     MEM_FREE(g_reassTbls, DP_MEM_FIX);
     g_reassTbls = NULL;
+
+    if (g_ipNodeMemPool != NULL) {
+        MEMPOOL_DESTROY(g_ipNodeMemPool);
+        g_ipNodeMemPool = NULL;
+    }
 }

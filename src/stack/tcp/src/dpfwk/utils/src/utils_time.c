@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "utils_base.h"
 #include "utils_log.h"
 #include "utils_cfg.h"
@@ -22,6 +21,7 @@ uint32_t DP_ClockReg(DP_ClockGetTimeHook timeHook)
     }
 
     if (UTILS_IsCfgInited() != 0) {
+        DP_LOG_ERR("Clock reg failed, dp already init!");
         return -1;
     }
 

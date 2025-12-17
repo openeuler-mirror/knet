@@ -60,7 +60,7 @@ target_link_libraries(${TARGET_DP}
     dpitf_epoll dpitf_fd dpitf_init dpitf_poll dpitf_posix dpitf_select dpitf_socket
     dpl2_eth
     dpl3_ip
-    dpl4_tcp dpl4_udp
+    dpl4_tcp
 )
 
 add_subdirectory(src)

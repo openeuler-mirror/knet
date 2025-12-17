@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <stdbool.h>
 #include <securec.h>
 
@@ -245,6 +244,7 @@ int WORKER_Init(void)
     size_t     workersSize;
 
     if (g_workerMgr.workers != NULL) {
+        DP_LOG_ERR("WORKER_Init failed for g_workerMgr.workers not NULL.");
         return -1;
     }
 
@@ -261,6 +261,7 @@ int WORKER_Init(void)
     for (wid = 0; wid < g_workerMgr.workerCnt; wid++) {
         workers[wid] = AllocWorker((uint16_t)wid); // wid不会为负，强转无风险
         if (workers[wid] == NULL) {
+            DP_LOG_ERR("WORKER_Init failed by cant alloc worker for wid %d", wid);
             break;
         }
     }
@@ -378,6 +379,7 @@ void DP_StopWorker(int wid)
     worker = g_workerMgr.workers[wid];
     ASSERT(worker != NULL);
     worker->isStopped = true;
+    SEM_SIGNAL(worker->sem);
 }
 
 void DP_WakeupWorker(int wid)
@@ -402,18 +404,18 @@ void DP_RunWorkerOnce(int wid)
     Worker_t* worker;
 
     if (UTILS_IsCfgInited() != 1) {
-        DP_LOG_ERR("Do not run worker before dp init!");
+        DP_LOG_DBG("Do not run worker before dp init!");
         return;
     }
 
     if (wid < 0 || wid >= g_workerMgr.workerCnt) {
-        DP_LOG_ERR("Run worker failed, wid is invalid!");
+        DP_LOG_DBG("Run worker failed, wid is invalid!");
         return;
     }
 
     worker = g_workerMgr.workers[wid];
     if (worker == NULL) {
-        DP_LOG_ERR("Run worker failed, worker is NULL!");
+        DP_LOG_DBG("Run worker failed, worker is NULL!");
         return;
     }
 
@@ -437,12 +439,17 @@ int DP_RegGetSelfWorkerIdHook(DP_WorkerGetSelfIdHook getSelf)
     return 0;
 }
 
-uint32_t WORKER_GetSelfId(void)
+int32_t WORKER_GetSelfId(void)
 {
+    int wid = 0;
     if (g_workerGetSelf != NULL) {
-        return (uint32_t)g_workerGetSelf();
+        wid = g_workerGetSelf();
     }
-    return 0;
+    if (wid < 0 || wid >= g_workerMgr.workerCnt) {
+        DP_ADD_ABN_STAT(DP_WORKER_GET_ERR_WID);
+        return -1;
+    }
+    return wid;
 }
 
 void WORKER_DeregGetWorkerId(void)

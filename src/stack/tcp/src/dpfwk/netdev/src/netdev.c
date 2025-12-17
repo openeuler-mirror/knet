@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_netdev_api.h"
@@ -18,6 +17,7 @@
 #include "shm.h"
 #include "worker.h"
 #include "utils_log.h"
+#include "utils_statistic.h"
 
 #include "dev.h"
 #include "devtbl.h"
@@ -31,7 +31,7 @@ const DevOps_t* g_devOps[] = {
     [DP_NETDEV_TYPE_BUTT]    = NULL,
 };
 
-static inline size_t GetNetdevSize(uint16_t cached)
+static inline size_t GetDevQueSize(uint16_t cached)
 {
     return sizeof(NetdevQue_t) + sizeof(void*) * cached;
 }
@@ -68,6 +68,20 @@ static uint8_t* InitNetdevQues(NetdevQue_t* ques, Netdev_t* dev, int queCnt, uin
     return ret;
 }
 
+static uint8_t* InitNetdevQuesFlash(NetdevQue_t* ques, int queCnt, uint16_t flashSize, uint8_t* buf)
+{
+    uint8_t*     ret = buf;
+    NetdevQue_t* que = ques;
+
+    for (uint16_t i = 0; i < queCnt; i++, que++) {
+        que->flash = (void**)ret;
+        que->flashSize = flashSize;
+        ret += sizeof(void*) * flashSize;
+    }
+
+    return ret;
+}
+
 static void FreeNetdev(Netdev_t* dev)
 {
     if (dev == NULL) {
@@ -88,12 +102,12 @@ static Netdev_t* AllocNetdev(DP_NetdevCfg_t* cfg, size_t privateLen)
     uint8_t*  buf;
 
     allocSize += privateLen;
-    allocSize += GetNetdevSize(cfg->rxCachedDeep) * cfg->rxQueCnt;
-    allocSize += GetNetdevSize(cfg->txCachedDeep) * cfg->txQueCnt;
+    allocSize += GetDevQueSize(cfg->rxCachedDeep + cfg->rxFlashSize) * cfg->rxQueCnt;
+    allocSize += GetDevQueSize(cfg->txCachedDeep) * cfg->txQueCnt;
 
     dev = SHM_MALLOC(allocSize, MOD_NETDEV, DP_MEM_FREE);
     if (dev == NULL) {
-        DP_LOG_ERR("Malloc memory failed for netDev.");
+        DP_LOG_ERR("Malloc memory failed for netDev. allocSize = %zu", allocSize);
         return NULL;
     }
 
@@ -107,6 +121,7 @@ static Netdev_t* AllocNetdev(DP_NetdevCfg_t* cfg, size_t privateLen)
     dev->ifindex  = -1;
     dev->devType  = cfg->devType;
     dev->tsoSize = cfg->tsoSize;
+    dev->maxSegNum = cfg->maxSegNum;
     dev->offloads = cfg->offloads;
     dev->enabledOffloads = cfg->offloads;
 
@@ -115,6 +130,11 @@ static Netdev_t* AllocNetdev(DP_NetdevCfg_t* cfg, size_t privateLen)
     buf = InitNetdevQues(dev->rxQues, dev, cfg->rxQueCnt, cfg->rxCachedDeep, buf);
     if (buf == NULL) {
         DP_LOG_ERR("Init netdev rxQues failed!");
+        goto err;
+    }
+    buf = InitNetdevQuesFlash(dev->rxQues, cfg->rxQueCnt, cfg->rxFlashSize, buf);
+    if (buf == NULL) {
+        DP_LOG_ERR("Init netdev que flash failed!");
         goto err;
     }
     buf = InitNetdevQues(dev->txQues, dev, cfg->txQueCnt, cfg->txCachedDeep, buf);
@@ -173,6 +193,33 @@ static Netdev_t* PopDevSafe(NS_Net_t* net, int ifindex)
     return dev;
 }
 
+int NETDEV_SetNs(Netdev_t* dev, int id)
+{
+    NS_Net_t* oldNet = dev->net;
+    int       ifindex = dev->ifindex;
+    NS_Net_t* newNet  = NS_GetNet(id);
+    if (newNet == NULL) {
+        DP_LOG_ERR("NETDEV_SetNs failed for NS_GetNet(%d).", id);
+        return -1;
+    }
+
+    if (id == NS_GetId(oldNet)) {
+        return 0;
+    }
+
+    int ret = PutDevSafe(newNet, dev, ifindex);
+    if (ret < 0) {
+        DP_LOG_ERR("NETDEV_SetNs failed by cant find free dev left in devTbl.");
+        return -1;
+    }
+    (void)PopDevSafe(oldNet, ifindex);
+
+    dev->net = newNet;
+    dev->ifindex = ifindex;
+
+    return 0;
+}
+
 DP_Netdev_t* DP_CreateNetdev(DP_NetdevCfg_t* cfg)
 {
     DP_Netdev_t* dev = NULL;
@@ -185,6 +232,21 @@ DP_Netdev_t* DP_CreateNetdev(DP_NetdevCfg_t* cfg)
     if (cfg->rxQueCnt != cfg->txQueCnt || cfg->txQueCnt > QUE_SIZE_MAX || cfg->txQueCnt == 0 ||
         cfg->rxCachedDeep > CACHE_DEEP_SIZE_MAX || cfg->txCachedDeep > CACHE_DEEP_SIZE_MAX) {
         DP_LOG_ERR("Creating netdev failed, invalid cfgQueCnt!");
+        return NULL;
+    }
+
+    if (cfg->maxSegNum == 0 || cfg->maxSegNum > MAX_SEG_NUM_MAX) {
+        DP_LOG_ERR("Creating netdev failed, invalid maxSegNum!");
+        return NULL;
+    }
+
+    if (cfg->rxFlashSize == 0) {
+        cfg->rxFlashSize = DP_NETDEV_FLASH_SIZE_DEFAULT;
+        DP_LOG_DBG("Creating netdev, set default rx flash size");
+    }
+
+    if (cfg->rxFlashSize > FLASH_SIZE_MAX) {
+        DP_LOG_ERR("Creating netdev failed, invalid rxFlashSize!");
         return NULL;
     }
 
@@ -202,6 +264,8 @@ DP_Netdev_t* DP_CreateNetdev(DP_NetdevCfg_t* cfg)
         DP_FreeNetdev(dev);
         return NULL;
     }
+
+    dev->ref = 1;
     return dev;
 }
 
@@ -221,6 +285,8 @@ DP_Netdev_t* DP_AllocNetdev(DP_NetdevCfg_t* cfg)
         return NULL;
     }
 
+    dev->net = net;
+
     return dev;
 }
 
@@ -230,9 +296,11 @@ int DP_FreeNetdev(DP_Netdev_t* dev)
         return -1;
     }
 
-    NS_Net_t* net = NS_GetDftNet();
+    (void)PopDevSafe(dev->net, dev->ifindex);
 
-    PopDevSafe(net, dev->ifindex);
+    if (g_devOps[dev->devType]->deinit != NULL) {
+        g_devOps[dev->devType]->deinit(dev);
+    }
 
     FreeNetdev(dev);
 
@@ -248,7 +316,7 @@ int DP_InitNetdev(DP_Netdev_t* dev, DP_NetdevCfg_t* cfg)
 
     if (g_devOps[dev->devType]->init != NULL) {
         if (g_devOps[dev->devType]->init(dev, cfg) != 0) {
-            DP_LOG_ERR("Netdev ops init failed!");
+            DP_LOG_ERR("Netdev ops init failed! devType = %u", dev->devType);
             return -1;
         }
     }
@@ -281,6 +349,14 @@ DP_Netdev_t* DP_GetNetdevByIndex(int index)
 
     NS_Unlock(net);
 
+    return dev;
+}
+
+DP_Netdev_t* DP_GetNetdevByIndexLockFree(int index)
+{
+    NS_Net_t*    net = NS_GetDftNet();
+    DP_Netdev_t* dev;
+    dev = NETDEV_GetDevInArray(net, index);
     return dev;
 }
 
@@ -423,18 +499,13 @@ Netdev_t* NETDEV_RefDevByName(NS_Net_t* net, const char* name)
     return ret;
 }
 
-void NETDEV_DerefDev(Netdev_t* dev)
-{
-    ATOMIC32_Dec(&dev->ref);
-}
-
-int DP_PutPkts(DP_Netdev_t* dev, void** bufs, int cnt)
+int DP_PutPkts(DP_Netdev_t* dev, uint16_t queId, void** bufs, int cnt)
 {
     if (dev == NULL || bufs == NULL || cnt <= 0) {
         return -1;
     }
 
-    NetdevQue_t* rxQue = (NetdevQue_t*)&dev->rxQues[0];
+    NetdevQue_t* rxQue = (NetdevQue_t*)&dev->rxQues[queId];
 
     if ((dev->ifflags & DP_IFF_UP) == 0) {
         return -1;
@@ -455,13 +526,6 @@ int DP_PutPkts(DP_Netdev_t* dev, void** bufs, int cnt)
     return 0;
 }
 
-static inline NetdevQue_t* NETDEV_GetTxQue(Netdev_t* dev, uint8_t queId)
-{
-    int reqId = queId >= dev->txQueCnt ? 0 : queId;
-
-    return &dev->txQues[reqId];
-}
-
 void NETDEV_XmitPbuf(Pbuf_t* pbuf)
 {
     Netdev_t *dev = PBUF_GET_DEV(pbuf);
@@ -476,7 +540,7 @@ void NETDEV_XmitPbuf(Pbuf_t* pbuf)
         que = NETDEV_GetTxQue(dev, 0);
     }
 
-    if (que->wid != PBUF_GET_WID(pbuf)) {
+    if (que->wid != DP_PBUF_GET_WID(pbuf)) {
         int ret;
         if (DP_PBUF_GET_REF(pbuf) > 1) {
             dst = PBUF_Clone(pbuf);
@@ -492,7 +556,7 @@ void NETDEV_XmitPbuf(Pbuf_t* pbuf)
         SPINLOCK_Unlock(&que->lock);
 
         if (ret != 0) {
-            DP_LOG_ERR("Push pbuf to devQue cache failed!");
+            DP_INC_PKT_STAT(que->wid, DP_PKT_KERNEL_FDIR_CACHE_MISS);
             PBUF_Free(dst);
         } else {
             DP_WakeupWorker(que->wid);
@@ -518,6 +582,135 @@ void XmitCached(NetdevQue_t* que)
     SPINLOCK_Unlock(&que->lock);
 
     if (g_devOps[que->dev->devType]->doXmit != NULL) {
-        g_devOps[que->dev->devType]->doXmit(que, pbufs, (uint16_t)cnt);
+        g_devOps[que->dev->devType]->doXmit(que, pbufs, (int)cnt);
     }
+}
+
+int16_t NETDEV_RxHash(Netdev_t* dev, const struct DP_Sockaddr* rAddr, DP_Socklen_t rAddrLen,
+    const struct DP_Sockaddr *lAddr, DP_Socklen_t lAddrLen)
+{
+    if (g_devOps[dev->devType]->rxHash == NULL) {
+        return 0;
+    }
+    int queId = g_devOps[dev->devType]->rxHash(dev, rAddr, rAddrLen, lAddr, lAddrLen);
+    if (queId < 0 || queId >= dev->rxQueCnt) {
+        DP_LOG_ERR("rxHash get queId err, ifindex = %d, queId = %d", dev->ifindex, queId);
+        DP_ADD_ABN_STAT(DP_NETDEV_RXHASH_FAILED);
+        return -1;
+    }
+    return (int16_t)queId;
+}
+
+int32_t DP_GetNetdevQueMap(int32_t wid, int32_t ifIndex, uint32_t* queMap, int32_t mapCnt)
+{
+    if ((wid < 0) || (wid >= CFG_GET_VAL(DP_CFG_WORKER_MAX))) {
+        DP_LOG_ERR("Invalid worker id %d", wid);
+        return -1;
+    }
+    // 32代表uint32_t类型的bit位数，数组queMap每个成员可以表示32个队列。必须提供足够长的queMap数组，避免访问越界
+    int32_t minMapLen = QUE_SIZE_MAX / 32;
+    if (queMap == NULL || mapCnt < minMapLen) {
+        DP_LOG_ERR("Invalid queMap or mapCnt, queMap should not be NULL, mapCnt should larger than %d", minMapLen);
+        return -1;
+    }
+    return (int32_t)NETDEV_TaskQueMapGet(wid, ifIndex, queMap, (uint32_t)mapCnt);
+}
+
+void NETDEV_PutDev(DP_Netdev_t *dev)
+{
+    NS_Net_t *net = NS_GetDftNet();
+    // 此时 NS 已经去初始化，所有表项已经移除
+    if (net == NULL || net->isUsed == 0) {
+        return;
+    }
+    if (NETDEV_DerefDev(dev) == 0) {
+        if (NETDEV_IsDevUsed(dev)) {
+            DP_LOG_DBG("dev is used, but ref is 0, ifindex = %d", dev->ifindex);
+            (void)NETDEV_RefDev(dev);
+            return;
+        }
+        (void)PopDev(NS_GET_DEV_TBL(net), dev->ifindex);
+        if (g_devOps[dev->devType]->deinit != NULL) {
+            g_devOps[dev->devType]->deinit(dev);
+        }
+        FreeNetdev(dev);
+    }
+}
+
+int32_t DP_DestroyNetdev(int32_t ifIndex)
+{
+    NS_Net_t *net = NS_GetDftNet();
+    DP_Netdev_t *dev = NULL;
+
+    NS_Lock(net);
+
+    dev = NETDEV_GetDev(net, ifIndex);
+    if (dev == NULL) {
+        NS_Unlock(net);
+        return -1;
+    }
+
+    if (!NETDEV_IsDevUsed(dev)) {
+        NS_Unlock(net);
+        return -1;
+    }
+
+    if ((dev->ifflags & DP_IFF_UP) != 0) {
+        DevStop(dev);
+    }
+
+    dev->freed = 1;
+    NETDEV_PutDev(dev);
+
+    NS_Unlock(net);
+
+    return 0;
+}
+
+static void NETDEV_StatsAccumulate(DP_DevStats_t* dst, DP_DevStats_t* src)
+{
+    dst->txStats.bytes   += src->txStats.bytes;
+    dst->txStats.packets += src->txStats.packets;
+    dst->txStats.errs    += src->txStats.errs;
+    dst->txStats.drop    += src->txStats.drop;
+
+    dst->rxStats.bytes     += src->rxStats.bytes;
+    dst->rxStats.packets   += src->rxStats.packets;
+    dst->rxStats.errs      += src->rxStats.errs;
+    dst->rxStats.drop      += src->rxStats.drop;
+    dst->rxStats.multicast += src->rxStats.multicast;
+}
+
+int DP_NetdevGetStats(int ifIndex, DP_DevStats_t* stats)
+{
+    DP_DevStats_t devStats = {0};
+    DP_Netdev_t* dev = DP_GetNetdev(ifIndex);
+    if (dev == NULL || stats == NULL) {
+        return -1;
+    }
+
+    for (int i = 0; i < dev->rxQueCnt; i++) {
+        SPINLOCK_Lock(&dev->rxQues[i].lock);
+        NETDEV_StatsAccumulate(&devStats, &dev->rxQues[i].info);
+        NETDEV_StatsAccumulate(&devStats, &dev->txQues[i].info);
+        SPINLOCK_Unlock(&dev->rxQues[i].lock);
+    }
+
+    *stats = devStats;
+    return 0;
+}
+
+int DP_NetdevCleanStats(int ifIndex)
+{
+    DP_Netdev_t* dev = DP_GetNetdev(ifIndex);
+    if (dev == NULL) {
+        return -1;
+    }
+    for (int i = 0; i < dev->rxQueCnt; i++) {
+        SPINLOCK_Lock(&dev->rxQues[i].lock);
+        (void)memset_s(&dev->rxQues[i].info, sizeof(DP_DevStats_t), 0, sizeof(DP_DevStats_t));
+        (void)memset_s(&dev->txQues[i].info, sizeof(DP_DevStats_t), 0, sizeof(DP_DevStats_t));
+        SPINLOCK_Unlock(&dev->rxQues[i].lock);
+    }
+    return 0;
 }

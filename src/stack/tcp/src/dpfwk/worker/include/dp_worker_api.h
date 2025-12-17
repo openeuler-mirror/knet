@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 实例管理对外接口
+ */
+/**
+ * @file dp_worker_api.h
+ * @brief 实例管理对外接口
  */
 
 #ifndef DP_WORKER_API_H
@@ -37,7 +40,7 @@ extern "C" {
  * @see DP_RegGetSelfWorkerIdHook
  */
 typedef int (*DP_WorkerGetSelfIdHook)(void);
- 
+
 /**
  * @ingroup worker
  * @brief 注册获取workerId钩子
@@ -47,7 +50,8 @@ typedef int (*DP_WorkerGetSelfIdHook)(void);
  * NA
  *
  * @param getSelf [IN]  钩子函数<非空指针>
- * @retval NA
+ * @retval 0 成功
+ * @retval -1 失败
 
  * @see DP_RunWorkerOnce
  */

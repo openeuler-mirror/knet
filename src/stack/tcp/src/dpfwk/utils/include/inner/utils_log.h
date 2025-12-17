@@ -9,31 +9,31 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef UTILS_LOG_H
 #define UTILS_LOG_H
 
 #include <stdio.h>
 #include "dp_log_api.h"
+// #include "dp_log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern DP_LogHook g_logOutput;
+extern DP_LogHook g_fnLogOut;
 extern DP_LogLevel_E g_logLevel;
 
 /* release版本不打印函数名和行号 */
 #ifdef DP_DEBUG
 #define DP_LOGOUT(func, line, level, levelInfo, fmt, ...) do { \
-    if ((g_logOutput != NULL) && ((level) <= g_logLevel)) { \
-        g_logOutput("%s[%d]|%s " fmt "\n", func, line, levelInfo, ##__VA_ARGS__); \
+    if ((g_fnLogOut != NULL) && ((level) <= g_logLevel)) { \
+        g_fnLogOut ("%s[%d]|%s " fmt "\n", func, line, levelInfo, ##__VA_ARGS__); \
     } \
 } while (0)
 #else
 #define DP_LOGOUT(func, line, level, levelInfo, fmt, ...) do { \
-    if ((g_logOutput != NULL) && ((level) <= g_logLevel)) { \
-        g_logOutput("%s " fmt "\n", levelInfo, ##__VA_ARGS__); \
+    if ((g_fnLogOut != NULL) && ((level) <= g_logLevel)) { \
+        g_fnLogOut("%s " fmt "\n", levelInfo, ##__VA_ARGS__); \
     } \
 } while (0)
 #endif

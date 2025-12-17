@@ -23,16 +23,16 @@ extern "C" {
 #define WORKER_MS_PER_TICK (1000 / WORKER_HZ) // 每个tick的毫秒数
 
 typedef struct {
-    uint32_t bits; // 最大支持32个worker管理
+    uint64_t bits; // 最大支持64个worker管理
 } WORKER_BitMap_t; // worker id bit map
 
 #define WORKER_CLEAN_BIT_MAP(map)     ((map)->bits) = 0
-#define WORKER_SET_BIT_MAP_ALL(map)    ((map)->bits) = 0xFFFFFFFF
-#define WORKER_SET_BIT_MAP(map, wid)  ((map)->bits) |= (1U << (wid))
-#define WORKER_IS_IN_BIT_MAP(map, wid) (((map)->bits) & (1U << (wid)))
+#define WORKER_SET_BIT_MAP_ALL(map)    ((map)->bits) = UINT64_MAX
+#define WORKER_SET_BIT_MAP(map, wid)  ((map)->bits) |= (1LLU << (wid))
+#define WORKER_IS_IN_BIT_MAP(map, wid) (((map)->bits) & (1LLU << (wid)))
 #define WORKER_BITMAP_ALL \
     {                     \
-        0xFFFFFFFF        \
+        UINT64_MAX        \
     }
 
 #define WORKER_FLAGS_EVENT 0x1
@@ -107,11 +107,13 @@ void DP_RunWorker(int wid);
  */
 void DP_WakeupWorker(int wid);
 
-uint32_t WORKER_GetSelfId(void);
+int32_t WORKER_GetSelfId(void);
 
 void WORKER_DeregGetWorkerId(void);
 
 void DP_StopWorker(int wid);
+
+void DP_StopDriveWorker(int workerCnt);
 
 #ifdef __cplusplus
 }

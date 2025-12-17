@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: IP地址及选项相关信息
+ */
+/**
+ * @file dp_in_api.h
+ * @brief IP地址及选项相关信息
  */
 
 #ifndef DP_IN_API_H
@@ -42,7 +45,7 @@ struct DP_InAddr {
 
 /**
  * @ingroup in
- * @brief Dummy protocol for TCP
+ * @brief Internet Protocol
  */
 #define DP_IPPROTO_IP   0
 
@@ -66,9 +69,21 @@ struct DP_InAddr {
 
 /**
  * @ingroup in
- * @brief IPv6 header
+ * @brief Internet Protocol Version 6
  */
 #define DP_IPPROTO_IPV6 41
+
+/**
+ * @ingroup in
+ * @brief Internet Control Message Protocol for IPv6
+ */
+#define DP_IPPROTO_ICMPV6 58
+
+/**
+ * @ingroup in
+ * @brief Internet Protocol for Raw Socket
+ */
+#define DP_IPPROTO_RAW 255
 
 #define DP_IN_CLASSA(a)     ((((DP_InAddr_t)(a)) & 0x80000000) == 0)
 #define DP_IN_CLASSA_NET    0xff000000
@@ -136,25 +151,39 @@ typedef uint16_t DP_InPort_t;
 
 /**
  * @ingroup in
- * sock连接信息，与struct sockaddr_in对齐
+ * sock连接信息，与struct sockaddr_in 对齐
  */
 struct DP_SockaddrIn {
     DP_SaFamily_t    sin_family;
-    DP_InPort_t      sin_port; /* Port number.  */
-    struct DP_InAddr sin_addr; /* Internet address.  */
-    unsigned char      sin_zero[8]; /* Pad to size of `struct sockaddr'.  */
+    DP_InPort_t      sin_port;    /* Port number.  */
+    struct DP_InAddr sin_addr;    /* Internet address.  */
+    unsigned char    sin_zero[8]; /* Pad to size of `struct sockaddr'.  */
 };
 
 /**
  * @ingroup in
- * sock ipv6连接信息
+ * sock ipv6连接信息，与struct sockaddr_in6 对齐
  */
 struct DP_SockaddrIn6 {
     DP_SaFamily_t     sin6_family;
-    DP_InPort_t       sin6_port; /* Transport layer port # */
-    uint32_t            sin6_flowinfo; /* IPv6 flow information */
-    struct DP_In6Addr sin6_addr; /* IPv6 address */
-    uint32_t            sin6_scope_id; /* IPv6 scope-id */
+    DP_InPort_t       sin6_port;     /* Transport layer port # */
+    uint32_t          sin6_flowinfo; /* IPv6 flow information */
+    struct DP_In6Addr sin6_addr;     /* IPv6 address */
+    uint32_t          sin6_scope_id; /* IPv6 scope-id */
+};
+
+/**
+ * @ingroup in
+ * link layer地址信息，与struct sockaddr_ll 对齐
+ */
+struct DP_SockaddrLl {
+    unsigned short sll_family;   /* Always AF_PACKET */
+    unsigned short sll_protocol; /* Physical-layer protocol */
+    int            sll_ifindex;  /* Interface number */
+    unsigned short sll_hatype;   /* ARP hardware type */
+    unsigned char  sll_pkttype;  /* Packet type */
+    unsigned char  sll_halen;    /* Length of address */
+    unsigned char  sll_addr[8];  /* Physical-layer address */
 };
 
 /**
@@ -175,7 +204,19 @@ struct DP_SockaddrIn6 {
  */
 #define DP_IP_PKTINFO      8
 
-// 以下选项暂不支持
+/**
+ * @ingroup in
+ * @brief IP option recverr
+ */
+#define DP_IP_RECVERR      11
+
+/**
+ * @ingroup in
+ * @brief IP option mtu
+ */
+#define DP_IP_MTU          14
+
+// 以下IP选项暂不支持
 #define DP_IP_HDRINCL      3
 #define DP_IP_OPTIONS      4
 #define DP_IP_ROUTER_ALERT 5
@@ -183,15 +224,31 @@ struct DP_SockaddrIn6 {
 #define DP_IP_RETOPTS      7
 #define DP_IP_PKTOPTIONS   9
 #define DP_IP_MTU_DISCOVER 10
-#define DP_IP_RECVERR      11
 #define DP_IP_RECVTTL      12
 #define DP_IP_RECVTOS      13
-#define DP_IP_MTU          14
 #define DP_IP_FREEBIND     15
 #define DP_IP_IPSEC_POLICY 16
 #define DP_IP_XFRM_POLICY  17
 #define DP_IP_PASSSEC      18
 #define DP_IP_TRANSPARENT  19
+
+/**
+ * @ingroup in
+ * @brief IPv6 option hoplimit
+ */
+#define DP_IP6_HOPLIMIT 52
+
+#define DP_IPT_BASE_CTL 64
+
+#define DP_IPT_SO_SET_REPLACE      (DP_IPT_BASE_CTL)
+#define DP_IPT_SO_SET_ADD_COUNTERS (DP_IPT_BASE_CTL + 1)
+#define DP_IPT_SO_SET_MAX          DP_IPT_SO_SET_ADD_COUNTERS
+
+#define DP_IPT_SO_GET_INFO            (DP_IPT_BASE_CTL)
+#define DP_IPT_SO_GET_ENTRIES         (DP_IPT_BASE_CTL + 1)
+#define DP_IPT_SO_GET_REVISION_MATCH  (DP_IPT_BASE_CTL + 2)
+#define DP_IPT_SO_GET_REVISION_TARGET (DP_IPT_BASE_CTL + 3)
+#define DP_IPT_SO_GET_MAX             DP_IPT_SO_GET_REVISION_TARGET
 
 #ifdef __cplusplus
 }

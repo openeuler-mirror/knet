@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "utils_cksum.h"
 
 uint32_t UTILS_Cksum(uint32_t cksum, uint8_t* data, uint32_t len)

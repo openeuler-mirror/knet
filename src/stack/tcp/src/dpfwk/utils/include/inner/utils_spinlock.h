@@ -9,17 +9,20 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef UTILS_SPINLOCK_H
 #define UTILS_SPINLOCK_H
 
 #include <stdbool.h>
 
 #include "utils_atomic.h"
+#include "utils_cfg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define SPIN_INITIALIZER    {0}
+
 
 typedef struct {
     atomic32_t locked;
@@ -49,6 +52,18 @@ static inline void SPINLOCK_Deinit(Spinlock_t* lock)
 
 static inline int SPINLOCK_Lock(Spinlock_t* lock)
 {
+    if (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE) {
+        return 0;
+    }
+
+    while (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
+        SPINLOCK_CpuRelax();
+    }
+    return 0;
+}
+
+static inline int SPINLOCK_DoLock(Spinlock_t* lock)
+{
     while (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
         SPINLOCK_CpuRelax();
     }
@@ -57,6 +72,10 @@ static inline int SPINLOCK_Lock(Spinlock_t* lock)
 
 static inline int SPINLOCK_TryLock(Spinlock_t* lock)
 {
+    if (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE) {
+        return 0;
+    }
+
     if (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
         return -1;
     }
@@ -65,9 +84,17 @@ static inline int SPINLOCK_TryLock(Spinlock_t* lock)
 
 static inline void SPINLOCK_Unlock(Spinlock_t* lock)
 {
+    if (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE) {
+        return;
+    }
+
     ATOMIC32_Store(&lock->locked, 0);
 }
 
+static inline void SPINLOCK_DoUnlock(Spinlock_t* lock)
+{
+    ATOMIC32_Store(&lock->locked, 0);
+}
 
 #ifdef __cplusplus
 }

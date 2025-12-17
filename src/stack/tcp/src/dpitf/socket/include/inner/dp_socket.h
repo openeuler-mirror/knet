@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef DP_SOCKET_H
 #define DP_SOCKET_H
 
@@ -32,6 +31,8 @@ ssize_t DP_Sendto(
 
 ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags);
 
+ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags);
+
 ssize_t DP_Write(int sockfd, const void *buf, size_t count);
 
 ssize_t DP_Writev(int sockfd, const struct DP_Iovec *iov, int iovcnt);
@@ -43,6 +44,8 @@ ssize_t DP_Recvfrom(
 
 ssize_t DP_Recvmsg(int sockfd, struct DP_Msghdr* msg, int flags);
 
+ssize_t DP_ZRecvmsg(int sockfd, struct DP_ZMsghdr* msg, int flags);
+
 ssize_t DP_Read(int sockfd, void *buf, size_t count);
 
 ssize_t DP_Readv(int sockfd, const struct DP_Iovec *iov, int iovcnt);
@@ -52,10 +55,6 @@ int DP_Close(int fd);
 int DP_Shutdown(int sockfd, int how);
 
 int DP_Bind(int sockfd, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen);
-
-int DP_Getsockopt(int sockfd, int level, int optname, void* optval, DP_Socklen_t* optlen);
-
-int DP_Setsockopt(int sockfd, int level, int optname, const void* optval, DP_Socklen_t optlen);
 
 int DP_Listen(int sockfd, int backlog);
 

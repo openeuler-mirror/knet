@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef DEV_H
 #define DEV_H
 
@@ -30,7 +29,9 @@ typedef struct {
     void (*deinit)(Netdev_t* dev);
     int (*ctrl)(Netdev_t* dev, int cmd, void* val);
     void (*doRcv)(NetdevQue_t* que);
-    void (*doXmit)(NetdevQue_t* que, DP_Pbuf_t** pbuf, uint16_t cnt);
+    void (*doXmit)(NetdevQue_t* que, Pbuf_t** pbuf, int cnt);
+    int (*rxHash)(Netdev_t* dev, const struct DP_Sockaddr* rAddr, DP_Socklen_t rAddrLen,
+        const struct DP_Sockaddr *lAddr, DP_Socklen_t lAddrLen);
 } DevOps_t;
 
 typedef int (*DoIfreqFn_t)(Netdev_t* dev, struct DP_Ifreq* ifreq);

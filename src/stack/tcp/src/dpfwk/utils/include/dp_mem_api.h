@@ -1,14 +1,7 @@
-/*
- * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- 
- * K-NET is licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
-      http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v2 for more details.
- * Description: 内存处理钩子函数注册相关
+/**
+ * Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
+ * @file dp_mem_api.h
+ * @brief 内存处理钩子函数注册相关
  */
 
 #ifndef DP_MEM_API_H
@@ -71,12 +64,12 @@ typedef struct DP_MemHooks {
  *
  * @par 描述: 变长内存操作接口注册函数
  * @attention
- * 必须在初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param pstHooks [IN]  内存操作集<非NULL>
  *
  * @retval 0 成功
- * @retval #错误码 失败
+ * @retval 其他值 失败
 
  * @see DP_MemHooks_S
  */

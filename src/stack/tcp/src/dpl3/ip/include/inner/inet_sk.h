@@ -9,11 +9,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef INET_SK_H
 #define INET_SK_H
 
 #include <netinet/in.h>
+
+#include "dp_socket_types_api.h"
 
 #include "sock.h"
 #include "netdev.h"
@@ -30,6 +31,9 @@ extern "C" {
 #define DP_IPPROTO_MAX  IPPROTO_MAX
 
 #define DP_SOCK_TYPE_MASK 0xf
+
+#define PORT_MASK_DEFAULT 0xffff
+
 /* INET socket内存结构
 | -- Sock_t -- | -- Inet_t -- | -- Obj(TCP/UDP) -- |
 */
@@ -44,9 +48,15 @@ typedef struct {
     };
     DP_InAddr_t laddr;
     DP_InAddr_t paddr;
+    uint32_t vpnid; // vpnid作为hashinfo信息，用于隔离五元组相同的sk，默认为0
 
+    int32_t ifIndex; // 绑定地址或建链时设置为netdev的id。绑定ADDR_ANY时设置为-1
+    uint16_t lportMask; // 使用区间端口时设置为区间mask，否则设置为PORT_MASK_DEFAULT。用于SOCK_AddrEventNotify，不影响socket查找
     uint8_t protocol;
-    uint8_t resv[3];
+    int8_t wid;
+    uint8_t queCnt; // 共线程部署时设置，
+    uint8_t que; //
+    uint8_t resv[6];
 } INET_Hashinfo_t;
 
 typedef struct INET_FlowInfo {
@@ -73,6 +83,7 @@ typedef struct INET_FlowInfo {
 typedef struct {
     HASH_Node_t node;
     HASH_Node_t connectTblNode;
+    HASH_Node_t globalNode;
 
     INET_Hashinfo_t hashinfo;
     INET_FlowInfo_t flow;
@@ -91,24 +102,30 @@ typedef struct {
             uint16_t pktInfo : 1; // IP_PKTINFO
             uint16_t rcvTos : 1; // IP_RCVTOS
             uint16_t rcvTtl : 1; // IP_RCVTTL
+            uint16_t rcvErr : 1; // IP_RECVERR
         };
         uint16_t options;
     } options;
-    uint16_t flowid;
+
+    struct DP_SockExtendedErr ipErrInfo;
+    uint8_t resv[2];
 } InetSk_t;
 
 static inline uint8_t INET_HashinfoEqual(INET_Hashinfo_t* l, INET_Hashinfo_t* r)
 {
-    return (l->protocol == r->protocol) && (l->port == r->port) && (l->laddr == r->laddr) && (l->paddr == r->paddr);
+    return (l->protocol == r->protocol) &&
+        (l->port == r->port) && (l->laddr == r->laddr) && (l->paddr == r->paddr) && (l->vpnid == r->vpnid);
 }
 
 static inline int INET_CheckAddrLen(const struct DP_Sockaddr* addr, DP_Socklen_t addrlen)
 {
     if (addr == NULL) {
+        DP_ADD_ABN_STAT(DP_INET_ADDR_NULL);
         return -EFAULT;
     }
 
     if ((int)addrlen < (int)sizeof(struct DP_Sockaddr)) {
+        DP_ADD_ABN_STAT(DP_INET_ADDRLEN_ERR);
         return -EINVAL;
     }
 
@@ -123,6 +140,7 @@ static inline int INET_CheckAddr(const struct DP_Sockaddr* addr, DP_Socklen_t ad
     }
 
     if (addr->sa_family != DP_AF_INET) {
+        DP_ADD_ABN_STAT(DP_INET_ADDR_FAMILY_ERR);
         return -EAFNOSUPPORT;
     }
 
@@ -161,26 +179,6 @@ enum INET_HASH_MATH_RESULT {
 InetSk_t* INET_MatchHashinfo(Hash_t* tbl, uint32_t hashVal, INET_Hashinfo_t* hi);
 
 /**
- * @brief 如果设置了reuse，则相同五元组允许重复插入
- *
- * @param sk
- * @param hashNode
- * @param hashVal
- * @return
- */
-int INET_InsertHashItem(Hash_t* tbl, HASH_Node_t* hashNode, uint32_t hashVal);
-
-/**
- * @brief 移除hash节点
- *
- * @param tbl
- * @param hashNode
- * @param hashVal
- * @return
- */
-void INET_RemoveHashItem(Hash_t* tbl, HASH_Node_t* hashNode, uint32_t hashVal);
-
-/**
  * @brief IP Level选项设置
  *
  * @param inetSk
@@ -216,21 +214,31 @@ static inline uint32_t INET_CalcPseudoCksum(INET_Hashinfo_t* hi)
 
 int INET_GetAddr(InetSk_t* inetSk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen, int peer);
 
+void INET_ShowInfo(InetSk_t* inetSk);
+
+void INET_GetDetails(InetSk_t* inetSk, DP_InetDetails_t* details);
+
 #define INET_FLOW_FLAGS_BROADCAST 0x1
 #define INET_FLOW_FLAGS_NDCACHED  0x2
 #define INET_FLOW_FLAGS_NO_ROUTE  0x4
+#define INET_FLOW_FLAGS_NO_ND     0x8
 
 int INET_InitFlowByDev(Netdev_t* dev, INET_FlowInfo_t* flow, int protocol);
 
 int INET_InitFlowBySk(Sock_t* sk, InetSk_t* inetSk, INET_FlowInfo_t* flow);
 
-int INET_ReinitFlow(DP_InAddr_t dst, NS_Net_t* net, int vrfId, int outIf, INET_FlowInfo_t* flow);
-
 int INET_UpdateFlow(INET_FlowInfo_t* flow);
 
 void INET_DeinitFlow(INET_FlowInfo_t* flow);
 
-int INET_GetMtu(TBM_RtItem_t* rt, uint16_t mtuUser);
+static inline int INET_GetMtu(TBM_RtItem_t* rt, uint16_t mtuUser)
+{
+    if (mtuUser == 0) {
+        return rt->ifaddr->dev->mtu;
+    }
+
+    return rt->ifaddr->dev->mtu > mtuUser ? mtuUser : rt->ifaddr->dev->mtu;
+}
 
 static inline Netdev_t* INET_GetDevByFlow(const INET_FlowInfo_t* flow)
 {
@@ -251,10 +259,45 @@ static inline uint16_t INET_CalcCksum(DP_Pbuf_t* pbuf)
     phdr.len      = (uint16_t)UTILS_HTONS(PBUF_GET_PKT_LEN(pbuf));
 
     cksum = UTILS_Cksum(0, (uint8_t*)&phdr, sizeof(phdr));
-    cksum += PBUF_CalcCksum(pbuf);
+    cksum += PBUF_CalcCksumAcc(pbuf);
 
     return UTILS_CksumSwap(cksum);
 }
+
+static inline int MatchOps(SOCK_ProtoOps_t* ops, int type, int proto)
+{
+    if (type != ops->type) {
+        return 0;
+    }
+
+    if (proto == 0) {
+        return 1;
+    }
+
+    if (ops->protocol == 0) {
+        return 1;
+    }
+
+    return ops->protocol == proto ? 1 : 0;
+}
+
+typedef struct {
+    DP_InAddr_t src;
+} INET_TxCb_t; // 用于 4 层协议向 RouteOutput 传递信息
+
+#define INET_TX_CB(pbuf) PBUF_GET_CB((pbuf), INET_TxCb_t*)
+
+typedef struct {
+    int (*icmpUnreach)(Pbuf_t* pbuf);
+} INET_Handler;     // 内部统一不释放pbuf，在icmp处理完成后释放
+
+extern INET_Handler g_icmpErrMsg;
+
+typedef void (*RawInputFn_t)(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr);
+
+void AddRawFn(RawInputFn_t op);
+
+void CallRawInput(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr);
 
 #ifdef __cplusplus
 }

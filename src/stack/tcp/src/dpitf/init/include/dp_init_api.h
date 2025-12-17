@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 协议栈初始化对外接口
+ */
+/**
+ * @file dp_init_api.h
+ * @brief 协议栈初始化对外接口
  */
 
 #ifndef DP_INIT_API_H

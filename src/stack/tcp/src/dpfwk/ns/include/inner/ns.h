@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef NS_H
 #define NS_H
 
@@ -24,7 +23,8 @@ extern "C" {
 
 enum {
     NS_NET_DEVTBL,
-    NS_NET_FIB,
+    NS_NET_FIB4,
+    NS_NET_FIB6,
     NS_NET_ND,
     NS_NET_NL,
     NS_NET_PACKET,
@@ -38,6 +38,8 @@ typedef struct NS_Net {
     void*      tbls[NS_NET_BUTT];
     atomic32_t ref;
     Spinlock_t lock;
+    int32_t    id;
+    int32_t    isUsed;
 } NS_Net_t;
 
 typedef struct {
@@ -47,12 +49,15 @@ typedef struct {
 
 extern NS_Net_t* g_defaultNet;
 
+#define NS_NET_MAX (64)
+#define NS_INVALID_ID (NS_NET_MAX + 1)
 #define NS_DEFAULT_ID (-1)
 
 #define NS_GET_TBL(net, id) (((net) == NULL) ? g_defaultNet->tbls[(id)] : (net)->tbls[(id)])
 
 #define NS_GET_DEV_TBL(net)    NS_GET_TBL((net), NS_NET_DEVTBL)
-#define NS_GET_RT_TBL(net)     NS_GET_TBL((net), NS_NET_FIB)
+#define NS_GET_RT_TBL(net)     NS_GET_TBL((net), NS_NET_FIB4)
+#define NS_GET_RT6_TBL(net)    NS_GET_TBL((net), NS_NET_FIB6)
 #define NS_GET_ND_TBL(net)     NS_GET_TBL((net), NS_NET_ND)
 #define NS_GET_RAW_TBL(net)    NS_GET_TBL((net), NS_NET_RAW)
 #define NS_GET_TCP_TBL(net)    NS_GET_TBL((net), NS_NET_TCP)
@@ -60,9 +65,7 @@ extern NS_Net_t* g_defaultNet;
 #define NS_GET_PACKET_TBL(net) NS_GET_TBL((net), NS_NET_PACKET)
 #define NS_GET_NL_TBL(net)     NS_GET_TBL((net), NS_NET_NL)
 
-void NS_SetNetOps(int id, void *alloc, void *freeFunc);
-
-void NS_CleanNetOps(int id);
+void NS_SetNetOps(int id, void *mAlloc, void *mFree);
 
 static inline NS_Net_t* NS_GetDftNet(void)
 {
@@ -101,6 +104,15 @@ static inline void NS_WaitNetIdle(NS_Net_t* net)
 {
     while (ATOMIC32_Load(&net->ref) != 0) { }
 }
+
+static inline int NS_GetId(NS_Net_t* net)
+{
+    return net == NULL ? NS_DEFAULT_ID : net->id;
+}
+
+int NS_Create(void);
+
+NS_Net_t* NS_GetNet(int id);
 
 // 必须在PMGR_Init之后调用
 int NS_Init(int slave);

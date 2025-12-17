@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
-* Description: 定义需要适配哈希表项操作接口
+ */
+/**
+ * @file dp_hashtbl_api.h
+ * @brief 需要适配哈希表项操作接口
  */
 
 #ifndef DP_HASHTBL_API_H

@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: time系统时间相关声明与配置
+ */
+/**
+ * @file dp_clock_api.h
+ * @brief time系统时间相关声明与配置
  */
 
 #ifndef DP_CLOCK_API_H
@@ -38,8 +41,8 @@ typedef enum {
  * @param clockId [IN] 时钟类型
  * @param seconds [OUT] 当前时间戳，秒
  * @param nanoseconds [OUT] 当前时间戳秒级下的毫秒
- * @retval #DP_OK 成功
- * @retval #DP_ERR 出错
+ * @retval #0 成功
+ * @retval #其他值 出错
 
  */
 typedef uint32_t (*DP_ClockGetTimeHook)(DP_ClockId_E clockId, int64_t *seconds, int64_t *nanoseconds);
@@ -47,10 +50,10 @@ typedef uint32_t (*DP_ClockGetTimeHook)(DP_ClockId_E clockId, int64_t *seconds, 
 /**
  * @ingroup dp_clock
  * @brief 注册获取毫秒级时钟回调
- * @attention 非线程安全
+ * @attention 非线程安全，必须在DP协议栈初始化前进行注册
  * @param hook [IN] 获取毫秒级时钟回调
- * @retval #DP_OK 成功
- * @retval #DP_ERR 参数错误
+ * @retval #0 成功
+ * @retval #其他值 出错
 
  * @see DP_ClockGetTimeHook
  */

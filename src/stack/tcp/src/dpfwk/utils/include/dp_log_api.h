@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 数据面日志相关对外接口
+ */
+/**
+ * @file dp_log_api.h
+ * @brief 数据面日志相关对外接口
  */
 
 #ifndef DP_LOG_API_H
@@ -57,12 +60,12 @@ typedef void (*DP_LogHook)(const char *fmt, ...);
  *
  * @par 描述: 日志打印接口注册函数
  * @attention
- * 必须在DP协议栈初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param fnHook [IN]  日志打印钩子<非空指针>
  *
  * @retval 0 成功
- * @retval 错误码 失败
+ * @retval 1 失败
  * @par 依赖:
  *     <ul><li>dp_log_api.h：该接口声明所在的头文件。</li></ul>
  * @see DP_LogHook
@@ -79,8 +82,7 @@ uint32_t DP_LogHookReg(DP_LogHook fnHook);
  *
  * @param logLevel [IN]  日志级别<请参见DP_LogLevel_E>
  *
- * @retval 0 成功
- * @retval 错误码 失败
+ * @retval NA
  * @see DP_LogLevelGet
  */
 void DP_LogLevelSet(DP_LogLevel_E logLevel);

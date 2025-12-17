@@ -9,9 +9,10 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef DEVTBL_H
 #define DEVTBL_H
+
+#include "utils_atomic.h"
 
 #include "netdev.h"
 
@@ -21,6 +22,7 @@ extern "C" {
 
 typedef struct {
     Netdev_t* devs[DEV_TBL_SIZE];
+    atomic32_t ref;
 } DevTbl_t;
 
 int InitDevTbl(void);

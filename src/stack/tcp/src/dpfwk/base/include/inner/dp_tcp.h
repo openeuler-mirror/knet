@@ -63,16 +63,7 @@ typedef struct DP_TcpHdr {
 #define DP_TCPOLEN_TSTAMP_APPA    (DP_TCPOLEN_TIMESTAMP + 2) //!< 时间戳选项长度(RFC793 APPENDA定义)
 #define DP_TCPOLEN_MAX            40 //!< TCP选项的最长长度
 
-/* TCP socket options */
-#define DP_TCP_NODELAY        1
-#define DP_TCP_MAXSEG         2
-#define DP_TCP_CORK           3
-#define DP_TCP_KEEPIDLE       4 /* Start keeplives after this period */
-#define DP_TCP_KEEPINTVL      5 /* Interval between keepalives */
-#define DP_TCP_KEEPCNT        6 /* Number of keepalives before death */
-#define DP_TCP_DEFER_ACCEPT   9
-#define DP_TCP_INFO           11
-#define DP_TCP_CONGESTION     13
+void TcpProcTsq(int wid);
 
 #ifdef __cplusplus
 }

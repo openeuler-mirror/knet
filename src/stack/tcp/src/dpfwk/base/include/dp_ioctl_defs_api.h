@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: io操作相关选项定义
+ */
+/**
+ * @file dp_ioctl_defs_api.h
+ * @brief io操作相关选项定义
  */
 
 #ifndef DP_IOCTL_DEFS_API_H

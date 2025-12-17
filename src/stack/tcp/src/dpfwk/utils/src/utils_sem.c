@@ -9,10 +9,9 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "utils_base.h"
 #include "utils_log.h"
-
+#include "utils_cfg.h"
 #include "dp_sem_api.h"
 
 static DP_SemHooks_S g_semFns = {0};
@@ -20,17 +19,30 @@ static DP_SemHooks_S g_semFns = {0};
 /* 信号量操作接口注册函数 */
 uint32_t DP_SemHookReg(const DP_SemHooks_S *pHooks)
 {
-    if ((pHooks == NULL) || (pHooks->init == NULL) || (pHooks->deinit == NULL) ||
-        (pHooks->post == NULL) || (pHooks->timeWait == NULL)) {
+    if (UTILS_IsCfgInited() != 0) {
+        DP_LOG_ERR("SemHook reg failed, init already!");
+        return 1;
+    }
+    if (UTILS_GetBaseFunc()->semFns != NULL) {
+        DP_LOG_ERR("SemHook reg failed, reg already!");
+        return 1;
+    }
+    if ((pHooks == NULL) || (pHooks->initHook == NULL) || (pHooks->deinitHook == NULL) ||
+        (pHooks->postHook == NULL) || (pHooks->timeWaitHook == NULL)) {
         DP_LOG_ERR("SemHook reg failed, invalid pHooks!");
         return 1;
     }
 
-    g_semFns.init = pHooks->init;
-    g_semFns.deinit = pHooks->deinit;
-    g_semFns.post = pHooks->post;
-    g_semFns.timeWait = pHooks->timeWait;
-    g_semFns.size = pHooks->size;
+    if (pHooks->semSize == 0) {
+        DP_LOG_ERR("SemHook reg failed, invalid size!");
+        return 1;
+    }
+
+    g_semFns.initHook = pHooks->initHook;
+    g_semFns.deinitHook = pHooks->deinitHook;
+    g_semFns.postHook = pHooks->postHook;
+    g_semFns.timeWaitHook = pHooks->timeWaitHook;
+    g_semFns.semSize = pHooks->semSize;
 
     UTILS_GetBaseFunc()->semFns = &g_semFns;
 

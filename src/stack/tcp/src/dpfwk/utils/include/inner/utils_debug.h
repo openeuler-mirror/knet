@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef UTILS_DEBUG_H
 #define UTILS_DEBUG_H
 
@@ -24,6 +23,8 @@ extern "C" {
 #else
 #define ASSERT(x)
 #endif
+
+#define STATIC_ASSERT(cond) do { static_assert((cond), #cond); } while (0)
 
 #ifdef __cplusplus
 }

@@ -9,9 +9,10 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_TSQ_H
 #define TCP_TSQ_H
+
+#include "dp_tcp.h"
 
 #include "utils_base.h"
 #include "utils_spinlock.h"
@@ -36,16 +37,21 @@ extern "C" {
 #define TCP_TSQ_SEND_WND_UP   0x800 // 尝试发送窗口更新报文
 #define TCP_TSQ_ABORT         0x1000 // 定时器超时事件
 #define TCP_TSQ_SET_WRITABLE  0x2000 // 可写事件
+#define TCP_TSQ_SEND_RST      0x4000 // 本端断链后收到数据报文，需要发送RST报文
+#define TCP_TSQ_PCONNECTED    0x8000 // 被动建链成功，共线程下通知事件
+#define TCP_TSQ_CC_MOD        0x10000 // 拥塞算法切换
 
-#define TCP_TSQ_IN_SKLOCK \
-    (TCP_TSQ_CONNECTED | TCP_TSQ_SEND_DATA | TCP_TSQ_RECV_DATA | TCP_TSQ_RECV_FIN | TCP_TSQ_RECV_RST | \
-     TCP_TSQ_ABORT | TCP_TSQ_SET_WRITABLE)
-#define TCP_TSQ_SEND (TCP_TSQ_SEND_FORCE | TCP_TSQ_SEND_DATA | TCP_TSQ_SEND_MORE | TCP_TSQ_SEND_WND_UP)
-#define TCP_TSQ_RECV (TCP_TSQ_RECV_FIN | TCP_TSQ_RECV_RST | TCP_TSQ_RECV_DATA)
-#define TCP_TSQ_RECV_UNEXPECT (TCP_TSQ_RECV_RST | TCP_TSQ_ABORT)
+#define TCP_TSQ_IN_SKLOCK                                                                                \
+    (TCP_TSQ_PCONNECTED | TCP_TSQ_CONNECTED | TCP_TSQ_SEND_DATA | TCP_TSQ_RECV_DATA | TCP_TSQ_RECV_FIN | \
+        TCP_TSQ_RECV_RST | TCP_TSQ_ABORT | TCP_TSQ_SET_WRITABLE | TCP_TSQ_CC_MOD)
+#define TCP_TSQ_SEND \
+    (TCP_TSQ_SEND_FORCE | TCP_TSQ_SEND_DATA | TCP_TSQ_SEND_MORE | TCP_TSQ_SEND_WND_UP | TCP_TSQ_SEND_RST)
+#define TCP_TSQ_EXCEPTION (TCP_TSQ_RECV_RST | TCP_TSQ_ABORT)
 
 #define TCP_TSQ_EV_SLOW (TCP_TSQ_CONNECT | TCP_TSQ_DISCONNECT | TCP_TSQ_KEEPALIVE_ON | TCP_TSQ_KEEPALIVE_OFF)
-#define TCP_TSQ_SK_SLOW (TCP_TSQ_CONNECTED | TCP_TSQ_RECV_FIN | TCP_TSQ_RECV_RST | TCP_TSQ_ABORT)
+#define TCP_TSQ_SK_SLOW \
+    (TCP_TSQ_PCONNECTED | TCP_TSQ_CONNECTED | TCP_TSQ_RECV_DATA | TCP_TSQ_RECV_FIN | TCP_TSQ_RECV_RST | \
+        TCP_TSQ_ABORT | TCP_TSQ_CC_MOD)
 
 int TcpTsqInit(int slave);
 
@@ -54,7 +60,7 @@ void TcpTsqDeinit(int slave);
 void TcpTsqTryRemoveLockQue(TcpSk_t* tcp);
 void TcpTsqTryRemoveNoLockQue(TcpSk_t* tcp);
 
-void TcpTsqInetInsertBacklog(int wid, Pbuf_t *pbuf);
+void TcpTsqInsertBacklog(int wid, Pbuf_t *pbuf);
 
 typedef struct {
     TcpListHead_t tsqQue;
@@ -67,20 +73,40 @@ typedef struct {
     PBUF_Chain_t  backlog;
 } TcpTsq_t;
 
+static inline int TcpTsqLock(Spinlock_t* lock)
+{
+    return SPINLOCK_Lock(lock);
+}
+
+static inline int TcpTsqTryLock(Spinlock_t* lock)
+{
+    return SPINLOCK_TryLock(lock);
+}
+
+static inline void TcpTsqUnLock(Spinlock_t* lock)
+{
+    SPINLOCK_Unlock(lock);
+}
+
 extern TcpTsq_t** g_tsq;
 
 // socket层添加tsq事件
-static inline void TcpTsqAddLockQue(TcpSk_t* tcp, uint32_t tsqFlags)
+static inline void TcpTsqAddLockQue(TcpSk_t* tcp, uint32_t tsqFlags, bool drivePassiveTsq)
 {
     TcpTsq_t* tsq = g_tsq[tcp->wid];
 
     if (tcp->tsqFlagsLock == 0) {
-        SPINLOCK_Lock(&tsq->lock);
+        TcpTsqLock(&tsq->lock);
         LIST_INSERT_TAIL(&tsq->tsqLockQue, tcp, txEvNode);
-        SPINLOCK_Unlock(&tsq->lock);
+        TcpTsqUnLock(&tsq->lock);
     }
 
     tcp->tsqFlagsLock |= tsqFlags;
+
+    // 在共线程被动调度模式下，且非主动调用close，需要激活tsq处理事件
+    if (CFG_GET_TCP_VAL(CFG_TCP_TSQ_PASSIVE) == DP_ENABLE && drivePassiveTsq) {
+        TcpProcTsq(tcp->wid);
+    }
 }
 
 static inline void TcpTsqAddQue(TcpSk_t* tcp, int tsqFlags)
@@ -92,6 +118,7 @@ static inline void TcpTsqAddQue(TcpSk_t* tcp, int tsqFlags)
     }
 
     tcp->tsqFlags |= (uint32_t)tsqFlags;
+    // 在共线程被动调用模式下，能够继续处理到tsqQue的事件，不需要重新调度
 }
 
 #ifdef __cplusplus

@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef SOCK_H
 #define SOCK_H
 
@@ -21,7 +20,7 @@
 #include "ns.h"
 #include "netdev.h"
 #include "utils_base.h"
-#include "utils_log.h"
+#include "utils_cfg.h"
 #include "utils_spinlock.h"
 
 #include "sock_ops.h"
@@ -32,8 +31,8 @@ extern "C" {
 
 #define MAX_IOV_CNT 1024 // 参考内核 iovCnt最大不能超过1024
 
-#define DP_MSG_RECV_SUPPORT_FLAGS (DP_MSG_DONTWAIT | DP_MSG_PEEK)
-
+#define DP_MSG_RECV_SUPPORT_FLAGS (DP_MSG_DONTWAIT | DP_MSG_PEEK | DP_MSG_ZEROCOPY)
+#define DP_MSG_SEND_SUPPORT_FLAGS (DP_MSG_DONTWAIT | DP_MSG_MORE | DP_MSG_ZEROCOPY | DP_MSG_NOSIGNAL)
 typedef struct Sock Sock_t;
 
 typedef int (*SOCK_CreateSkFn_t)(NS_Net_t* net, int type, int protocol, Sock_t** sk);
@@ -57,8 +56,8 @@ void SOCK_AddProto(int family, const SOCK_ProtoOps_t* ops);
 // 以下接口为声明，由个协议实现，协议裁剪上，在sock.c中通过模块宏实现
 int INET_Init(int slave);
 void INET_Deinit(int slave);
-int SOCK_InitInet6(int slave);
 int SOCK_InitNetlink(int slave);
+int PACKET_Init(int slave);
 
 typedef struct {
     int type;
@@ -79,11 +78,29 @@ typedef struct {
 
     int (*getDstAddr)(Sock_t* sk, Pbuf_t* pbuf, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen);
     int (*getAddr)(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen, int peer);
+    void (*showInfo)(Sock_t *sk);
+    void (*getState)(Sock_t *sk, DP_SocketState_t* state);
+    void (*getDetails)(Sock_t *sk, DP_SockDetails_t* details);
 } SOCK_Ops_t;
 
 typedef LIST_HEAD(, Sock) SOCK_SkList_t;
 
 #define SOCK_STATE_RW (SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_EXCEPTION)
+
+#define PACING_RATE_VAL_MIN       100   // 设置速率最小值
+#define PACING_RATE_DEFAULT       2560  // 默认令牌产生速率 bytes/10ms
+#define PACING_RATE_TC_RADIO      100   // 令牌桶深度与产生速率的扩展倍率
+#define PACING_BYTES_10MS_PER_SEC 100
+#define PACING_RATE_VAL_DEFAULT   (PACING_RATE_DEFAULT * PACING_BYTES_10MS_PER_SEC)  // bw最小值
+#define PACING_RATE_NOLIMIT       0xFFFFFFFF
+
+// 流量限速令牌桶结构
+typedef struct SOCK_Pacing {
+    uint32_t timeStamp; // 最近一次报文到达的时间戳，单位ms
+    uint32_t tc;        // 令牌桶内的令牌数量
+    uint32_t cir;       // 令牌产生速率，单位bytes/10ms
+    uint32_t cbs;       // 令牌桶深度
+} SOCK_Pacing_t;
 
 struct Sock {
     union {
@@ -116,11 +133,13 @@ struct Sock {
 
     uint16_t error;
     uint16_t family;
+    uint16_t sockType;
 
     int linger; // close/shutdown后多久(秒)在后台关闭socket
-
     uint16_t flags; // SOCK flags标记
     uint8_t  state; // rw state
+    uint8_t  glbHashTblIdx; // 全局hash表索引，关闭锁时，worker之间不共享全局hash表
+    uint8_t  reserved[2]; // 字节对齐
 
     int16_t  queid;
     uint16_t vrfId;
@@ -144,9 +163,24 @@ struct Sock {
     uint32_t rcvLowat;
     uint32_t rcvHiwat;
 
+    uint32_t vpnid; // 记录归属的vpn
+
+    uint32_t bandWidth;
+    SOCK_Pacing_t* pacingCb; // 令牌桶控制结构
+
+    int priority;
+
     int   associateFd; // 关联FD
     void* notifyCtx;
     int   notifyType; // 回调函数类型
+
+    int32_t wid;
+    void* userData;
+
+    Netdev_t* pfDev;
+
+    uint32_t skTimestamp;
+    uint8_t isTimestamp : 1;
 };
 
 #define SOCK_ALIGN_SIZE(n)            ALIGNED((n), sizeof(void*))
@@ -168,6 +202,8 @@ int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize);
 
 void SOCK_DeinitSk(Sock_t* sk);
 
+#define SOCK_PRIORITY_MAX      6
+
 #define SOCK_FLAGS_CANSEND     0x1
 #define SOCK_FLAGS_CANRECV     0x2
 #define SOCK_FLAGS_CONNECTING  0x4
@@ -178,6 +214,7 @@ void SOCK_DeinitSk(Sock_t* sk);
 #define SOCK_FLAGS_CLOSED      0x80
 #define SOCK_FLAGS_SHUT_RD     0x100
 #define SOCK_FLAGS_SHUT_WR     0x200
+#define SOCK_FLAGS_MSG_MORE    0x8000
 
 #define SOCK_IS_CONNECTING(sk)   (((sk)->flags & SOCK_FLAGS_CONNECTING) != 0)
 #define SOCK_IS_CONNECTED(sk)    (((sk)->flags & SOCK_FLAGS_CONNECTED) != 0)
@@ -214,7 +251,15 @@ void SOCK_DeinitSk(Sock_t* sk);
 
 #define SOCK_CAN_REUSE(sk) ((sk)->reuseAddr != 0 || (sk)->reusePort != 0)
 
-void SOCK_Notify(Sock_t* sk, uint8_t oldState);
+void SOCK_Notify(Sock_t* sk, uint8_t oldState, uint8_t event);
+
+static inline void SOCK_NotifyEvent(Sock_t* sk, uint8_t event)
+{
+    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
+        return;
+    }
+    SOCK_Notify(sk, 0, event);
+}
 
 static inline void SOCK_SetState(Sock_t* sk, uint8_t state)
 {
@@ -224,7 +269,11 @@ static inline void SOCK_SetState(Sock_t* sk, uint8_t state)
     }
     sk->state |= state;
 
-    SOCK_Notify(sk, old);
+    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
+        SOCK_Notify(sk, old, SOCK_EVENT_NONE);
+    }
+
+    sk->state &= ~SOCK_STATE_ET;
 }
 
 static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
@@ -235,11 +284,15 @@ static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
     }
     sk->state &= ~state;
 
-    SOCK_Notify(sk, old);
+    if (sk->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
+        return;
+    }
+
+    SOCK_Notify(sk, old, SOCK_EVENT_NONE);
 }
 
-#define SOCK_SET_READABLE(sk)  SOCK_SetState((sk), SOCK_STATE_READ)
-#define SOCK_SET_WRITABLE(sk)  SOCK_SetState((sk), SOCK_STATE_WRITE)
+#define SOCK_SET_READABLE(sk)  SOCK_SetState((sk), SOCK_STATE_READ | SOCK_STATE_READ_ET)
+#define SOCK_SET_WRITABLE(sk)  SOCK_SetState((sk), SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET)
 #define SOCK_SET_EXCEPABLE(sk) SOCK_SetState((sk), SOCK_STATE_EXCEPTION)
 #define SOCK_SET_CANTSENDMORE(sk) SOCK_SetState((sk), SOCK_STATE_CANTSENDMORE)
 #define SOCK_SET_CANTRCVMORE(sk)  SOCK_SetState((sk), SOCK_STATE_CANTRCVMORE)
@@ -249,6 +302,22 @@ static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
 #define SOCK_UNSET_EXCEPABLE(sk) SOCK_UnsetState((sk), SOCK_STATE_EXCEPTION)
 #define SOCK_UNSET_CANTSENDMORE(sk) SOCK_UnsetState((sk), SOCK_STATE_CANTSENDMORE)
 #define SOCK_UNSET_CANTRCVMORE(sk)  SOCK_UnsetState((sk), SOCK_STATE_CANTRCVMORE)
+
+static inline void SOCK_LockOptional(Sock_t* sk)
+{
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        return;
+    }
+    SPINLOCK_Lock(&sk->lock);
+}
+
+static inline void SOCK_UnLockOptional(Sock_t* sk)
+{
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        return;
+    }
+    SPINLOCK_Unlock(&sk->lock);
+}
 
 static inline void SOCK_Lock(Sock_t* sk)
 {
@@ -293,40 +362,19 @@ static inline void SOCK_WakeupWrSem(Sock_t* sk)
 
 int SOCK_PushRcvBufSafe(Sock_t* sk, DP_Pbuf_t* pbuf);
 
-static inline void SOCK_UpdateRcvState(Sock_t* sk)
-{
-    if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
-        SOCK_SetState(sk, SOCK_STATE_READ);
-    }
-
-    SOCK_WakeupRdSem(sk);
-}
-
 ssize_t SOCK_PopRcvBuf(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t msgDataLen);
 
 ssize_t SOCK_PopRcvBufByPkt(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t msgDataLen);
 
-uint16_t SOCK_PbufAppendMsg(DP_Pbuf_t* pbuf, const struct DP_Msghdr* msg);
+Pbuf_t* SOCK_PbufBuildFromMsg(const struct DP_Msghdr* msg, uint16_t headroom);
 
 int SOCK_Init(int slave);
 void SOCK_Deinit(int slave);
+void SockResetFdIdx(void);
 
-ssize_t SOCK_GetMsgIovLen(const struct DP_Msghdr* msg);
+ssize_t SOCK_GetMsgIovLen(const struct DP_Msghdr* msg, int flags);
 
-static inline ssize_t SOCK_GetMsgDataLen(const struct DP_Msghdr* msg)
-{
-    if (msg == NULL) {
-        return -EFAULT;
-    } else if (msg->msg_iovlen == 0) { /* 内核行为如果msg_iovlen为0 不判断msg_iov的正确性 */
-        return 0;
-    } else if ((msg->msg_iov == NULL)) {
-        return -EFAULT;
-    } else if ((ssize_t)(msg->msg_iovlen) < 0 || msg->msg_iovlen > MAX_IOV_CNT) {
-        return -EMSGSIZE;
-    }
-
-    return SOCK_GetMsgIovLen(msg);
-}
+ssize_t SOCK_GetMsgDataLen(const struct DP_Msghdr* msg, int flags);
 
 #ifdef __cplusplus
 }

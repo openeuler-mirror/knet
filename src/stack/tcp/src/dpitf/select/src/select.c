@@ -9,13 +9,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_select.h"
 #include "dp_errno.h"
 
-#include "fd.h"
+#include "dp_fd.h"
 #include "sock.h"
 #include "shm.h"
 #include "utils_log.h"
@@ -274,10 +273,11 @@ static void ClrFdSet(int fd, SelectCtx_t* ctx)
     SPINLOCK_Unlock(&ctx->lock);
 }
 
-void SELECT_Notify(Sock_t* sk, SelectCtx_t* ctx, uint8_t oldState, uint8_t newState)
+void SELECT_Notify(Sock_t* sk, SelectCtx_t* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
 {
     ASSERT(ctx != NULL);
     (void)oldState;
+    (void)event;
 
     SelectCtx_t* selectCtx = ctx;
     int          fd        = sk->associateFd;
@@ -383,6 +383,10 @@ static int Wait(SelectCtx_t* ctx, int timeout)
     SPINLOCK_Unlock(&ctx->lock);
 
     ret = (int)SEM_WAIT(ctx->sem, timeout);
+    if (ret == DP_ERR) {
+        DP_SET_ERRNO(EFAULT);
+        return -1;
+    }
     if (ret != 0 && ret != ETIMEDOUT) {
         DP_SET_ERRNO(ret);
         return -1;

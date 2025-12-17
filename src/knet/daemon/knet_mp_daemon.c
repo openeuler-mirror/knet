@@ -17,47 +17,47 @@
 #include <rte_pdump.h>
 #include "securec.h"
 #include "knet_thread.h"
-#include "knet_io_init.h"
+#include "knet_dpdk_init.h"
 #include "knet_fmm.h"
 #include "knet_config.h"
 #include "knet_rpc.h"
 #include "knet_log.h"
-#include "knet_hash_rpc.h"
-#include "knet_transmission.h"
+#include "knet_hash_table.h"
 #include "knet_pdump.h"
-#include "knet_dpdk_telemetry.h"
+#include "knet_telemetry.h"
 
 #ifndef KNET_VERSION
 #define KNET_VERSION "0"
 #endif
 
-const static struct rte_memzone *g_pdumpRequestMz = NULL;  // socket设计方案中pdump_request的共享内存
-
-int KnetInitPublicResource(void)
+int DaemonInitPublicResource(void)
 {
     int ret;
 
-    ret = KNET_InitTrans(KNET_PROC_TYPE_PRIMARY);
+    ret = (int) KNET_InitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
     if (ret != 0) {
-        KNET_ERR("K-NET init Trans failed");
+        KNET_ERR("K-NET init dpdk failed");
         return -1;
     }
 
     ret = KNET_InitHash(KNET_PROC_TYPE_PRIMARY);
     if (ret != 0) {
+        KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
         KNET_ERR("K-NET init Hash failed");
         return -1;
     }
 
     ret = KNET_InitFmm(KNET_PROC_TYPE_PRIMARY);
     if (ret != 0) {
+        KNET_UninitHash(KNET_PROC_TYPE_PRIMARY);
+        KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
         KNET_ERR("K-NET init Fmm failed");
         return -1;
     }
     return 0;
 }
 
-int KnetInitResource(void)
+int DaemonInitResource(void)
 {
     int ret;
 
@@ -73,40 +73,26 @@ int KnetInitResource(void)
         return -1;
     }
 
-    KNET_LogLevelConfigure();
-
-    if (KNET_GetCfg(CONF_COMMON_MODE).intValue != KNET_RUN_MODE_MULTIPLE) {
+    KNET_LogLevelSetByStr(KNET_GetCfg(CONF_COMMON_LOG_LEVEL)->strValue);
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue != KNET_RUN_MODE_MULTIPLE) {
         KNET_ERR("K-NET conf is Single process");
         return -1;
     }
 
-    ret = KNET_CtrlVcpuCheck();
-    if (ret != 0) {
-        KNET_ERR("K-NET ctrl vcpu check failed");
+    if (KNET_GetCfg(CONF_INTERFACE_BOND_ENABLE)->intValue == 1) {
+        KNET_ERR("K-NET multi-process mode not support bond, please not use bond or use the single-process mode");
         return -1;
     }
 
-    ret = (int) KNET_InitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
-    if (ret != 0) {
-        KNET_ERR("K-NET init dpdk failed");
-        return -1;
-    }
-
-    ret = KnetInitPublicResource();
+    ret = DaemonInitPublicResource();
     if (ret != 0) {
         KNET_ERR("K-NET init public resource failed");
         return -1;
     }
-    ret = KNET_MultiPdumpInit(&g_pdumpRequestMz);
-    if (ret != 0) {
-        KNET_ERR("Multi pudmp memzone init failed");
-        return -1;
-    }
-
     return 0;
 }
 
-int KnetMainLooper(void)
+int DaemonMainLooper(void)
 {
     int ret;
     ret = KNET_RpcRun();
@@ -117,15 +103,15 @@ int KnetMainLooper(void)
     return 0;
 }
 
-int KnetUninitPublicResource(void)
+int DaemonUninitPublicResource(void)
 {
     int ret;
-    int flag;
+    int flag = 0;
     // 异常退出时，需要释放资源
-    ret = KNET_UninitTrans(KNET_PROC_TYPE_PRIMARY);
+    ret = (int) KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
     if (ret != 0) {
         flag = 1;
-        KNET_WARN("K-NET uninit trans failed");
+        KNET_WARN("K-NET uninit dpdk failed");
     }
 
     ret = KNET_UninitHash(KNET_PROC_TYPE_PRIMARY);
@@ -146,35 +132,17 @@ int KnetUninitPublicResource(void)
     return 0;
 }
 
-int KnetUninitResource(void)
+int DaemonUninitResource(void)
 {
     int ret;
-    int flag;
+    int flag = 0;
 
-    ret = KnetUninitPublicResource();
+    ret = DaemonUninitPublicResource();
     if (ret != 0) {
         flag = 1;
         KNET_WARN("K-NET uninit public resource failed");
     }
 
-    ret = (int) KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
-    if (ret != 0) {
-        flag = 1;
-        KNET_WARN("K-NET uninit dpdk failed");
-    }
-
-    ret = (int) KNET_UninitDpdkTelemetry();
-    if (ret != 0) {
-        flag = 1;
-        KNET_WARN("K-NET uninit dpdk telemetry failed, ret %d", ret);
-    }
-    ret = KNET_MultiPdumpUninit(g_pdumpRequestMz);
-    if (ret != 0) {
-        flag = 1;
-        KNET_ERR("K-NET clean memzone failed");
-    }
-    g_pdumpRequestMz = NULL;
- 
     KNET_LogUninit();
 
     if (flag == 1) {
@@ -191,7 +159,7 @@ int MainDaemon(int argc, char *argv[])
 {
     int ret;
     /* initialise the system */
-    ret = KnetInitResource();
+    ret = DaemonInitResource();
     if (ret != 0) {
         KNET_ERR("K-NET init resource failed");
         return -1;
@@ -201,13 +169,13 @@ int MainDaemon(int argc, char *argv[])
 
     int flag = 0; // 异常退出标记
 
-    ret = KnetMainLooper();
+    ret = DaemonMainLooper();
     if (ret != 0) {
         flag = 1;
         KNET_WARN("K-NET main looper failed");
     }
 
-    ret = KnetUninitResource();
+    ret = DaemonUninitResource();
     if (ret != 0) {
         flag = 1;
         KNET_WARN("K-NET uninit resource failed");

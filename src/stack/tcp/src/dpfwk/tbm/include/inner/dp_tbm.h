@@ -9,13 +9,14 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef DP_TBM_H
 #define DP_TBM_H
 
 #include <stdint.h>
 
 #include "dp_tbm_api.h"
+#include "dp_in_api.h"
+#include "dp_ether_api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -68,6 +69,19 @@ typedef enum {
     DP_GETADDR,
 } DP_IfAddrOp_t;
 
+typedef struct DP_NdItem {
+    union {
+        DP_InAddr_t  ipv4;
+        uint32_t     padding[4];
+    } dst;
+    DP_EthAddr_t mac;
+    uint16_t     state;
+    uint8_t      priv[10]; // 预留字段
+    void*        cb;       // 预留字段
+    uint32_t     ifIndex;
+    uint32_t     time;     // 预留字段
+} DP_NdItem_t;
+
 enum {
     DP_IFA_UNSPEC,
     DP_IFA_BROADCAST,
@@ -90,6 +104,11 @@ typedef enum {
     DP_DEL_ND,
     DP_GET_ND,
 } DP_NdOp_t;
+
+typedef enum {
+    DP_NEW_NL = 0,
+    DP_DEL_NL,
+} DP_NetlinkOp_t;
 
 //!< nd state: 目前仅支持
 #define DP_ND_STATE_INCOMPLETE 0x01
@@ -115,10 +134,37 @@ enum {
     DP_NDA_UNSPEC = 0,
     DP_NDA_DST,
     DP_NDA_LLADDR,
+    DP_NDA_NS,
     DP_NDA_MAX,
 };
 
 int DP_NdCfg(DP_NdOp_t op, DP_NdMsg_t* msg, DP_TbmAttr_t* attrs[], int attrCnt);
+
+typedef struct DP_TBM_Notify {
+    int      pid;
+    uint32_t groups; // 组播位，复用dp_netlink.h中定义的组播位
+
+    /**
+     * @brief
+     * type: TBM_NOTIFY_TYPE_*
+     * op: 各自对象的op
+     * family: DP_AF_INET、DP_AF_INET6
+     * item: 表项信息DP_TBM_Item_t，使用者自行保存
+     */
+    void (*cb)(void* tn, int type, int op, uint8_t family, void* item);
+    void* ctx;
+} DP_TBM_Notify_t;
+
+/**
+ * @brief     CP注册arp表项miss上报回调
+ * @attention 在协议栈初始化过程中调用
+
+ * @param  ns [IN] 网络空间id
+ * @param  tn [IN] 回调函数，DP适配CP接口nbc_arp_miss_proc实现
+ * @retval 返回0 成功
+ * @retval 返回-1 失败
+ */
+int DP_TbmAddNotify(int ns, DP_TBM_Notify_t* tn);
 
 #ifdef __cplusplus
 }

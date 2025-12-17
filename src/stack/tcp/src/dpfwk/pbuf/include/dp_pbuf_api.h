@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 提供PBUF操作，注意禁止直接使用PBUF结构字段
+ */
+/**
+ * @file dp_pbuf_api.h
+ * @brief 提供PBUF操作，注意禁止直接使用PBUF结构字段
  */
 
 #ifndef DP_PBUF_API_H
@@ -23,6 +26,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DP_PBUF_SCB_LEN  32
 
 /** @defgroup pbuf 报文管理 */
 
@@ -49,7 +54,6 @@ typedef struct DP_Pbuf {
 
     uint8_t  pentry;
     uint8_t  queid;
-    uint16_t pktFlags; //!< 报文属性：host、broadcast、multicast
 
     union {
         void* dev; //!< netdev，tx/rx均需要使用
@@ -61,15 +65,19 @@ typedef struct DP_Pbuf {
         DP_EthAddr_t* mac;
     } paddr;
 
-    void* flow;
+    struct DP_Pbuf* next; //!< 报文单向链表
+    struct DP_Pbuf* head; //!< 为实现 zero copy 记录报文链头部，用于报文链的释放
+    struct DP_Pbuf* end; //!< 为了提升处理性能，记录报文链尾部
+    void* flow;          //!< 这个字段在第二个cache
     void* nd;
 
     uint16_t l3type; // dp_ethernet.h中定义的类型
-    uint8_t  l3Off;
+    uint16_t l3Off;
     uint8_t  l4type; // dp_in.h中定义的类型
-    uint8_t  ptype;
     uint8_t  pktType;
     uint16_t l4Off;
+    uint16_t pktFlags; //!< 报文属性：host、broadcast、multicast
+    uint16_t olFlags;
 
     union {
         uint32_t hash;
@@ -79,21 +87,19 @@ typedef struct DP_Pbuf {
             uint8_t  reserve;
         };
     };
-    uint16_t olFlags;
 
-    struct DP_Pbuf* next; //!< 报文单向链表
-
-    void* mp; //!< 这个字段放到第二个cache，通常来说不应该用到
-
-    struct DP_Pbuf* end; //!< 为了提升处理性能，记录报文链尾部
+    void* mp;
+    void* userData;
 
     //!< 提供PBUF链表能力，与报文的单向链表独立
     struct DP_Pbuf* chainNext;
     struct DP_Pbuf* chainPrev;
 
-    uint8_t cb[24];
+    uint8_t cb[40];         //!< 这个字段在第三个cache
+    uint32_t scb[DP_PBUF_SCB_LEN];
+    uint32_t vpnid;         //!< PBUF归属的VPN
+    uint8_t resv[20];       //!< 补齐pbuf结构体使其填满cache，即长度为64字节的倍数
 } DP_Pbuf_t;
-
 
 /**
  * @ingroup pbuf
@@ -192,53 +198,19 @@ void DP_PbufFree(DP_Pbuf_t* pbuf);
 #define DP_PBUF_GET_L3_LEN(pbuf) ((pbuf)->l4Off - (pbuf)->l3Off)
 #define DP_PBUF_GET_L4_LEN(pbuf) ((pbuf)->l4Len)
 
+#define DP_PBUF_SET_WID(pbuf, id) ((pbuf)->wid = (id))
+#define DP_PBUF_GET_WID(pbuf)     ((pbuf)->wid)
+
+#define DP_PBUF_SET_VPNID(pbuf, id) ((pbuf)->vpnid = (id))
+#define DP_PBUF_GET_VPNID(pbuf)     ((pbuf)->vpnid)
+
 #define DP_PBUF_MTOD(pbuf, type) (type)((pbuf)->payload + (pbuf)->offset)
-
-/**
- * @ingroup pbuf
- * @brief pbuf内存申请钩子
- *
- * @param mp 内存池句柄，全局一个内存池
- * @param payload 内存分配大小
- * @retval 内存指针 成功
- * @retval NULL 失败
- */
-typedef DP_Pbuf_t* (*DP_PbufAllocHook_t)(void* mp, uint32_t payload);
-
-/**
- * @ingroup pbuf
- * @brief pbuf内存释放钩子
- *
- * @param mp 内存池句柄，全局一个内存池
- * @param pbuf 需要释放的pbuf内存指针
- * @retval NA
-
- */
-typedef void (*DP_PbufFreeHook_t)(void* mp, DP_Pbuf_t* pbuf);
-
-/**
- * @ingroup pbuf
- * pbuf内存管理钩子信息
- */
-typedef struct {
-    void* mp; // 分配 pbuf 的内存池句柄，全局一个内存池
-    DP_PbufAllocHook_t pbufAlloc;
-    DP_PbufFreeHook_t pbufFree;
-} DP_PbufMemHooks_t;
-
-/**
- * @ingroup pbuf
- * @brief pbuf内存管理接口注册
- *
- * @param pbufMemHooks 外部注册的pbuf内存管理函数
- * @retval 0 成功
- * @retval -1 失败
-
- */
-int DP_PbufMemHooksReg(DP_PbufMemHooks_t* pbufMemHooks);
 
 static inline void DP_PbufRawReset(DP_Pbuf_t* pbuf, uint8_t* payload, uint16_t plen)
 {
+    if (pbuf == NULL || payload == NULL) {
+        return;
+    }
     pbuf->payload    = payload;
     pbuf->payloadLen = plen;
     pbuf->totLen     = 0;

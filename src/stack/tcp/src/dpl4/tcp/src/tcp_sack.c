@@ -9,14 +9,15 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
-#include "utils_log.h"
-#include "tcp_sack.h"
-
-#include "shm.h"
 #include "utils_base.h"
+#include "utils_log.h"
+#include "shm.h"
+#include "tcp_rate.h"
+#include "tcp_cc.h"
+
+#include "tcp_sack.h"
 
 void TcpInitSackInfo(TcpSackInfo_t** sackInfo)
 {
@@ -101,17 +102,18 @@ static void TcpSackDoSort(TcpSackBlock_t* sackBlock, uint8_t sackCnt)
     }
 }
 
-static void TcpClearSackHoleBeforeAck(TcpSackHoleHead* sackHoleHead, TcpPktInfo_t* pi)
+static void TcpClearSackHoleBeforeAck(TcpSackInfo_t* sackInfo, TcpPktInfo_t* pi)
 {
-    TcpSackHole_t* hole = LIST_FIRST(sackHoleHead);
+    TcpSackHole_t* hole = LIST_FIRST(&sackInfo->sackHoleHead);
     TcpSackHole_t* nextHole;
 
     while (hole != NULL) {
         nextHole = LIST_NEXT(hole, node);
         // 清除完全在ack前的空洞
         if (TcpSeqLeq(hole->seqEnd, pi->ack)) {
-            LIST_REMOVE(sackHoleHead, hole, node);
+            LIST_REMOVE(&sackInfo->sackHoleHead, hole, node);
             SHM_FREE(hole, DP_MEM_FREE);
+            sackInfo->sackHoleNum--;
             hole = nextHole;
             continue;
         }
@@ -127,7 +129,6 @@ static void TcpClearSackHoleBeforeAck(TcpSackHoleHead* sackHoleHead, TcpPktInfo_
 static TcpSackHole_t* TcpCreateSackHole(TcpSk_t* tcp, uint32_t seqStart, uint32_t seqEnd, uint32_t seqRetrans)
 {
     if (TCP_SACK_HOLE_IS_FULL(tcp)) {
-        DP_LOG_INFO("Tcp Sack Hole is full.");
         return NULL;
     }
     TcpSackHole_t* newHole = SHM_MALLOC(sizeof(TcpSackHole_t), MOD_TCP, DP_MEM_FREE);
@@ -168,10 +169,7 @@ static int TcpUpdateSackHoleBySackBlock(TcpSk_t* tcp, TcpSackHole_t* hole, TcpSa
             if (newHole == NULL) {
                 return -1;
             }
-            TcpSackHole_t* temp = hole->node.next;
-            hole->node.next = newHole;
-            newHole->node.prev = hole;
-            newHole->node.next = temp;
+            LIST_INSERT_AFTER(&tcp->sackInfo->sackHoleHead, hole, newHole, node);
         }
     } else if (TcpSeqGt(hole->seqEnd, sackBlock.seqEnd)) {
         // block 覆盖了 hole的左侧
@@ -191,14 +189,6 @@ static int TcpUpdateSackHole(TcpSk_t* tcp, TcpPktInfo_t* pi, TcpSackBlock_t* sac
     int ret;
     TcpSackHole_t* hole;
     TcpSackHole_t* nextHole;
-
-    // rcvSackEnd更新，用于序列号最大的洞的填写
-    if (TcpSeqLt(tcp->sackInfo->rcvSackEnd, pi->ack)) {
-        tcp->sackInfo->rcvSackEnd = pi->ack;
-    }
-
-    // 遍历空洞，删除ack前的空洞，确保空洞链表的头的seqStart，在ack后（空洞始终有序）
-    TcpClearSackHoleBeforeAck(&tcp->sackInfo->sackHoleHead, pi);
 
     for (uint8_t i = 0; i < sackCnt; ++i) {
         TcpSackHole_t* newHole;
@@ -222,6 +212,7 @@ static int TcpUpdateSackHole(TcpSk_t* tcp, TcpPktInfo_t* pi, TcpSackBlock_t* sac
         uint32_t tempSackEnd = tcp->sackInfo->rcvSackEnd;
         if (TcpSeqLt(tempSackEnd, block.seqEnd)) {
             tcp->sackInfo->rcvSackEnd = block.seqEnd;
+            pi->pktType |= TCP_PI_SACKED_DATA;
         }
 
         if (TcpSeqGeq(tempSackEnd, block.seqStart)) {
@@ -238,9 +229,49 @@ static int TcpUpdateSackHole(TcpSk_t* tcp, TcpPktInfo_t* pi, TcpSackBlock_t* sac
     return 0;
 }
 
+static void TcpUpdateScoreBoardBySack(TcpSk_t* tcp, TcpSackBlock_t* sackBlock, uint8_t sackCnt)
+{
+    Pbuf_t* cur = tcp->rexmitQue.head;
+    uint32_t sackStart = 0;
+    uint32_t sackEnd = 0;
+    // sack块是排好序的，不需要重新遍历pbuf
+    for (int i = 0; i < sackCnt; ++i) {
+        sackStart = sackBlock[i].seqStart;
+        sackEnd = sackBlock[i].seqEnd;
+        while (cur != NULL) {
+            TcpScoreBoard_t *scb = PBUF_GET_SCORE_BOARD(cur);
+            // 报文尾序号未到达sack的起始、报文的头序号超过sack的结尾
+            if (TcpSeqLt(scb->endSeq, sackStart) || TcpSeqGeq(scb->startSeq, sackEnd)) {
+                cur = cur->chainNext;
+                continue;
+            }
+            if ((scb->state & TF_SEG_SACKED) == 0 && (tcp->inflight >= PBUF_GET_PKT_LEN(cur))) {
+                tcp->inflight -= PBUF_GET_PKT_LEN(cur);     // 若报文被sack确认过，无论是否完整，认为这个报文已经到达，不在途
+                tcp->rs.ackedSacked++;                      // 统一在nomalAck/ dupAck时处理
+                tcp->connDeliveredCnt++;
+            }
+            scb->state |= TF_SEG_SACKED;
+            TcpBwOnAcked(tcp, cur);
+            cur = cur->chainNext;
+            if (TcpSeqGeq(scb->endSeq, sackEnd)) {          // 当前sack块已经处理完，处理下一个sack块
+                break;
+            }
+        }
+    }
+}
+
 int TcpProcSackAck(TcpSk_t* tcp, TcpPktInfo_t* pi)
 {
     TcpSackBlock_t sackBlock[TCP_SACK_BLOCK_SIZE];
+
+    // 遍历空洞，删除ack前的空洞，确保空洞链表的头的seqStart，在ack后（空洞始终有序）
+    TcpClearSackHoleBeforeAck(tcp->sackInfo, pi);
+
+    // rcvSackEnd更新，用于序列号最大的洞的填写
+    if (TcpSeqLt(tcp->sackInfo->rcvSackEnd, pi->ack)) {
+        tcp->sackInfo->rcvSackEnd = pi->ack;
+    }
+
     // 报文中没有sack块
     if (pi->sackOpt == NULL) {
         return 0;
@@ -255,6 +286,10 @@ int TcpProcSackAck(TcpSk_t* tcp, TcpPktInfo_t* pi)
     // sackHole填写
     if (TcpUpdateSackHole(tcp, pi, sackBlock, (uint8_t)sackCnt) != 0) {     // sackCnt不会超过6
         return -1;
+    }
+
+    if (tcp->caMeth->algId == TCP_CAMETH_BBR) {
+        TcpUpdateScoreBoardBySack(tcp, sackBlock, (uint8_t)sackCnt);
     }
     return 0;
 }
@@ -334,9 +369,12 @@ void TcpClearSackHole(TcpSackHoleHead* sackHoleHead)
     }
 }
 
-void TcpClearSackBlock(TcpSackInfo_t* sackInfo)
+void TcpClearSackInfo(TcpSackInfo_t *sackInfo, uint32_t sndUna)
 {
+    TcpClearSackHole(&sackInfo->sackHoleHead);
     sackInfo->sackBlockNum = 0;
+    sackInfo->rcvSackEnd = sndUna;
+    sackInfo->sackHoleNum = 0;
 }
 
 static int TcpGetRexmitSackSeq(TcpSackHoleHead sackHoleHead, uint32_t* rexmitSackSeq, TcpSackHole_t** sackHole)

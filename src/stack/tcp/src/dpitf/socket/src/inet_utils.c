@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "dp_in_api.h"
 
 #include "dp_inet.h"
@@ -183,9 +182,6 @@ int DP_InetPton(int af, const char* src, void* dst)
 
     if (af == DP_AF_INET) {
         return Str2Inaddr(src, (DP_InAddr_t*)dst);
-    } else if (af == DP_AF_INET6) {
-        DP_SET_ERRNO(EAFNOSUPPORT);
-        return -1;
     }
 
     DP_SET_ERRNO(EAFNOSUPPORT);

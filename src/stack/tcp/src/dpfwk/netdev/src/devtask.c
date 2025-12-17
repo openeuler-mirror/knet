@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "netdev.h"
 
 #include "worker.h"
@@ -40,6 +39,47 @@ typedef struct {
 
 static DevTaskMgr_t* g_devTaskMgr;
 
+static void DevClearQue(NetdevQue_t* que)
+{
+    Pbuf_t* pbuf = RING_Pop(&que->cached);
+    while (pbuf != NULL) {
+        PBUF_Free(pbuf);
+        pbuf = RING_Pop(&que->cached);
+    }
+    NETDEV_PutDev(que->dev);
+}
+
+static uint8_t QueMapSet(NetdevQue_t* head, int ifIndex, uint32_t* queMap, uint32_t mapCnt)
+{
+    NetdevQue_t* que;
+    uint8_t queCnt = 0;
+    for (que = head; que != NULL; que = que->node.next) {
+        if (que->dev->ifindex == ifIndex) {
+            uint32_t index = que->queid >> 5; // 5代表除以32
+            uint32_t offset = que->queid & ((1 << 5) - 1); // 左移5位为32
+            if (index < mapCnt) {
+                queMap[index] |= (uint32_t)1 << offset;
+            }
+            queCnt++;
+        }
+    }
+    return queCnt;
+}
+
+uint8_t NETDEV_TaskQueMapGet(int wid, int ifIndex, uint32_t* queMap, uint32_t mapCnt)
+{
+    DevTask_t* task = g_devTaskMgr->task[wid];
+    uint8_t queCnt = QueMapSet(task->rxQues.first, ifIndex, queMap, mapCnt);
+
+    if (LIST_IS_EMPTY(&task->rxBacklogQues)) {
+        return queCnt;
+    }
+    SPINLOCK_Lock(&g_devTaskMgr->lock);
+    queCnt += QueMapSet(task->rxBacklogQues.first, ifIndex, queMap, mapCnt);
+    SPINLOCK_Unlock(&g_devTaskMgr->lock);
+    return queCnt;
+}
+
 void DevTask(int wid)
 {
     DevTask_t*    task;
@@ -66,7 +106,7 @@ void DevTask(int wid)
 
             rxQue = LIST_NEXT(rxRemove, node);
             LIST_REMOVE(&task->rxQues, rxRemove, node);
-
+            DevClearQue(rxRemove);
             continue;
         }
 
@@ -83,7 +123,7 @@ void DevTask(int wid)
 
             txQue = LIST_NEXT(txRemove, node);
             LIST_REMOVE(&task->txQues, txRemove, node);
-
+            DevClearQue(txRemove);
             continue;
         }
 
@@ -122,6 +162,9 @@ static void DevAddRxQue(NetdevQue_t* rxQue, NetdevQue_t* txQue)
         LIST_INSERT_TAIL(&task->txBacklogQues, txQue, node);
     }
     task->rxQueCnt++;
+
+    (void)NETDEV_RefDev(rxQue->dev);
+    (void)NETDEV_RefDev(txQue->dev);
     SPINLOCK_Unlock(&mgr->lock);
 }
 

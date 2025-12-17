@@ -9,23 +9,23 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "tcp_inet.h"
 
 #include <securec.h>
 
 #include "dp_tcp.h"
-#include "worker.h"
-#include "worker.h"
 #include "shm.h"
 #include "pmgr.h"
-#include "utils_sha256.h"
+#include "worker.h"
 #include "netdev.h"
-#include "utils_sha256.h"
+#include "sock_addr_ext.h"
 #include "utils_cfg.h"
 #include "utils_log.h"
+#include "utils_base.h"
+#include "utils_sha256.h"
 #include "utils_spinlock.h"
-#include "sock_addr_ext.h"
+#include "utils_mem_pool.h"
+#include "utils_cb_cnt.h"
 
 #include "tcp_timer.h"
 #include "tcp_types.h"
@@ -36,16 +36,11 @@
 #include "tcp_cookie.h"
 #include "tcp_out.h"
 #include "tcp_sack.h"
-#include "tcp_inet.h"
+#include "tcp_cc.h"
+#include "tcp_bbr.h"
 
-#define SHA256_HASH_DIGGESET_LEN 32
-
-#define BACKLOG_QUEUE_DEFAULT 4
-#define BACKLOG_QUEUE_MAXCONN 4096
-
-static SOCK_Ops_t g_tcpInetSkOps;
-
-TcpCfgCtx_t g_tcpCfgCtx = {0};
+char* g_tcpMpName = "DP_TCP_MP";
+DP_Mempool g_tcpMemPool = {0};
 
 static Pbuf_t* TcpInetGenRstPkt(Pbuf_t* pbuf, DP_TcpHdr_t* origTcpHdr, TcpPktInfo_t* pi);
 
@@ -58,16 +53,9 @@ static inline void TcpInetUpdateMss(TcpSk_t* tcp, Netdev_t* dev)
     }
 }
 
-static int CheckTcpCfgFree(void)
+static inline void TcpInetSetMaxSegNum(TcpSk_t* tcp, Netdev_t* dev)
 {
-    SPINLOCK_Lock(&g_tcpCfgCtx.lock);
-    if (g_tcpCfgCtx.freeCnt <= 0) {
-        SPINLOCK_Unlock(&g_tcpCfgCtx.lock);
-        DP_LOG_INFO("The num of tcpSk exceed tcpCbMax configured.");
-        return -1;
-    }
-    SPINLOCK_Unlock(&g_tcpCfgCtx.lock);
-    return 0;
+    tcp->maxSegNum = dev->maxSegNum;
 }
 
 static Sock_t* TcpInetAllocSk(Sock_t* parent)
@@ -77,18 +65,19 @@ static Sock_t* TcpInetAllocSk(Sock_t* parent)
     size_t  objSize = sizeof(TcpSk_t) + sizeof(InetSk_t);
     objSize = SOCK_GetSkSize(objSize);
 
-    sk = SHM_MALLOC(objSize, MOD_TCP, DP_MEM_FREE);
+    sk = MEMPOOL_ALLOC(g_tcpMemPool);
     if (sk == NULL) {
         DP_LOG_ERR("Malloc memory failed for tcp sk.");
+        DP_ADD_ABN_STAT(DP_TCP_CREATE_MEM_ERR);
         return NULL;
     }
-    SPINLOCK_Lock(&g_tcpCfgCtx.lock);
-    g_tcpCfgCtx.freeCnt--;
-    SPINLOCK_Unlock(&g_tcpCfgCtx.lock);
 
     (void)memset_s(sk, objSize, 0, objSize);
 
-    SOCK_InitSk(sk, parent, objSize);
+    if (SOCK_InitSk(sk, parent, objSize) != 0) {
+        MEMPOOL_FREE(g_tcpMemPool, sk);
+        return NULL;
+    }
 
     return sk;
 }
@@ -96,6 +85,7 @@ static Sock_t* TcpInetAllocSk(Sock_t* parent)
 static void TcpInetFreeSk(Sock_t* sk)
 {
     TcpSk_t *tcp = TcpSK(sk);
+    DP_ADD_TCP_STAT((tcp)->wid, DP_TCP_DROP_REASS_BYTE, tcp->reassQue.bufLen);
     PBUF_ChainClean(&tcp->reassQue);
     PBUF_ChainClean(&tcp->rexmitQue);
     DP_ADD_PKT_STAT(tcp->wid, DP_PKT_SEND_BUF_FREE, tcp->sndQue.pktCnt);
@@ -109,11 +99,9 @@ static void TcpInetFreeSk(Sock_t* sk)
     INET_DeinitFlow(&inetSk->flow);
 
     SOCK_DeinitSk(sk);
-    SHM_FREE(sk, DP_MEM_FREE);
+    MEMPOOL_FREE(g_tcpMemPool, sk);
 
-    SPINLOCK_Lock(&g_tcpCfgCtx.lock);
-    g_tcpCfgCtx.freeCnt++;
-    SPINLOCK_Unlock(&g_tcpCfgCtx.lock);
+    (void)UTILS_DecCbCnt(&g_tcpCbCnt);
 }
 
 static int TcpGetDstAddr(Sock_t* sk, Pbuf_t* pbuf, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen)
@@ -121,6 +109,7 @@ static int TcpGetDstAddr(Sock_t* sk, Pbuf_t* pbuf, struct DP_Sockaddr* addr, DP_
     (void)pbuf;
 
     if ((int)*addrlen < 0) {
+        DP_ADD_ABN_STAT(DP_GET_DST_ADDRLEN_INVAL);
         return -EINVAL;
     }
 
@@ -136,34 +125,38 @@ static int TcpInetBind(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t 
 {
     int             ret;
     InetSk_t*       inetSk = TcpInetSk(sk);
-    INET_Hashinfo_t cur;
-    TcpInetTbl_t*   tbl = TcpInetGetTbl(sk->net);
+    INET_Hashinfo_t cur = {0};
+    TcpHashTbl_t*   tbl = TcpHashGetTbl(sk->net);
+    void* userData = sk->userData;
 
     if (SOCK_IS_BINDED(sk)) { // TCP不允许重复绑定
+        DP_ADD_ABN_STAT(DP_TCP_BIND_REPEAT);
         return -EINVAL;
     }
 
     if (SOCK_IS_SHUTRD(sk) || SOCK_IS_SHUTWR(sk)) {
+        DP_ADD_ABN_STAT(DP_TCP_BIND_SHUTDOWN);
         return -EINVAL;
     }
 
     if ((ret = INET_Bind(sk, inetSk, addr, addrlen, &cur)) != 0) {
+        DP_ADD_ABN_STAT(DP_TCP_INET_BIND_FAILED);
         return ret;
     }
 
-    TcpInetLockTbl(tbl);
+    TcpHashLockTbl(tbl);
 
     if (cur.lport == 0) {
-        if (TcpInetGenPort(tbl, 1, &cur, 0) == 0) {
-            ret = 0;
-        } else if (SOCK_CAN_REUSE(sk) && TcpInetGenPort(tbl, 1, &cur, 1) == 0) {
+        if (TcpInetGenPort(sk->glbHashTblIdx, tbl, 1, &cur, 0, userData) == 0) {
             ret = 0;
         } else {
+            DP_ADD_ABN_STAT(DP_TCP_BIND_RAND_PORT_FAILED);
             ret = -EADDRINUSE;
         }
-    } else if (TcpInetCanBind(tbl, &cur, SOCK_CAN_REUSE(sk)) != 0) {
+    } else if (TcpInetCanBind(sk->glbHashTblIdx, tbl, &cur, SOCK_CAN_REUSE(sk), userData) != 0) {
         ret = 0;
     } else {
+        DP_ADD_ABN_STAT(DP_TCP_BIND_PORT_FAILED);
         ret = -EADDRINUSE;
     }
 
@@ -172,7 +165,7 @@ static int TcpInetBind(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t 
         TcpInetGlobalInsert(sk);
     }
 
-    TcpInetUnlockTbl(tbl);
+    TcpHashUnlockTbl(tbl);
 
     return ret;
 }
@@ -180,26 +173,23 @@ static int TcpInetBind(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t 
 static int TcpInetListen(Sock_t* sk, int backlog)
 {
     if (SOCK_IS_CONNECTED(sk) || SOCK_IS_CONNECTING(sk)) {
+        DP_LOG_DBG("TcpInetListen failed, sock called connect before.");
         return -EINVAL;
     }
 
     if (!SOCK_IS_BINDED(sk)) {
+        DP_LOG_DBG("TcpInetListen failed, sock not call connect before.");
         return -EDESTADDRREQ;
     }
 
     if (SOCK_IS_LISTENED(sk)) {
+        DP_LOG_INFO("TcpInetListen sock is listened.");
         return 0;
     }
 
     SOCK_SET_LISTENED(sk);
 
-    if (backlog < BACKLOG_QUEUE_DEFAULT) {
-        TcpSK(sk)->backlog = BACKLOG_QUEUE_DEFAULT;
-    } else if (backlog > BACKLOG_QUEUE_MAXCONN) {
-        TcpSK(sk)->backlog = BACKLOG_QUEUE_MAXCONN;
-    } else {
-        TcpSK(sk)->backlog = backlog;
-    }
+    TcpCheckBacklog(sk, backlog);
 
     TcpSetState(TcpSK(sk), TCP_LISTEN);
 
@@ -210,27 +200,64 @@ static int TcpInetListen(Sock_t* sk, int backlog)
 
 static int TcpTryInsertConnectTbl(Sock_t *sk)
 {
-    TcpInetTbl_t* tbl = TcpInetGetTbl(sk->net);
-    InetSk_t* inetSk = TcpInetSk(sk);
+    TcpHashTbl_t* tbl = TcpHashGetTbl(sk->net);
+    InetSk_t* inetSk  = TcpInetSk(sk);
+    void* userData = sk->userData;
 
-    TcpInetLockTbl(tbl);
+    TcpHashLockTbl(tbl);
     if (inetSk->hashinfo.lport == 0) {
-        if (TcpInetGenPort(tbl, 0, &inetSk->hashinfo, 0) != 0) {
-            TcpInetUnlockTbl(tbl);
+        if (TcpInetGenPort(sk->glbHashTblIdx, tbl, 0, &inetSk->hashinfo, 0, userData) != 0) {
+            TcpHashUnlockTbl(tbl);
+            DP_ADD_ABN_STAT(DP_TCP_CONN_RAND_PORT_FAILED);
             return -EADDRNOTAVAIL;
         }
-    } else if (TcpInetCanConnect(tbl, &inetSk->hashinfo) == 0) {
-        TcpInetUnlockTbl(tbl);
+        TcpInetGlobalInsert(sk);
+    } else if (TcpInetCanConnect(sk->glbHashTblIdx, tbl, &inetSk->hashinfo, 1, userData) == 0) {
+        TcpHashUnlockTbl(tbl);
+        DP_ADD_ABN_STAT(DP_TCP_CONN_PORT_FAILED);
         return -EADDRINUSE;
-    } else {
-        TcpInetGlobalRemove(sk);
     }
 
     TcpSetLport(TcpSK(sk), inetSk->hashinfo.lport);
     TcpSetPport(TcpSK(sk), inetSk->hashinfo.pport);
     TcpInetConnectTblInsert(sk);
 
-    TcpInetUnlockTbl(tbl);
+    TcpHashUnlockTbl(tbl);
+    return 0;
+}
+
+static int TcpRxHash(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen)
+{
+    InetSk_t* inetSk = TcpInetSk(sk);
+    NETDEV_IfAddr_t* ifaddr = inetSk->flow.rt->ifaddr;
+    int16_t queId;
+    struct DP_SockaddrIn lAddr = {
+        .sin_family = DP_AF_INET,
+        .sin_port = inetSk->hashinfo.lport,
+        .sin_addr.s_addr = inetSk->hashinfo.laddr,
+    };
+    if (ifaddr->dev->rxQueCnt == 1) {
+        queId = 0;
+    } else if (inetSk->hashinfo.queCnt == 1) {
+        queId = inetSk->hashinfo.que;
+    } else {
+        queId = NETDEV_RxHash(ifaddr->dev, addr, addrlen, (const struct DP_Sockaddr*)&lAddr, sizeof(lAddr));
+        if (queId == -1) {
+            DP_LOG_ERR("rx hash failed. ifindex = %d", ifaddr->dev->ifindex);
+            return -1;
+        }
+    }
+
+    int16_t wid = NETDEV_GetRxWid(ifaddr->dev, queId);
+    if (sk->wid != -1 && sk->wid != wid) {
+        // 共线程部署时socket被绑定至worker，若主动散列的队列属于其他worker将导致报文发送异常
+        DP_LOG_ERR("rx hash error. ifindex = %d, rx queId = %d, rx wid = %d, sk wid = %d",
+            ifaddr->dev->ifindex, queId, wid, sk->wid);
+        DP_ADD_ABN_STAT(DP_TCP_RXHASH_WID_ERR);
+        return -1;
+    }
+    TcpSK(sk)->txQueid = queId;
+    TcpSK(sk)->wid = wid;
     return 0;
 }
 
@@ -240,82 +267,314 @@ static void TcpInitIss(TcpSk_t* tcp)
     tcp->sndUna = tcp->iss;
     tcp->sndNxt = tcp->iss;
     tcp->sndMax = tcp->iss;
+    tcp->rttStartSeq = tcp->iss;
+}
+
+static void TcpInitHashInfo(InetSk_t* inetSk, const struct DP_Sockaddr* addr, NETDEV_IfAddr_t* ifaddr, Sock_t* sk)
+{
+    inetSk->hashinfo.pport = ((struct DP_SockaddrIn*)addr)->sin_port;
+    inetSk->hashinfo.paddr = inetSk->flow.dst;
+    inetSk->hashinfo.laddr = inetSk->flow.src;
+    inetSk->hashinfo.ifIndex = ifaddr->dev->ifindex;
+    inetSk->hashinfo.wid = (int8_t)sk->wid;
+    inetSk->hashinfo.vpnid = sk->vpnid;
+}
+
+static inline void TcpInetPreProcConnect(Sock_t* sk, Netdev_t* dev)
+{
+    TcpInitIss(TcpSK(sk));
+
+    TcpInetUpdateMss(TcpSK(sk), dev);
+    TcpInetSetMaxSegNum(TcpSK(sk), dev);
+
+    SOCK_SET_CONNECTING(sk);
+    DP_INC_TCP_STAT(TcpSK(sk)->wid, DP_TCP_CONN_ATTEMPT);
+
+    TcpTsqAddLockQue(TcpSK(sk), TCP_TSQ_CONNECT, true);
 }
 
 static int TcpInetConnect(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen)
 {
     int              ret;
-    NETDEV_IfAddr_t* ifaddr;
     InetSk_t*        inetSk = TcpInetSk(sk);
 
     if ((ret = TcpCanConnect(sk)) != 0) {
+        DP_ADD_ABN_STAT(DP_CONN_FLAGS_ERR);
         return ret;
     }
 
     if ((ret = INET_Connect(sk, inetSk, addr, addrlen)) != 0) {
+        DP_ADD_ABN_STAT(DP_TCP_INET_CONN_FAILED);
         return ret;
     }
 
     if (inetSk->flow.rt == NULL) {
         INET_DeinitFlow(&inetSk->flow);
+        DP_ADD_ABN_STAT(DP_TCP_CONN_RT_NULL);
         return -EINVAL;
     }
 
     if (TcpInetDevIsUp(sk) != 0) {
+        INET_DeinitFlow(&inetSk->flow);
+        DP_ADD_ABN_STAT(DP_TCP_CONN_DEV_DOWN);
         return -ENETDOWN;
     }
 
-    ifaddr = inetSk->flow.rt->ifaddr;
+    NETDEV_IfAddr_t* ifaddr = inetSk->flow.rt->ifaddr;
 
-    if (inetSk->hashinfo.laddr != DP_INADDR_ANY && ifaddr->local != inetSk->hashinfo.laddr) {
-        INET_DeinitFlow(&inetSk->flow);
-        return -EINVAL;
+    if (TBM_IsVirtualDevRt(inetSk->flow.rt)) {
+        if (inetSk->flow.src == DP_INADDR_ANY) {
+            INET_DeinitFlow(&inetSk->flow);
+            DP_ADD_ABN_STAT(DP_TCP_CONN_VI_ANY);
+            return -EADDRNOTAVAIL;
+        }
+    } else {
+        if (inetSk->hashinfo.laddr != DP_INADDR_ANY && ifaddr->local != inetSk->hashinfo.laddr) {
+            INET_DeinitFlow(&inetSk->flow);
+            DP_ADD_ABN_STAT(DP_TCP_CONN_ADDR_ERR);
+            return -EINVAL;
+        }
     }
 
-    inetSk->hashinfo.pport = ((struct DP_SockaddrIn*)addr)->sin_port;
-    inetSk->hashinfo.paddr = inetSk->flow.dst;
-    inetSk->hashinfo.laddr = inetSk->flow.src;
+    TcpInitHashInfo(inetSk, addr, ifaddr, sk);
 
     if ((ret = TcpTryInsertConnectTbl(sk)) != 0) {
         INET_DeinitFlow(&inetSk->flow);
         return ret;
     }
 
-    TcpSK(sk)->txQueid = 0;
-    TcpSK(sk)->wid = NETDEV_GetRxWid(ifaddr->dev, 0);
+    if (TcpRxHash(sk, addr, addrlen) != 0) {
+        INET_DeinitFlow(&inetSk->flow);
+        return -EADDRNOTAVAIL;
+    }
+
     TcpSK(sk)->pseudoHdrCksum = INET_CalcPseudoCksum(&inetSk->hashinfo);
-    TcpInitIss(TcpSK(sk));
 
-    TcpInetUpdateMss(TcpSK(sk), ifaddr->dev);
-
-    SOCK_SET_CONNECTING(sk);
-    DP_INC_TCP_STAT(TcpSK(sk)->wid, DP_TCP_CONN_ATTEMPT);
-
-    TcpTsqAddLockQue(TcpSK(sk), TCP_TSQ_CONNECT);
+    TcpInetPreProcConnect(sk, ifaddr->dev);
 
     return 0;
 }
 
-static int TcpShutdown(Sock_t* sk, int how)
+void TcpShowBaseInfo(TcpSk_t* tcp)
 {
-    if (how == DP_SHUT_RD || how == DP_SHUT_RDWR) {
-        SOCK_SET_READABLE(sk);
-        while (sk->rdSemCnt > 0) {
-            SOCK_WakeupRdSem(sk);
-        }
-    }
+    uint32_t offset = 0;
+    char output[LEN_INFO] = {0};
 
-    if (how == DP_SHUT_WR || how == DP_SHUT_RDWR) {
-        SOCK_SET_WRITABLE(sk);
-        while (sk->wrSemCnt > 0) {
-            SOCK_WakeupWrSem(sk);
-        }
-        TcpTsqAddLockQue(TcpSK(sk), TCP_TSQ_DISCONNECT);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO, "\r\n-------- TcpInfo --------\n");
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "state = %u\n", tcp->state);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "connType = %u\n", tcp->connType);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "IsNoVerifyCksum = %u\n", tcp->noVerifyCksum);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsAckNow = %u\n", tcp->ackNow);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "IsDelayAckEnable = %u\n", tcp->delayAckEnable);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsNodelay = %u\n", tcp->nodelay);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsRttRecord = %u\n", tcp->rttRecord);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsCork = %u\n", tcp->cork);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "IsDeferAccept = %u\n", tcp->deferAccept);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "flags = %u\n", tcp->flags);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "wid = %d\n", tcp->wid);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "txQueid = %d\n", tcp->txQueid);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "childCnt = %d\n", tcp->childCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "backlog = %d\n", tcp->backlog);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "accDataCnt = %u\n", tcp->accDataCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "accDataMax = %u\n", tcp->accDataMax);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "dupAckCnt = %u\n", tcp->dupAckCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "caState = %u\n", tcp->caState);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "cwnd = %u\n", tcp->cwnd);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "ssthresh = %u\n", tcp->ssthresh);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "seqRecover = %u\n", tcp->seqRecover);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "reorderCnt = %u\n", tcp->reorderCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "rttStartSeq = %u\n", tcp->rttStartSeq);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "srtt = %u\n", tcp->srtt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rttval = %u\n", tcp->rttval);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "tsVal = %u\n", tcp->tsVal);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "tsEcho = %u\n", tcp->tsEcho);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "lastChallengeAckTime = %u\n", tcp->lastChallengeAckTime);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "fastMode = %u\n", tcp->fastMode);
+
+    DEBUG_SHOW(0, output, offset);
+}
+
+void TcpShowTransInfo(TcpSk_t* tcp)
+{
+    uint32_t offset = 0;
+    char output[LEN_INFO] = {0};
+
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "localPort = %u\n", tcp->lport);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "peerPort = %u\n", tcp->pport);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "synOpt = %u\n", tcp->synOpt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "negOpt = %u\n", tcp->negOpt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvWs = %ud\n", tcp->rcvWs);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndWs = %u\n", tcp->sndWs);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvMss = %u\n", tcp->rcvMss);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "mss = %u\n", tcp->mss);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "iss = %u\n", tcp->iss);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "irs = %u\n", tcp->irs);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndUna = %u\n", tcp->sndUna);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndNxt = %u\n", tcp->sndNxt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndMax = %u\n", tcp->sndMax);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndWnd = %u\n", tcp->sndWnd);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndUp = %u\n", tcp->sndUp);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndWl1 = %u\n", tcp->sndWl1);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvNxt = %u\n", tcp->rcvNxt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvWnd = %u\n", tcp->rcvWnd);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvMax = %u\n", tcp->rcvMax);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvWup = %u\n", tcp->rcvWup);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "idleStart = %u\n", tcp->idleStart);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "keepIdle = %u\n", tcp->keepIdle);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "keepIntvl = %u\n", tcp->keepIntvl);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "keepProbes = %u\n", tcp->keepProbes);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "keepProbeCnt = %u\n", tcp->keepProbeCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "keepIdleLimit = %u\n", tcp->keepIdleLimit);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "keepIdleCnt = %u\n", tcp->keepIdleCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "backoff = %u\n", tcp->backoff);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "maxRexmit = %u\n", tcp->maxRexmit);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "userTimeout = %u\n", tcp->userTimeout);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "userTimeStartFast = %u\n", tcp->userTimeStartFast);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "userTimeStartSlow = %u\n", tcp->userTimeStartSlow);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "fastTimer expiredTick = %u\n", tcp->expiredTick[TCP_TIMERID_FAST]);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "slowTimer expiredTick = %u\n", tcp->expiredTick[TCP_TIMERID_SLOW]);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "delayackTimer expiredTick = %u\n", tcp->expiredTick[TCP_TIMERID_DELAYACK]);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "synRetries = %u\n", tcp->synRetries);
+    DEBUG_SHOW(0, output, offset);
+}
+
+void TcpShowInfo(TcpSk_t* tcp)
+{
+    TcpShowBaseInfo(tcp);
+    TcpShowTransInfo(tcp);
+    if ((tcp->caMeth->algId == TCP_CAMETH_BBR) && (tcp->state >= TCP_ESTABLISHED)) {
+        TcpShowBBRInfo(tcp);
     }
-    return 0;
+}
+
+static void TcpInetShowInfo(Sock_t* sk)
+{
+    InetSk_t* inetSk = TcpInetSk(sk);
+    INET_ShowInfo(inetSk);
+
+    TcpShowInfo(TcpSK(sk));
+}
+
+void TcpGetBaseDetails(TcpSk_t* tcp, DP_TcpBaseDetails_t* details)
+{
+    details->state = tcp->state;
+    details->connType = tcp->connType;
+    details->options = tcp->options;
+    details->flags = tcp->flags;
+    details->wid = tcp->wid;
+    details->txQueid = tcp->txQueid;
+    details->childCnt = tcp->childCnt;
+    details->backlog = tcp->backlog;
+    details->accDataCnt = tcp->accDataCnt;
+    details->accDataMax = tcp->accDataMax;
+    details->dupAckCnt = tcp->dupAckCnt;
+    details->caAlgId = tcp->caMeth == NULL ? -1 : tcp->caMeth->algId;
+    details->caState = tcp->caState;
+    details->cwnd = tcp->cwnd;
+    details->ssthresh = tcp->ssthresh;
+    details->seqRecover = tcp->seqRecover;
+    details->reorderCnt = tcp->reorderCnt;
+    details->rttStartSeq = tcp->rttStartSeq;
+    details->srtt = tcp->srtt;
+    details->rttval = tcp->rttval;
+    details->maxRtt = tcp->maxRtt;
+    details->tsVal = tcp->tsVal;
+    details->tsEcho = tcp->tsEcho;
+    details->lastChallengeAckTime = tcp->lastChallengeAckTime;
+    details->fastMode = tcp->fastMode;
+    details->sndQueSize = tcp->sndQue.bufLen;
+    details->rcvQueSize = tcp->rcvQue.bufLen;
+    details->rexmitQueSize = tcp->rexmitQue.bufLen;
+    details->reassQueSize = tcp->reassQue.bufLen;
+}
+
+void TcpGetTransDetails(TcpSk_t* tcp, DP_TcpTransDetails_t* details)
+{
+    details->lport = tcp->lport;
+    details->pport = tcp->pport;
+    details->synOpt = tcp->synOpt;
+    details->negOpt = tcp->negOpt;
+    details->rcvWs = tcp->rcvWs;
+    details->sndWs = tcp->sndWs;
+    details->rcvMss = tcp->rcvMss;
+    details->mss = tcp->mss;
+    details->iss = tcp->iss;
+    details->irs = tcp->irs;
+    details->sndUna = tcp->sndUna;
+    details->sndNxt = tcp->sndNxt;
+    details->sndMax = tcp->sndMax;
+    details->sndWnd = tcp->sndWnd;
+    details->sndUp = tcp->sndUp;
+    details->sndWl1 = tcp->sndWl1;
+    details->rcvNxt = tcp->rcvNxt;
+    details->rcvWnd = tcp->rcvWnd;
+    details->rcvMax = tcp->rcvMax;
+    details->rcvWup = tcp->rcvWup;
+    details->idleStart = tcp->idleStart;
+    details->keepIdle = (uint16_t)tcp->keepIdle;
+    details->keepIntvl = (uint16_t)tcp->keepIntvl;
+    details->keepProbes = tcp->keepProbes;
+    details->keepProbeCnt = tcp->keepProbeCnt;
+    details->keepIdleLimit = tcp->keepIdleLimit;
+    details->keepIdleCnt = tcp->keepIdleCnt;
+    details->backoff = tcp->backoff;
+    details->maxRexmit = tcp->maxRexmit;
+    details->rexmitCnt = tcp->rexmitCnt;
+    details->userTimeout = tcp->userTimeout;
+    details->userTimeStartFast = tcp->userTimeStartFast;
+    details->userTimeStartSlow = tcp->userTimeStartSlow;
+    details->fastTimeoutTick = tcp->expiredTick[TCP_TIMERID_FAST];
+    details->slowTimeoutTick = tcp->expiredTick[TCP_TIMERID_SLOW];
+    details->delayAckTimoutTick = tcp->expiredTick[TCP_TIMERID_DELAYACK];
+    details->synRetries = tcp->synRetries;
+}
+
+void TcpGetDetails(TcpSk_t* tcp, DP_TcpDetails_t* details)
+{
+    TcpGetBaseDetails(tcp, &details->baseDetails);
+    TcpGetTransDetails(tcp, &details->transDetails);
+}
+
+static void TcpInetGetDetails(Sock_t* sk, DP_SockDetails_t* details)
+{
+    InetSk_t* inetSk = TcpInetSk(sk);
+    INET_GetDetails(inetSk, &details->inetDetails);
+
+    TcpGetDetails(TcpSK(sk), &details->tcpDetails);
+}
+
+static void TcpInetGetState(Sock_t* sk, DP_SocketState_t* state)
+{
+    InetSk_t* inetSk = TcpInetSk(sk);
+    state->pf = DP_PF_INET;
+    state->proto = inetSk->hashinfo.protocol;
+    state->lAddr4 = inetSk->hashinfo.laddr;
+    state->lPort = inetSk->hashinfo.lport;
+    state->rAddr4 = inetSk->hashinfo.paddr;
+    state->rPort = inetSk->hashinfo.pport;
+    state->state = TcpSK(sk)->state;
+    // 共线程模式下worker id在创建socket时确定，返回sk->wid；非共线程模式下返回建链时使用的worker id
+    state->workerId = (uint32_t)(sk->wid == -1 ? (int32_t)TcpSK(sk)->wid : sk->wid);
 }
 
 static SOCK_Ops_t g_tcpInetSkOps = {
+    .type       = DP_SOCK_STREAM,
+    .protocol   = DP_IPPROTO_TCP,
     .shutdown   = TcpShutdown,
     .close      = TcpClose,
     .bind       = TcpInetBind,
@@ -330,6 +589,9 @@ static SOCK_Ops_t g_tcpInetSkOps = {
 
     .getDstAddr = TcpGetDstAddr,
     .getAddr    = TcpGetAddr,
+    .showInfo   = TcpInetShowInfo,
+    .getState   = TcpInetGetState,
+    .getDetails = TcpInetGetDetails,
 };
 
 static int TcpInetCreateSk(NS_Net_t* net, int type, int protocol, Sock_t** out)
@@ -339,22 +601,24 @@ static int TcpInetCreateSk(NS_Net_t* net, int type, int protocol, Sock_t** out)
     (void)type;
 
     if (protocol != 0 && protocol != DP_IPPROTO_TCP) {
+        DP_ADD_ABN_STAT(DP_TCP_CREATE_INVAL);
         return -EPROTONOSUPPORT;
     }
 
-    if (CheckTcpCfgFree() != 0) {
+    if (UTILS_IncCbCnt(&g_tcpCbCnt, (uint32_t)CFG_GET_VAL(DP_CFG_TCPCB_MAX)) != 0) {
+        DP_ADD_ABN_STAT(DP_TCP_CREATE_FULL);
         return -EMFILE;
     }
 
     sk = TcpInetAllocSk(NULL);
     if (sk == NULL) {
+        (void)UTILS_DecCbCnt(&g_tcpCbCnt);
         return -ENOMEM;
     }
 
     sk->net    = net;
     sk->ops    = &g_tcpInetSkOps;
     sk->family = DP_AF_INET;
-    sk->ref    = 1;
 
     TcpInetSk(sk)->hashinfo.protocol = DP_IPPROTO_TCP;
     TcpInitTcpSk(TcpSK(sk));
@@ -364,19 +628,27 @@ static int TcpInetCreateSk(NS_Net_t* net, int type, int protocol, Sock_t** out)
     return 0;
 }
 
-static int TcpInitInetSk(DP_TcpHdr_t* tcpHdr, DP_IpHdr_t* ipHdr, Sock_t* newsk)
+static int TcpInitInetSk(Sock_t* newsk, Sock_t* parent, DP_TcpHdr_t* tcpHdr, DP_IpHdr_t* ipHdr)
 {
     InetSk_t* inetSk = TcpInetSk(newsk);
-    inetSk->hashinfo.lport    = tcpHdr->dport;
-    inetSk->hashinfo.pport    = tcpHdr->sport;
-    inetSk->hashinfo.laddr    = ipHdr->dst;
-    inetSk->hashinfo.paddr    = ipHdr->src;
-    inetSk->hashinfo.protocol = ipHdr->type;
+    inetSk->hashinfo.lport     = tcpHdr->dport;
+    inetSk->hashinfo.pport     = tcpHdr->sport;
+    inetSk->hashinfo.laddr     = ipHdr->dst;
+    inetSk->hashinfo.paddr     = ipHdr->src;
+    inetSk->hashinfo.protocol  = ipHdr->type;
+    inetSk->hashinfo.vpnid     = TcpInetSk(parent)->hashinfo.vpnid;
+    inetSk->hashinfo.lportMask = TcpInetSk(parent)->hashinfo.lportMask;
+    inetSk->hashinfo.wid       = (int8_t)newsk->wid;
+    if (TcpInetPortRef(newsk->net, inetSk->hashinfo.lport, inetSk->hashinfo.lportMask, inetSk->hashinfo.wid) != 0) {
+        return -1;
+    }
 
-    inetSk->flow.dst       = inetSk->hashinfo.paddr;
+    inetSk->flow.src          = inetSk->hashinfo.laddr;
+    inetSk->flow.dst          = inetSk->hashinfo.paddr;
     if (INET_InitFlowBySk(newsk, inetSk, &inetSk->flow) != 0 || inetSk->flow.src != inetSk->hashinfo.laddr) {
         return -1;
     }
+    inetSk->hashinfo.ifIndex = inetSk->flow.rt->ifaddr->dev->ifindex;
 
     return 0;
 }
@@ -387,38 +659,34 @@ static TcpSk_t* TcpInetCreateChildSk(Sock_t* parent, Pbuf_t* pbuf, DP_TcpHdr_t* 
     Netdev_t*     dev   = (Netdev_t*)PBUF_GET_DEV(pbuf);
 
     if (TcpSK(parent)->backlog <= TcpSK(parent)->childCnt) {
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_OVER_BACKLOG);
         return NULL;
     }
 
-    // 通知地址信息，失败时不能建链
-    struct DP_SockaddrIn addrIn = {
-        .sin_family = DP_AF_INET,
-        .sin_addr.s_addr = ipHdr->dst,
-        .sin_port = tcpHdr->dport
-    };
-    DP_LOG_DBG("TCP addr notify create.");
-
     // 内核行为，如果已经达到socket资源的最大值，则服务端会回复RST报文，且返回EMFILE错误
-    if (CheckTcpCfgFree() != 0) {
+    if (UTILS_IncCbCnt(&g_tcpCbCnt, (uint32_t)CFG_GET_VAL(DP_CFG_TCPCB_MAX)) != 0) {
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_PAEST_OVER_MAXCB);
         parent->error = EMFILE;
         SOCK_WakeupRdSem(parent);
         *isNeedRst = 1;
         return NULL;
     }
 
-    if (SOCK_AddrEventNotify(DP_ADDR_EVENT_CREATE, DP_IPPROTO_TCP,
-        (struct DP_Sockaddr*)&addrIn, sizeof(addrIn)) != 0) {
-        return NULL;
-    }
-
     Sock_t* newsk = TcpInetAllocSk(parent);
     if (newsk == NULL) {
+        (void)UTILS_DecCbCnt(&g_tcpCbCnt);
         return NULL;
     }
 
     TcpSk_t* newtcp = TcpSK(newsk);
+    newsk->family = DP_AF_INET;
     TcpInitChildTcpSk(newsk, parent, pbuf, tcpHdr);
-    if (TcpInitInetSk(tcpHdr, ipHdr, newsk) != 0) {
+    if (TcpInitInetSk(newsk, parent, tcpHdr, ipHdr) != 0) {
+        TcpInetFreeSk(newsk);
+        return NULL;
+    }
+
+    if (TcpInetCanUseAddr(&TcpInetSk(newsk)->hashinfo) != 1) {
         TcpInetFreeSk(newsk);
         return NULL;
     }
@@ -432,10 +700,9 @@ static TcpSk_t* TcpInetCreateChildSk(Sock_t* parent, Pbuf_t* pbuf, DP_TcpHdr_t* 
 
     // 调整mss
     TcpInetUpdateMss(newtcp, dev);
-    if (TcpInetPerWorkerTblInsert(newsk) != 0 || TcpInetConnectTblInsertSafe(newsk) != 0) {
-        TcpInetFreeSk(newsk);
-        return NULL;
-    }
+    TcpInetSetMaxSegNum(newtcp, dev);
+    TcpInetPerWorkerTblInsert(newsk);
+    TcpInetConnectTblInsertSafe(newsk);
 
     LIST_INSERT_TAIL(&TcpSK(parent)->uncomplete, newtcp, childNode);
     TcpSK(parent)->childCnt++;
@@ -449,23 +716,25 @@ static Pbuf_t* TcpGenCookieSynAckPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t
 {
     Pbuf_t*         ret;
     DP_TcpHdr_t*    tcpHdr;
-    INET_Hashinfo_t hi;
+    INET_Hashinfo_t hi = {0};
     DP_IpHdr_t*     ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
     uint32_t        cksum;
 
-    ret = TcpGenCookieSynAckPktByPkt(pbuf, parent, pi, synOpts, ci);
+    ret = TcpGenCookieSynAckPktByPkt(pbuf, parent, pi, synOpts, ci->iss);
     if (ret == NULL) {
         return ret;
     }
 
     PBUF_SET_L4_TYPE(ret, DP_IPPROTO_TCP);
     PBUF_SET_ENTRY(ret, PMGR_ENTRY_ROUTE_OUT);
-    PBUF_SET_WID(ret, PBUF_GET_WID(pbuf));
+    DP_PBUF_SET_WID(ret, DP_PBUF_GET_WID(pbuf));
     PBUF_SET_QUE_ID(ret, NETDEV_GetTxQueid(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf)));
     PBUF_SET_PKT_TYPE(ret, PBUF_PKTTYPE_HOST);
     PBUF_SET_DEV(ret, PBUF_GET_DEV(pbuf));
     PBUF_SET_FLOW(ret, NULL);
-    PBUF_SET_DST_ADDR(ret, PBUF_GET_DST_ADDR(pbuf));
+    DP_PBUF_SET_VPNID(ret, DP_PBUF_GET_VPNID(pbuf));
+    PBUF_SET_DST_ADDR4(ret, PBUF_GET_DST_ADDR4(pbuf));
+    INET_TX_CB(ret)->src = ipHdr->dst;
 
     hi.laddr    = ipHdr->dst;
     hi.paddr    = ipHdr->src;
@@ -484,6 +753,14 @@ static Pbuf_t* TcpInetProcCookie(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr
     TcpCookieInetHashInfo_t info = { 0 };
     uint16_t mss;
     DP_IpHdr_t* ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
+    Pbuf_t* ret;
+
+    TcpNotifyEvent(TcpSk2Sk(tcp), SOCK_EVENT_RCVSYN, tcp->tsqNested);
+    if (SOCK_IS_CLOSED(TcpSk2Sk(tcp))) {
+        DP_INC_TCP_STAT(pbuf->wid, DP_TCP_COOKIE_AFTER_CLOSED);
+        ret = TcpInetGenRstPkt(pbuf, tcpHdr, pi);
+        goto out;
+    }
 
     info.laddr = ipHdr->src;
     info.paddr = ipHdr->dst;
@@ -499,10 +776,10 @@ static Pbuf_t* TcpInetProcCookie(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr
     TcpCookieCalcInetIss(pi, &info, mss);
 
     synOpts->mss = mss;
-    Pbuf_t* ret = TcpGenCookieSynAckPkt(pbuf, tcp, pi, synOpts, &info);
+    ret = TcpGenCookieSynAckPkt(pbuf, tcp, pi, synOpts, &info);
 
+out:
     PBUF_Free(pbuf);
-
     return ret;
 }
 
@@ -512,32 +789,32 @@ static Pbuf_t* TcpInetProcChild(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr,
     TcpSynOpts_t synOpts;
     Pbuf_t *ret = NULL;
     uint8_t isNeedRst = 0;
+    uint32_t reason = 0;
 
     PBUF_SET_L4_OFF(pbuf);
     PBUF_CUT_HEAD(pbuf, pi->hdrLen);
 
-    if ((pi->thFlags & DP_TH_RST) != 0) {
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_DROP_CONTROL_PKTS);
+    if (TcpPreProcChild(tcp, pbuf, pi, &isNeedRst, &reason) != 0 && isNeedRst == 0) {
         goto drop;
-    }
-
-    if ((pi->thFlags & DP_TH_ACK) != 0) {
+    } else if (isNeedRst == 1) {
         ret = TcpInetGenRstPkt(pbuf, tcpHdr, pi);
         goto drop;
     }
 
-    if (PBUF_GET_PKT_LEN(pbuf) != 0 || (pi->thFlags & 0x3F) != DP_TH_SYN) { // 暂不支持带数据的syn报文
-        DP_INC_TCP_STAT(tcp->wid, DP_TCP_DROP_CONTROL_PKTS);
-        goto drop;
-    }
-
     if (TcpParseSynOpts((uint8_t*)(tcpHdr + 1), pi->hdrLen - sizeof(DP_TcpHdr_t), &synOpts) != 0) {
-        goto drop;
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_ERR_SYN_OPT);
     }
 
     SOCK_Lock(TcpSk2Sk(tcp));
 
-    if (CFG_GET_TCP_VAL(DP_CFG_TCP_COOKIE) == DP_ENABLE && TcpCheckCookie(tcp)) {
+    if (SOCK_IS_CLOSED(TcpSk2Sk(tcp))) {
+        SOCK_Unlock(TcpSk2Sk(tcp));
+        reason = DP_TCP_PARENT_CLOSED;
+        ret = TcpInetGenRstPkt(pbuf, tcpHdr, pi);
+        goto drop;
+    }
+
+    if (tcp->cookie != 0 && TcpCheckCookie(tcp)) {
         ret = TcpInetProcCookie(tcp, pbuf, tcpHdr, pi, &synOpts);
         SOCK_Unlock(TcpSk2Sk(tcp));
         return ret;
@@ -555,35 +832,60 @@ static Pbuf_t* TcpInetProcChild(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr,
     }
 
     ret = TcpProcListen(child, &synOpts, pi);
-
 drop:
-    PBUF_Free(pbuf);
+    if (reason != 0) {
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), reason);
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_DROP_CONTROL_PKTS);
+        ATOMIC32_Inc(&tcp->rcvDrops);
+    }
 
+    PBUF_Free(pbuf);
     return ret;
 }
 
-static TcpSk_t* TcpInetLookupByPkt(Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr)
+TcpSk_t* TcpInetLookupByPkt(Pbuf_t* pbuf, TcpPktInfo_t* pi)
 {
     DP_IpHdr_t*     ipHdr;
+    DP_TcpHdr_t*    tcpHdr;
     Netdev_t*       dev = PBUF_GET_DEV(pbuf);
-    INET_Hashinfo_t hi;
+    INET_Hashinfo_t hi = {0};
+    TcpSk_t* tcp = NULL;
 
     ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
+    tcpHdr = PBUF_MTOD(pbuf, DP_TcpHdr_t*);
 
     hi.protocol = DP_IPPROTO_TCP;
     hi.paddr    = ipHdr->src;
     hi.laddr    = ipHdr->dst;
     hi.pport    = tcpHdr->sport;
     hi.lport    = tcpHdr->dport;
+    hi.vpnid    = DP_PBUF_GET_VPNID(pbuf);
 
-    return TcpInetLookup(dev->net, PBUF_GET_WID(pbuf), &hi);
+    tcp = TcpInetLookupPerWorker(DP_PBUF_GET_WID(pbuf), dev->net, &hi);
+    if (tcp != NULL) {
+        if (tcp->state != TCP_TIME_WAIT) {
+            return tcp;
+        }
+
+        // 支持复用TIMEWAIT状态socket
+        /* rfc9293 3.10.7.4. For the TIME-WAIT state, new connections can
+            be accepted if the Timestamp Option is used and meets
+            expectations (per [40]).
+        */
+        tcp = TcpReuse(tcp, tcpHdr, pi);
+        if (tcp != NULL) {
+            return tcp;
+        }
+    }
+
+    return TcpInetLookupListener(DP_PBUF_GET_WID(pbuf), dev->net, &hi);
 }
 
 static Pbuf_t* TcpInetGenRstPkt(Pbuf_t* pbuf, DP_TcpHdr_t* origTcpHdr, TcpPktInfo_t* pi)
 {
     Pbuf_t*         ret;
     DP_TcpHdr_t*    tcpHdr;
-    INET_Hashinfo_t hi;
+    INET_Hashinfo_t hi = {0};
     DP_IpHdr_t*     ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
     uint32_t        cksum;
 
@@ -595,15 +897,17 @@ static Pbuf_t* TcpInetGenRstPkt(Pbuf_t* pbuf, DP_TcpHdr_t* origTcpHdr, TcpPktInf
     PBUF_SET_L4_TYPE(ret, DP_IPPROTO_TCP);
     PBUF_SET_ENTRY(ret, PMGR_ENTRY_ROUTE_OUT);
     PBUF_SET_QUE_ID(ret, NETDEV_GetTxQueid(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf)));
-    PBUF_SET_WID(ret, PBUF_GET_WID(pbuf));
+    DP_PBUF_SET_WID(ret, DP_PBUF_GET_WID(pbuf));
     PBUF_SET_PKT_TYPE(ret, PBUF_PKTTYPE_HOST);
     PBUF_SET_DEV(ret, PBUF_GET_DEV(pbuf));
     PBUF_SET_FLOW(ret, NULL);
-    PBUF_SET_DST_ADDR(ret, PBUF_GET_DST_ADDR(pbuf));
+    DP_PBUF_SET_VPNID(ret, DP_PBUF_GET_VPNID(pbuf));
+    PBUF_SET_DST_ADDR4(ret, PBUF_GET_DST_ADDR4(pbuf));
+    INET_TX_CB(ret)->src = ipHdr->dst;
 
-    DP_INC_TCP_STAT(PBUF_GET_WID(pbuf), DP_TCP_SND_RST);
-    DP_INC_TCP_STAT(PBUF_GET_WID(pbuf), DP_TCP_SND_CONTROL);
-    DP_INC_TCP_STAT(PBUF_GET_WID(pbuf), DP_TCP_SND_TOTAL);
+    DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_SND_RST);
+    DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_SND_CONTROL);
+    DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_SND_TOTAL);
 
     hi.laddr    = ipHdr->dst;
     hi.paddr    = ipHdr->src;
@@ -624,7 +928,7 @@ static TcpSk_t* TcpTryCreateCookieSk(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tc
     DP_IpHdr_t* ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
     uint8_t isNeedRst = 0;
 
-    if (CFG_GET_TCP_VAL(DP_CFG_TCP_COOKIE) == DP_DISABLE ||
+    if (tcp->cookie == 0 ||
         (pi->thFlags & (DP_TH_ACK | DP_TH_SYN | DP_TH_RST)) != DP_TH_ACK) {
         // 当 cookie 关闭，报文中携带 SYN, 报文中携带 RST ，报文中没有 ACK ，不处理
         return NULL;
@@ -637,11 +941,12 @@ static TcpSk_t* TcpTryCreateCookieSk(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tc
     info.dport = tcpHdr->dport;
 
     if (!TcpCookieVerifyInetIss(pi, &info, &mss)) {
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_ACK_ERR_COOKIE);
         return NULL;
     }
 
     if (TcpParseSynOpts((uint8_t*)(tcpHdr + 1), pi->hdrLen - sizeof(DP_TcpHdr_t), &opts) != 0) {
-        return NULL;
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_ERR_SYN_OPT);
     }
 
     // return 创建子socket
@@ -650,20 +955,12 @@ static TcpSk_t* TcpTryCreateCookieSk(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tc
     SOCK_Unlock(TcpSk2Sk(tcp));
 
     if (newTcp == NULL) {
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_COOKIE_CREATE_FAILED);
         return NULL;
     }
 
-    /* 这里是因为在触发cookie的时候已经生成过了一遍ISS 需要使用对端回复报文的ACK字段来对iss进行更新 */
-    newTcp->iss    = pi->ack - 1;
-    newTcp->sndUna = newTcp->iss;
-    newTcp->sndNxt = newTcp->iss + 1;
-    newTcp->sndMax = newTcp->iss + 1;
+    TcpFillCookieSk(newTcp, pi, mss);
 
-    newTcp->irs    = pi->seq - 1;
-    newTcp->rcvNxt = newTcp->irs + 1;
-    newTcp->rcvWup = newTcp->rcvNxt;
-    newTcp->mss    = mss;
-    newTcp->rcvWnd = TcpGetRcvSpace(newTcp); // 更新通告窗口
     // 从时间戳中解析选项
     if ((opts.rcvSynOpt & TCP_SYN_OPT_TIMESTAMP) != 0) {
         TcpCookieSetOpts(newTcp, &opts);
@@ -672,33 +969,71 @@ static TcpSk_t* TcpTryCreateCookieSk(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tc
     return newTcp;
 }
 
+static Pbuf_t* TcpProcWithoutTcp(Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
+{
+    Pbuf_t* ret = NULL;
+    int wid = NETDEV_GetRxQueWid(PBUF_GET_DEV(pbuf), 0);
+    // wid不同且没查找到，可能是主动建链场景，syn|ack报文被分流到其他worker
+    if (DP_PBUF_GET_WID(pbuf) != wid) {
+        TcpTsqInsertBacklog(wid, pbuf);
+        return NULL;
+    }
+
+    if (PMGR_Get(PMGR_ENTRY_DELAY_KERNEL_IN) != NULL) {
+        /* 队列钩子初始化完整，执行延后处理逻辑 */
+        uint16_t putBackHead = pbuf->offset - pbuf->l3Off;
+        PBUF_PUT_HEAD(pbuf, putBackHead);
+        PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_DELAY_KERNEL_IN);
+        return pbuf;
+    }
+
+    if ((pi->thFlags & DP_TH_RST) == 0) {
+        // 无监听端口，且非RST报文，返回RST报文。否则直接丢弃
+        DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_NON_RST);
+        ret = TcpInetGenRstPkt(pbuf, tcpHdr, pi);
+    }
+    DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_WITHOUT_LISTENER);
+    PBUF_Free(pbuf);
+    return ret;
+}
+
 static Pbuf_t* TcpInetInput(Pbuf_t* pbuf)
 {
     DP_TcpHdr_t* tcpHdr;
     TcpPktInfo_t   pi;
     TcpSk_t*       tcp;
     Pbuf_t*        ret = NULL;
+    Sock_t*        sk;
 
-    DP_INC_PKT_STAT(PBUF_GET_WID(pbuf), DP_PKT_TCP_IN);
+    DP_INC_PKT_STAT(DP_PBUF_GET_WID(pbuf), DP_PKT_TCP_IN);
     tcpHdr = PBUF_MTOD(pbuf, DP_TcpHdr_t*);
     if (TcpInitPktInfo(pbuf, tcpHdr, &pi) != 0) {
-        goto drop;
+        NET_DEV_ADD_RX_ERRS(NETDEV_GetRxQue(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf)), 1);
+        PBUF_Free(pbuf);
+        return NULL;
     }
 
-    tcp = TcpInetLookupByPkt(pbuf, tcpHdr);
+    tcp = TcpInetLookupByPkt(pbuf, &pi);
     if (tcp == NULL) {
-        int wid = NETDEV_GetRxQueWid(PBUF_GET_DEV(pbuf), 0);
-        // wid不同且没查找到，可能是主动建链场景，syn|ack报文被分流到其他worker
-        if (PBUF_GET_WID(pbuf) != wid) {
-            TcpTsqInetInsertBacklog(wid, pbuf);
-        } else if ((pi.thFlags & DP_TH_RST) == 0) {
-            // 无监听端口，且非RST报文，返回RST报文。否则直接丢弃
-            ret = TcpInetGenRstPkt(pbuf, tcpHdr, &pi);
-        }
-        goto drop;
+        return TcpProcWithoutTcp(pbuf, tcpHdr, &pi);
+    }
+    sk = TcpSk2Sk(tcp);
+    // 时间戳选项开启
+    if (sk->isTimestamp == 1) {
+        sk->skTimestamp = UTILS_TimeNow();
     }
 
+    // 状态为CLOSED之后，不处理
+    if (TcpState(tcp) == TCP_CLOSED) {
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_RCV_AFTER_CLOSED);
+        PBUF_Free(pbuf);
+        return NULL;
+    }
+
+    pi.tsVal = tcp->tsEcho;
+    DP_INC_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_RCV_TOTAL);
     if (tcp->state == TCP_LISTEN) {
+        DP_ADD_TCP_STAT(DP_PBUF_GET_WID(pbuf), DP_TCP_PASSIVE_RCV_BYTE, pi.dataLen);
         TcpSk_t* newTcp = TcpTryCreateCookieSk(tcp, pbuf, tcpHdr, &pi);
         if (newTcp != NULL) { // 处理cookie socket
             ret = TcpProcSynRecv(newTcp, tcpHdr, pbuf, &pi);
@@ -707,32 +1042,13 @@ static Pbuf_t* TcpInetInput(Pbuf_t* pbuf)
         } else {
             ret = TcpInetProcChild(tcp, pbuf, tcpHdr, &pi);
         }
-        SOCK_Deref(TcpSk2Sk(tcp));
+        if (SOCK_Deref(TcpSk2Sk(tcp)) == 0) {
+            TcpFreeSk(TcpSk2Sk(tcp));
+        }
         return ret;
     }
-    DP_INC_TCP_STAT(tcp->wid, DP_TCP_RCV_TOTAL);
+    DP_TCP_STAT_RCV(tcp, pi.dataLen);
     return TcpInput(tcp, pbuf, tcpHdr, &pi);
-
-drop:
-    PBUF_Free(pbuf);
-
-    return ret;
-}
-
-static inline uint16_t TcpInetGetEffectiveMss(TcpSk_t* tcp)
-{
-    // 当前不支持 sack 和 path mtu ，直接返回协商的 mss
-    return tcp->mss;
-}
-
-static inline uint16_t TcpInetGetTsoSize(Netdev_t* dev, uint16_t mss)
-{
-    if (dev == NULL || !NETDEV_TSO_ENABLED(dev)) {
-        return mss;
-    }
-
-    // TSO 开启，返回 tsoSize
-    return (uint16_t)UTILS_MAX(mss, dev->tsoSize);
 }
 
 static int TcpInetGetXmitInfo(Sock_t* sk, TcpXmitInfo_t* info)
@@ -751,9 +1067,15 @@ static int TcpInetGetXmitInfo(Sock_t* sk, TcpXmitInfo_t* info)
         dev = sk->dev;
     }
 
+    if (dev == NULL) {
+        DP_LOG_ERR("TcpInetGetXmitInfo! dev == NULL.");
+        DP_INC_TCP_STAT(tcp->wid, DP_TCP_XMIT_GET_DEV_NULL);
+        return -1;
+    }
+
     info->pentry = PMGR_ENTRY_ROUTE_OUT;
-    info->mss = TcpInetGetEffectiveMss(tcp);
-    info->tsoSize = TcpInetGetTsoSize(dev, info->mss);
+    info->mss = TcpGetEffectiveMss(tcp);
+    info->tsoSize = TcpGetTsoSize(dev, info->mss);
     info->flow = flow;
     info->dev = dev;
     return 0;
@@ -785,6 +1107,23 @@ uint32_t TcpInetGenIsn(Sock_t* sk)
         inetSk->hashinfo.lport, inetSk->hashinfo.pport);
 }
 
+static int TcpMemPoolInit(void)
+{
+    size_t objSize = sizeof(InetSk_t);
+    objSize += sizeof(TcpSk_t);
+    objSize = SOCK_GetSkSize(objSize);
+
+    DP_MempoolCfg_S mpCfg = {0};
+    mpCfg.name = g_tcpMpName;
+    mpCfg.count = (uint32_t)CFG_GET_VAL(DP_CFG_TCPCB_MAX);
+    mpCfg.size = objSize;
+    mpCfg.type = DP_MEMPOOL_TYPE_FIXED_MEM;
+
+    int32_t mod = MOD_TCP;
+    DP_MempoolAttr_S attr = (void*)&mod;
+    return MEMPOOL_CREATE(&mpCfg, &attr, &g_tcpMemPool);
+}
+
 int TcpInetInit(void)
 {
     SOCK_ProtoOps_t skOps = {
@@ -796,7 +1135,7 @@ int TcpInetInit(void)
         .hash       = TcpInetPerWorkerTblInsert,
         .unhash     = TcpInetPerWorkerTblRemove,
         .getXmitInfo = TcpInetGetXmitInfo,
-        .freeFunc       = TcpInetFreeSk,
+        .mFree       = TcpInetFreeSk,
         .waitIdle   = TcpInetWaitIdle,
         .listenerInsert = TcpInetListenerInsertSafe,
         .listenerRemove = TcpInetListenerRemoveSafe,
@@ -807,31 +1146,29 @@ int TcpInetInit(void)
     };
 
     g_tcpInetOps = &inetOps;
-    g_tcpCfgCtx.freeCnt = CFG_GET_VAL(DP_CFG_TCPCB_MAX);
-    if (SPINLOCK_Init(&g_tcpCfgCtx.lock) != 0) {
-        return -1;
-    }
+
+    ATOMIC32_Store(&g_tcpCbCnt, 0);
 
     SOCK_AddProto(DP_AF_INET, &skOps);
 
     PMGR_AddEntry(PMGR_ENTRY_TCP_IN, TcpInetInput);
 
-    NS_SetNetOps(NS_NET_TCP, TcpInetAllocHash, TcpInetFreeHash);
+    NS_SetNetOps(NS_NET_TCP, TcpHashAlloc, TcpHashFree);
+
+    /* DP_MEMPOOL_TYPE_FIXED_MEM 类型的内存池创建失败时会使用MEM_MALLOC代替 */
+    if (TcpMemPoolInit() != 0) {
+        DP_LOG_INFO("Tcp mempool init failed.");
+    }
 
     return 0;
 }
 
 void TcpInetDeinit(void)
 {
-    SPINLOCK_Deinit(&g_tcpCfgCtx.lock);
-}
+    ATOMIC32_Store(&g_tcpCbCnt, 0);
 
-int DP_SocketCountGet(int type)
-{
-    (void)type;
-    int tcpSocketCount;
-    SPINLOCK_Lock(&g_tcpCfgCtx.lock);
-    tcpSocketCount = g_tcpCfgCtx.freeCnt;
-    SPINLOCK_Unlock(&g_tcpCfgCtx.lock);
-    return CFG_GET_VAL(DP_CFG_TCPCB_MAX) - tcpSocketCount;
+    if (g_tcpMemPool != NULL) {
+        MEMPOOL_DESTROY(g_tcpMemPool);
+        g_tcpMemPool = NULL;
+    }
 }

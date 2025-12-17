@@ -1,0 +1,91 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ 
+ * K-NET is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+      http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ * Description: telemetry初始化
+ */
+#ifndef __KNET_TELEMETRY_H__
+#define __KNET_TELEMETRY_H__
+
+#include "rte_telemetry.h"
+#include "dp_debug_api.h"
+#include "knet_types.h"
+
+#define MAX_OUTPUT_LEN 16384 /* 适配DP_ShowStatistics接口维测信息长度 */
+#define KNET_TELEMETRY_MZ_NAME "knet_telemetry_debug_info_mz"
+#define UNCONNECTED_FLAG 0xFFFFFFFF
+
+/* 统计信息输出打印方式 */
+typedef enum {
+    KNET_STAT_OUTPUT_TO_LOG = 0,   /* 打印到日志 */
+    KNET_STAT_OUTPUT_TO_SCREEN,    /* 打印到屏幕 */
+    KNET_STAT_OUTPUT_TO_TELEMETRY, /* 打印到telemetry */
+    KNET_STAT_OUTPUT_MAX
+} KNET_StatOutputType;
+
+/* telemetry回调处理类型 */
+typedef enum {
+    KNET_TELEMETRY_STATISTIC = 0,
+    KNET_TELEMETRY_UPDATE_QUE_INFO,
+    KNET_TELEMETRY_MAX,
+} KNET_TelemetryType;
+
+typedef struct {
+    int msgReady[MAX_QUEUE_NUM];  // 从进程判断消息是否需要发送，1表示需要
+    uint32_t statType;
+    KNET_TelemetryType telemetryType;  // 回调类型
+    char message[MAX_QUEUE_NUM][MAX_OUTPUT_LEN];
+    uint32_t pid[MAX_QUEUE_NUM];  // 共享内存内记录pid
+    uint32_t tid[MAX_QUEUE_NUM];  // 共享内存内记录tid
+    uint32_t lcoreId[MAX_QUEUE_NUM];  // 共享内存内记录lcoreId
+} KNET_TelemetryInfo;
+
+/**
+ * @brief 进行支持dpdk-telemetry工具必要的初始化操作，包括初始化运行时目录、查找遥感套接字、创建硬链接和注册遥感命令
+ * @return int32_t 0：成功-1：失败
+ */
+int32_t KNET_InitDpdkTelemetry(void);
+
+/**
+ * @brief 进行资源释放，删除创建的用于支持dpdk-telemetry工具的套接字文件
+ * @return int32_t 0：成功-1：失败
+ */
+int32_t KNET_UninitDpdkTelemetry(void);
+
+/**
+ * @brief 将tcp接口获取到的报文打点统计信息写入共享内存
+ * @param output 信息的字符缓冲区
+ * @param len 缓冲区的长度
+ * @return int 0：成功-1：失败
+ * @attention 只能被 KNET_ACC_Debug 调用，调用前 output 已做判空
+ */
+int KNET_DebugOutputToTelemetry(const char *output, uint32_t len);
+
+typedef void (*KNET_DpShowStatisticsHook)(DP_StatType_t type, int workerId, uint32_t flag);
+typedef struct {
+    KNET_DpShowStatisticsHook dpShowStatisticsHook;
+} KNET_DpTelemetryHooks;
+
+/**
+ * @brief 注册协议栈遥测功能钩子
+ * @param dpTelemetryHooks 协议栈遥测钩子
+ * @return int 0：成功 -1：失败
+ */
+int KNET_DpTelemetryHookReg(KNET_DpTelemetryHooks dpTelemetryHooks);
+
+/**
+ * @brief 更新queueId到pid和tid的映射关系
+ * @param queId 队列号
+ * @param pid 进程号
+ * @param tid 线程号
+ * return int 0, 成功; -1, 失败;
+ */
+int KNET_MaintainQueue2TidPidMp(uint32_t queId);
+
+#endif  // __KNET_TELEMETRY_H__
