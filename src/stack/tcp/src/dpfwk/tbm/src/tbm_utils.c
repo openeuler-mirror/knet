@@ -9,6 +9,9 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+/* 
+ * TBM支持注册HASH和FIB表实现，无默认实现，暂时不放到UTIL模块中
+ * */
 
 #include "tbm_utils.h"
 
@@ -41,12 +44,12 @@ int DP_HashTblHooksReg(DP_HashTblHooks_t *hashTblHooks)
 {
     /* 已初始化，不允许再注册钩子实现 */
     if (g_tbmUtilInited == true) {
-        DP_LOG_ERR("Tbm util has been inited.");
+        DP_LOG_ERR("Hash hookreg failed, tbm util has been inited.");
         return EPERM;
     }
 
     if (g_hashFuncGrp.createTable != NULL) {
-        DP_LOG_ERR("Tbm g_hashFuncGrp has been registed.");
+        DP_LOG_ERR("Hash hookreg failed, tbm g_hashFuncGrp has been registed.");
         return EEXIST;
     }
 
@@ -60,7 +63,7 @@ int DP_HashTblHooksReg(DP_HashTblHooks_t *hashTblHooks)
         (hashTblHooks->getInfo == NULL) ||
         (hashTblHooks->hashtblEntryGetFirst == NULL) ||
         (hashTblHooks->hashtblEntryGetNext == NULL)) {
-        DP_LOG_ERR("Tbm hookreg failed, invalid hashTblHooks.");
+        DP_LOG_ERR("Hash hookreg failed, invalid hashTblHooks.");
         return EINVAL;
     }
 
@@ -82,12 +85,12 @@ void ClearHashtblHook(void)
 int DP_Fib4TblHooksReg(DP_Fib4TblHooks_t *fib4TblHooks)
 {
     if (g_tbmUtilInited == true) {
-        DP_LOG_ERR("Tbm util has been inited.");
+        DP_LOG_ERR("Fib4 hookreg failed, tbm util has been inited.");
         return EPERM;
     }
 
     if (g_fib4Hook.createTable != NULL) {
-        DP_LOG_ERR("Fib4 hook has been registed.");
+        DP_LOG_ERR("Fib4 hookreg failed, fib4 hook has been registed.");
         return EEXIST;
     }
 
@@ -192,6 +195,7 @@ int32_t MemNodeAlloc(void *pool)
     }
 
     if (mempool->curCnt >= mempool->maxCnt) {
+        DP_LOG_ERR("MemNodeAlloc failed, mempool is full");
         return -1;
     }
     item = &mempool->mem[mempool->curCnt];

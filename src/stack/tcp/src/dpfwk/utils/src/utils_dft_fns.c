@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <pthread.h>
 #include <semaphore.h>
 #include <errno.h>
@@ -83,11 +82,11 @@ static uint32_t SemSignal(DP_Sem_t sem)
 }
 
 static DP_SemHooks_S g_semFns = {
-    .size   = sizeof(sem_t),
-    .init   = SemInit,
-    .deinit = SemDeinit,
-    .timeWait   = SemWait,
-    .post = SemSignal,
+    .semSize   = sizeof(sem_t),
+    .initHook   = SemInit,
+    .deinitHook = SemDeinit,
+    .timeWaitHook   = SemWait,
+    .postHook = SemSignal,
 };
 
 DP_SemHooks_S* GetDefaultSemFns(void)
@@ -113,8 +112,8 @@ DP_ClockGetTimeHook GetTimeFns(void)
 DP_MemHooks_t* GetDefaultMemfns(void)
 {
     static DP_MemHooks_t memFns = {
-        .mallocFunc = malloc,
-        .freeFunc   = free,
+        .mAlloc = malloc,
+        .mFree  = free,
     };
 
     return &memFns;

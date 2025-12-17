@@ -9,13 +9,14 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <limits.h>
+#include <securec.h>
 
 #include "sock.h"
 
-#include "fd.h"
+#include "dp_fd.h"
 #include "netdev.h"
+#include "ns.h"
 #include "utils_base.h"
 #include "utils_cfg.h"
 #include "utils_log.h"
@@ -26,6 +27,8 @@
 #define MAX_IOV_LEN SSIZE_MAX
 
 static SOCK_NotifyFn_t g_notifyFns[SOCK_NOTIFY_TYPE_MAX];
+
+static SOCK_NotifyFn_t g_notifyHook = NULL;
 
 static SOCK_FamilyOps_t g_familyOps[] = {
     {
@@ -44,7 +47,7 @@ static SOCK_FamilyOps_t g_familyOps[] = {
 
 void SOCK_AddFamilyOps(const SOCK_FamilyOps_t* ops)
 {
-    for (int i = 0; i < (int)ARRAY_SIZE(g_familyOps); i++) {
+    for (int i = 0; i < (int)DP_ARRAY_SIZE(g_familyOps); i++) {
         if (g_familyOps[i].family == ops->family) {
             g_familyOps[i] = *ops;
             return;
@@ -56,7 +59,7 @@ void SOCK_AddFamilyOps(const SOCK_FamilyOps_t* ops)
 
 static const SOCK_FamilyOps_t* GetFamilyOps(int family)
 {
-    for (int i = 0; i < (int)ARRAY_SIZE(g_familyOps); i++) {
+    for (int i = 0; i < (int)DP_ARRAY_SIZE(g_familyOps); i++) {
         if (g_familyOps[i].family == family && g_familyOps[i].lookup != NULL) {
             return (const SOCK_FamilyOps_t*)&g_familyOps[i];
         }
@@ -91,34 +94,111 @@ int SOCK_PushRcvBufSafe(Sock_t* sk, DP_Pbuf_t* pbuf)
     PBUF_ChainPush(&sk->rcvBuf, pbuf);
 
     if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
-        SOCK_SetState(sk, SOCK_STATE_READ);
+        SOCK_WakeupRdSem(sk);
+        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
     }
-
-    SOCK_WakeupRdSem(sk);
 
     SOCK_Unlock(sk);
     return ret;
 }
 
-static ssize_t SockPbufChainRead(PBUF_Chain_t* chain, struct DP_Msghdr* msg, int peek)
+static ssize_t SockPbufChainRead(Sock_t* sk, struct DP_Msghdr* msg, int peek)
 {
     size_t             readed;
     ssize_t            ret = 0;
     struct DP_Iovec* iov;
 
+    if (msg->msg_name != NULL) {
+        ASSERT(sk->ops->getDstAddr != NULL);
+        ret = sk->ops->getDstAddr(sk, NULL, msg->msg_name, &msg->msg_namelen);
+        if (ret != 0) {
+            DP_ADD_ABN_STAT(DP_RCV_GET_ADDR_FAILED);
+            return ret;
+        }
+    }
+
     for (size_t i = 0; i < msg->msg_iovlen; i++) {
         iov = msg->msg_iov + i;
         // iov->base为NULL且长度不为0的情况在之前就已经判断过了
-        if (iov->iov_len == 0) {
+        if (UTILS_UNLIKELY(iov->iov_len == 0)) {
             continue;
         }
-        readed = PBUF_ChainRead(chain, iov->iov_base, iov->iov_len, peek, 0);
-        if (readed == 0) {
+        readed = PBUF_ChainRead(&sk->rcvBuf, iov->iov_base, iov->iov_len, peek, 0);
+        if (UTILS_UNLIKELY(readed == 0)) {
+            DP_ADD_ABN_STAT(DP_SOCK_READ_BUFCHAIN_ZRRO);
             break;
         }
         ret += (ssize_t)readed;
         if (readed < iov->iov_len) {
+            DP_ADD_ABN_STAT(DP_SOCK_READ_BUFCHAIN_SHORT);
             break;
+        }
+    }
+
+    return ret;
+}
+
+// 零拷贝写路径
+static ssize_t SockPbufChainReadZcopy(Sock_t* sk, struct DP_ZMsghdr* msg)
+{
+    size_t             readed;
+    ssize_t            ret = 0;
+    struct DP_ZIovec* iov;
+
+    if (msg->msg_name != NULL) {
+        ASSERT(sk->ops->getDstAddr != NULL);
+        ret = sk->ops->getDstAddr(sk, NULL, msg->msg_name, &msg->msg_namelen);
+        if (ret != 0) {
+            DP_ADD_ABN_STAT(DP_RCV_ZCOPY_GET_ADDR_FAILED);
+            return ret;
+        }
+    }
+
+    for (size_t i = 0; i < msg->msg_iovlen; i++) {
+        iov = msg->msg_iov + i;
+
+        readed = PBUF_ChainReadZcopy(&sk->rcvBuf, iov);
+        if (readed <= 0) {
+            DP_ADD_ABN_STAT(DP_RCV_ZCOPY_CHAIN_READ_FAILED);
+            break;
+        }
+
+        ret += (ssize_t)readed;
+    }
+
+    return ret;
+}
+
+static uint16_t SockPbufRead(Pbuf_t** pbuf, uint16_t* readLen, uint8_t* iov, size_t iovlen)
+{
+    ASSERT(*pbuf != NULL);
+    uint16_t ret    = 0;
+    uint16_t offset = *readLen;
+    Pbuf_t*  cur    = *pbuf;
+
+    while (cur != NULL && cur->segLen == 0) {  // 找到第一片有效cur
+        cur = cur->next;
+    }
+
+    while (cur != NULL && ret < iovlen) {
+        uint16_t cpyLen = (iovlen - ret > 0xFFFF) ? 0xFFFF : (uint16_t)(iovlen - ret); // 如果长度超过0xFFFF，取最大值
+        cpyLen          = (cpyLen > (cur->segLen - offset)) ? (cur->segLen - offset) : cpyLen;
+        if (cpyLen == 0) {
+            cur = cur->next;
+            continue;
+        }
+
+        if (iov != NULL) {
+            (void)memcpy_s(iov + ret, cpyLen, PBUF_MTOD(cur, uint8_t*) + offset, cpyLen);
+        }
+        ret += cpyLen;
+
+        *pbuf = cur;                // 出参，保存当前已读到的cur报文位置
+        *readLen = offset + cpyLen; // 出参，保存当前cur报文已读的长度
+        cur = cur->next;
+
+        if (offset != 0) {
+            offset = 0;
         }
     }
 
@@ -130,29 +210,35 @@ static ssize_t SockPbufChainRead(PBUF_Chain_t* chain, struct DP_Msghdr* msg, int
     1. 如果传入iov->iov_len为0，则将数据拷贝到下一个有效的iov中
     2. 如果所有有效的iov长度为0，则返回为0
     3. 如果iov->iov_base为NULL 返回EFAULT错误码
-    5. 只要iov->iov_len>0，这时无论报文长度为多少都只会读取一个报文，该报文读取后就被释放
+    4. 当iov->iov_len>0时开始读取报文，填满当前iov后继续往下找有效iov
+    5. 一直到有效iov全部填满或者该报文已读完，则该报文释放
 */
 static ssize_t SockPbufCopy(DP_Pbuf_t* pbuf, struct DP_Msghdr* msg)
 {
     ssize_t ret = 0;
+    ssize_t len = 0;
     struct DP_Iovec* iov = msg->msg_iov;
     size_t cnt = 0;
-    while (iov->iov_len == 0 && cnt < msg->msg_iovlen) {
+    uint32_t totLen = PBUF_GET_PKT_LEN(pbuf);
+    uint16_t offset = 0;
+    Pbuf_t* cur = pbuf;
+
+    while (cnt < msg->msg_iovlen && totLen > ret) {
+        if (iov->iov_len == 0) { // 若当前iov没有有效空间，则继续找到有效iov
+            cnt++;
+            iov = msg->msg_iov + cnt;
+            continue;
+        }
+        if (iov->iov_base == NULL) {
+            return -EFAULT;
+        }
+        len = SockPbufRead(&cur, &offset, iov->iov_base, iov->iov_len);
+        if (len <= 0) {
+            return ret;
+        }
+        ret += len;
         cnt++;
         iov = msg->msg_iov + cnt;
-    }
-
-    if (cnt == msg->msg_iovlen) {
-        return 0;
-    }
-
-    if (iov->iov_base == NULL) {
-        return -EFAULT;
-    }
-
-    ret = DP_PbufCopy(pbuf, iov->iov_base, iov->iov_len);
-    if (ret <= 0) {
-        return ret;
     }
 
     return ret;
@@ -164,21 +250,21 @@ ssize_t SOCK_PopRcvBuf(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t msgD
 
     (void)msgDataLen;
 
-    if (msg->msg_name != NULL) {
-        ASSERT(sk->ops->getDstAddr != NULL);
-        ret = sk->ops->getDstAddr(sk, NULL, msg->msg_name, &msg->msg_namelen);
-        if (ret != 0) {
-            return ret;
-        }
+    if (((uint32_t)flags & DP_MSG_ZEROCOPY) != 0) {
+        ret = SockPbufChainReadZcopy(sk, (struct DP_ZMsghdr*)msg);
+    } else {
+        ret = SockPbufChainRead(sk, msg, (uint32_t)flags & DP_MSG_PEEK);
     }
-
-    ret = SockPbufChainRead(&sk->rcvBuf, msg, (uint32_t)flags & DP_MSG_PEEK);
-    if (ret == 0) {
+    if (UTILS_UNLIKELY(ret == 0)) {
         // 如果可以收取更多数据，则返回-EAGAIN，否则返回0
-        if (SOCK_CAN_RECV_MORE(sk)) {
+        if (UTILS_LIKELY(SOCK_CAN_RECV_MORE(sk))) {
             return -EAGAIN;
         }
         return 0;
+    }
+
+    if (UTILS_UNLIKELY(ret < 0)) {
+        DP_ADD_ABN_STAT(DP_TCP_RCV_BUF_FAILED);
     }
 
     if (((uint32_t)flags & DP_MSG_PEEK) != 0) {
@@ -230,11 +316,11 @@ ssize_t SOCK_PopRcvBufByPkt(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t
     return ret;
 }
 
-uint16_t SOCK_PbufAppendMsg(DP_Pbuf_t* pbuf, const struct DP_Msghdr* msg)
+Pbuf_t* SOCK_PbufBuildFromMsg(const struct DP_Msghdr* msg, uint16_t headroom)
 {
-    size_t             i;
+    Pbuf_t*          ret = NULL;
+    size_t           i;
     struct DP_Iovec* iov;
-    uint16_t           ret = 0;
 
     ASSERT(msg->msg_iov != NULL);
 
@@ -243,7 +329,19 @@ uint16_t SOCK_PbufAppendMsg(DP_Pbuf_t* pbuf, const struct DP_Msghdr* msg)
         if (iov->iov_base == NULL || iov->iov_len <= 0) {
             continue;
         }
-        ret += PBUF_Append(pbuf, iov->iov_base, (uint16_t)iov->iov_len);
+        if (ret == NULL) {
+            ret = PBUF_Build(iov->iov_base, (uint16_t)iov->iov_len, headroom);
+            if (ret == NULL) {
+                DP_ADD_ABN_STAT(DP_FROM_MSG_BUILD_PBUF_FAILED);
+                return NULL;
+            }
+        } else {
+            if (PBUF_Append(ret, iov->iov_base, (uint16_t)iov->iov_len) == 0) {
+                PBUF_Free(ret);
+                DP_ADD_ABN_STAT(DP_FROM_MSG_APPEND_PBUF_FAILED);
+                return NULL;
+            }
+        }
     }
 
     return ret;
@@ -260,6 +358,9 @@ static inline int WaitSkSem(Sock_t* sk, DP_Sem_t sem, int timeout)
 
     SOCK_Lock(sk);
 
+    if (ret == DP_ERR) {
+        ret = EFAULT;
+    }
     return -ret;
 }
 
@@ -293,37 +394,99 @@ static int SOCK_CheckAddrLen(Sock_t* sk, DP_Socklen_t addrlen)
 {
     if (sk->family == DP_AF_INET) {
         if ((int)addrlen < (int)sizeof(struct DP_SockaddrIn)) {
+            DP_ADD_ABN_STAT(DP_CONN_ADDRLEN_ERR);
             return -1;
         }
         return 0;
     }
 
     if ((int)addrlen < (int)sizeof(struct DP_SockaddrIn6)) {
+        DP_ADD_ABN_STAT(DP_CONN_ADDR6LEN_ERR);
         return -1;
     }
 
     return 0;
 }
 
-ssize_t SOCK_GetMsgIovLen(const struct DP_Msghdr* msg)
+static inline struct DP_Iovec* SockGetIov(const struct DP_Msghdr* msg, size_t index, int flags)
+{
+    struct DP_Iovec* iov = NULL;
+    if (((uint32_t)flags & DP_MSG_ZEROCOPY) != 0) {
+        iov = (struct DP_Iovec*)(((struct DP_ZMsghdr*)msg)->msg_iov + index);
+    } else {
+        iov = msg->msg_iov + index;
+    }
+    return iov;
+}
+
+ssize_t SOCK_GetMsgIovLen(const struct DP_Msghdr* msg, int flags)
 {
     size_t ret = 0;
+    struct DP_Iovec* iov;
+    struct DP_ZIovec* ziov;
     for (size_t i = 0; i < msg->msg_iovlen; i++) {
-        if ((ssize_t)(msg->msg_iov[i].iov_len) < 0) {
+        iov = SockGetIov(msg, i, flags);
+        if ((ssize_t)(iov->iov_len) < 0) {
+            DP_ADD_ABN_STAT(DP_GET_IOVLEN_INVAL);
             return -EINVAL;
         }
-        if (msg->msg_iov[i].iov_len == 0) {
+        if (iov->iov_len == 0) {
             continue;
         }
-        if (msg->msg_iov[i].iov_base == NULL) {
+        if (iov->iov_base == NULL) {
+            DP_ADD_ABN_STAT(DP_GET_IOV_BASE_NULL);
             return -EFAULT;
         }
-        if (MAX_IOV_LEN - ret < msg->msg_iov[i].iov_len) {
+        if (((uint32_t)flags & DP_MSG_ZEROCOPY) != 0) {
+            ziov = (struct DP_ZIovec*)iov;
+            if (ziov->freeCb == NULL) {
+                DP_ADD_ABN_STAT(DP_ZIOV_CB_NULL);
+                return -EFAULT;
+            }
+        }
+        if (MAX_IOV_LEN - ret < iov->iov_len) {
+            DP_ADD_ABN_STAT(DP_GET_TOTAL_IOVLEN_INVAL);
             return -EINVAL;
         }
-        ret += msg->msg_iov[i].iov_len;
+        ret += iov->iov_len;
     }
     return (ssize_t)ret;
+}
+
+static ssize_t SockCheckMsgValidity(const struct DP_Msghdr* msg)
+{
+    int ret = 1;
+    if (msg == NULL) {
+        DP_ADD_ABN_STAT(DP_SOCK_CHECK_MSG_NULL);
+        ret = -EFAULT;
+    } else if (msg->msg_iovlen == 0) { /* 内核行为如果msg_iovlen为0 不判断msg_iov的正确性 */
+        ret = 0;
+    } else if ((msg->msg_iov == NULL)) {
+        DP_ADD_ABN_STAT(DP_SOCK_CHECK_MSGIOV_NULL);
+        ret = -EFAULT;
+    } else if ((ssize_t)(msg->msg_iovlen) < 0 || msg->msg_iovlen > MAX_IOV_CNT) {
+        DP_ADD_ABN_STAT(DP_SOCK_CHECK_MSGIOV_INVAL);
+        ret = -EMSGSIZE;
+    }
+    if (ret < 0) {
+        DP_LOG_DBG("SockCheckMsgValidity failed, ret = %d.", ret);
+    }
+    return ret;
+}
+
+ssize_t SOCK_GetMsgDataLen(const struct DP_Msghdr* msg, int flags)
+{
+    ssize_t ret = SockCheckMsgValidity(msg);
+    if (UTILS_UNLIKELY(ret <= 0)) {
+        DP_LOG_DBG("SockCheckMsgValidity failed, ret = %d.", (int)(-ret));
+        return ret;
+    }
+
+    ret = SOCK_GetMsgIovLen(msg, flags);
+    if (UTILS_UNLIKELY(ret < 0)) {
+        DP_LOG_DBG("SOCK_GetMsgIovLen failed, ret = %d.", (int)(-ret));
+    }
+    return ret;
 }
 
 int SOCK_Create(NS_Net_t* net, int domain, int type, int protocol, Sock_t** sk)
@@ -333,12 +496,15 @@ int SOCK_Create(NS_Net_t* net, int domain, int type, int protocol, Sock_t** sk)
     int                     ret;
 
     if (ops == NULL) {
-        DP_LOG_ERR("Sock create failed, ops null");
+        DP_LOG_DBG("Sock create failed, ops null");
+        DP_ADD_ABN_STAT(DP_SOCKET_DOMAIN_ERR);
         return -EAFNOSUPPORT;
     }
 
     ret = ops->lookup(type, protocol, &createFn);
     if (ret != 0) {
+        DP_LOG_DBG("Sock create failed, find createFn failed.");
+        DP_ADD_ABN_STAT(DP_SOCKET_NO_CREATEFN);
         return ret;
     }
 
@@ -354,7 +520,9 @@ int SOCK_Close(Sock_t* sk)
     SOCK_Lock(sk); // close需要先通知事件，由事件处理部分删除
 
     SOCK_SetState(sk, SOCK_STATE_CLOSE); // 上报一个close，由适配者释放相关资源
-    SOCK_DisableNotify(sk);
+    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
+        SOCK_DisableNotify(sk);
+    }
 
     SOCK_SET_CLOSED(sk);
     // close表示用户侧不在操作此socket资源，仅有实例内部操作，交给具体协议实现释放内存，以及释放锁
@@ -368,7 +536,7 @@ int SOCK_Shutdown(Sock_t *sk, int how)
     int ret;
 
     if (how != DP_SHUT_RD && how != DP_SHUT_WR && how != DP_SHUT_RDWR) {
-        DP_LOG_ERR("Sock shutdown failed, how %d invalid", how);
+        DP_LOG_DBG("Sock shutdown failed, how %d invalid", how);
         return -EINVAL;
     }
 
@@ -376,7 +544,7 @@ int SOCK_Shutdown(Sock_t *sk, int how)
     // 当前仅支持TCP shutdown
     if (sk->ops->shutdown == NULL) {
         SOCK_Unlock(sk);
-        DP_LOG_ERR("Sock shutdown failed, shutdown not support");
+        DP_LOG_DBG("Sock shutdown failed, shutdown not support");
         return -ENOTCONN;
     }
 
@@ -392,7 +560,6 @@ int SOCK_Shutdown(Sock_t *sk, int how)
         SOCK_CLR_RECV_MORE(sk);
         SOCK_SET_CANTRCVMORE(sk);
         SOCK_SET_SHUTRD(sk);
-        PBUF_ChainClean(&sk->rcvBuf);
     }
 
     if (how == DP_SHUT_WR || how == DP_SHUT_RDWR) {
@@ -402,6 +569,10 @@ int SOCK_Shutdown(Sock_t *sk, int how)
     }
 
     SOCK_Unlock(sk);
+
+    if (ret < 0) {
+        DP_LOG_DBG("SOCK_Shutdown failed, ret = %d", ret);
+    }
     return ret;
 }
 
@@ -422,12 +593,13 @@ int SOCK_Connect(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t addrle
     int ret = -EPROTOTYPE;
 
     if (addr == NULL) {
-        DP_LOG_ERR("Sock connect failed, addr NULL.");
+        DP_LOG_DBG("Sock connect failed, addr NULL.");
+        DP_ADD_ABN_STAT(DP_CONN_ADDR_NULL);
         return -EFAULT;
     }
 
     if (SOCK_CheckAddrLen(sk, addrlen) != 0) {
-        DP_LOG_ERR("Sock connect failed, addrlen invalid.");
+        DP_LOG_DBG("Sock connect failed, addrlen invalid.");
         return -EINVAL;
     }
 
@@ -445,6 +617,8 @@ int SOCK_Connect(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t addrle
     if ((ret != 0) || (!SOCK_IS_CONNECTING(sk)) || sk->nonblock != 0) {
         if (ret == 0 && SOCK_IS_CONNECTING(sk)) {
             ret = -EINPROGRESS;
+        } else {
+            DP_ADD_ABN_STAT(DP_CONN_FAILED);
         }
         SOCK_Unlock(sk);
         return ret;
@@ -479,6 +653,9 @@ int SOCK_Bind(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen)
 
     if (ret == 0) {
         SOCK_SET_BINDED(sk);
+    } else {
+        DP_LOG_DBG("SOCK_Bind failed, ret = %d.", ret);
+        DP_ADD_ABN_STAT(DP_BIND_FAILED);
     }
 
     SOCK_Unlock(sk);
@@ -496,7 +673,7 @@ int SOCK_Listen(Sock_t* sk, int backlog)
         ret = sk->ops->listen(sk, backlog);
     } else {
         ret = -EOPNOTSUPP;
-        DP_LOG_ERR("Sock listen failed, listen not support");
+        DP_LOG_DBG("Sock listen failed, listen not support");
     }
 
     SOCK_Unlock(sk);
@@ -514,18 +691,21 @@ int SOCK_Accept(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen, Soc
 
     if ((addr != NULL) && (addrlen == NULL)) {
         ret = -EFAULT;
-        DP_LOG_ERR("Sock accept failed, param null");
+        DP_LOG_DBG("Sock accept failed, param null");
+        DP_ADD_ABN_STAT(DP_ACCEPT_ADDRLEN_NULL);
         goto out;
     }
 
     if ((addr != NULL) && ((int)*addrlen < 0)) {
-        DP_LOG_ERR("Sock accept failed, param invalid");
+        DP_LOG_DBG("Sock accept failed, param invalid");
+        DP_ADD_ABN_STAT(DP_ACCEPT_ADDRLEN_INVAL);
         goto out;
     }
 
     if (sk->ops->accept == NULL) {
         ret = -EOPNOTSUPP;
-        DP_LOG_ERR("Sock accept failed, accept null");
+        DP_LOG_DBG("Sock accept failed, accept null");
+        DP_ADD_ABN_STAT(DP_ACCEPT_NO_SUPPORT);
         goto out;
     }
 
@@ -561,15 +741,23 @@ int SOCK_Ioctl(Sock_t* sk, int request, void* arg)
     switch (request) {
         case DP_FIONBIO:
             if (arg == NULL) {
-                DP_LOG_ERR("Sock ioctl failed, arg invalid");
+                DP_LOG_DBG("Sock ioctl failed, arg invalid");
                 err = -EFAULT;
             } else {
                 sk->nonblock = *(int*)arg == 0 ? 0 : 1;
             }
             break;
+        case DP_FIONREAD:
+            if (arg == NULL) {
+                DP_LOG_DBG("Sock ioctl failed, arg invalid");
+                err = -EFAULT;
+            } else {
+                *(int *)arg = (int)sk->rcvBuf.bufLen;
+            }
+            break;
         default:
             err = -EINVAL;
-            DP_LOG_ERR("Sock ioctl failed, request %d not support", request);
+            DP_LOG_DBG("Sock ioctl failed, request %d not support", request);
             break;
     }
 
@@ -593,7 +781,7 @@ int SOCK_Fcntl(Sock_t* sk, int cmd, int val)
             break;
         default:
             ret = -EINVAL;
-            DP_LOG_ERR("Sock fcntl failed, cmd %d not support", cmd);
+            DP_LOG_DBG("Sock fcntl failed, cmd %d not support", cmd);
             break;
     }
 
@@ -602,29 +790,54 @@ int SOCK_Fcntl(Sock_t* sk, int cmd, int val)
     return ret;
 }
 
+static ssize_t PreprocessSendFlags(Sock_t* sk, int flags)
+{
+    if (UTILS_UNLIKELY(((uint32_t)flags | DP_MSG_SEND_SUPPORT_FLAGS) != DP_MSG_SEND_SUPPORT_FLAGS)) {
+        return -EOPNOTSUPP;
+    }
+
+    if (((uint32_t)flags & DP_MSG_MORE) != 0) {
+        sk->flags |= SOCK_FLAGS_MSG_MORE;
+    } else {
+        sk->flags &= ~SOCK_FLAGS_MSG_MORE;
+    }
+
+    return 0;
+}
+
 ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
 {
     ssize_t ret;
     size_t sendLen = 0;
     size_t index = 0;
     size_t offset = 0;
-    if (((uint32_t)flags | DP_MSG_DONTWAIT) != DP_MSG_DONTWAIT) {
-        return -EOPNOTSUPP;
+    ssize_t msgDataLen;
+
+    ret = PreprocessSendFlags(sk, flags);
+    if (UTILS_UNLIKELY(ret != 0)) {
+        DP_LOG_DBG("SOCK_Sendmsg failed with unsupport flags, flags = %d.", flags);
+        DP_ADD_ABN_STAT(DP_SEND_FLAGS_INVAL);
+        return ret;
     }
-    ssize_t msgDataLen = SOCK_GetMsgDataLen(msg);
-    if (msgDataLen < 0) {
+
+    msgDataLen = SOCK_GetMsgDataLen(msg, flags);
+    if (UTILS_UNLIKELY(msgDataLen < 0)) {
+        DP_ADD_ABN_STAT(DP_SEND_GET_DATALEN_FAILED);
         return msgDataLen;
-    } else if (msgDataLen == 0) {
+    } else if (UTILS_UNLIKELY(msgDataLen == 0)) {
+        DP_ADD_ABN_STAT(DP_SEND_ZERO_DATALEN);
         return 0;
     }
 
-    SOCK_Lock(sk);
+    SOCK_LockOptional(sk);
 
     while (1) {
         // index和offset作为输入输出参数，记录当前已发送的数据长度，下次发送时直接偏移至指定位置发送
         ret = sk->ops->sendmsg(sk, msg, flags, (size_t)msgDataLen, &index, &offset);
-        if ((ret < 0 && ret != -EAGAIN) ||
-            ((uint32_t)flags & DP_MSG_DONTWAIT) != 0 || sk->nonblock != 0) {
+        if (((uint32_t)flags & DP_MSG_DONTWAIT) != 0 || sk->nonblock != 0) {
+            break;
+        } else if (ret < 0 && ret != -EAGAIN) {
+            DP_ADD_ABN_STAT(DP_SOCK_SENDMSG_FAILED);
             break;
         }
 
@@ -650,7 +863,7 @@ ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
         }
     }
 
-    SOCK_Unlock(sk);
+    SOCK_UnLockOptional(sk);
     return ret;
 }
 
@@ -659,13 +872,15 @@ ssize_t SOCK_Sendto(
 {
     struct DP_Msghdr msg;
     struct DP_Iovec  iov[1];
+    uint32_t msgFlags = (uint32_t)flags;
 
-    if (len == 0) {
+    if (UTILS_UNLIKELY(len == 0)) {
         return 0;
     }
 
-    if (buf == NULL) {
-        DP_LOG_ERR("Sock send failed, param invalid");
+    if (UTILS_UNLIKELY(buf == NULL)) {
+        DP_LOG_DBG("Sock send failed, param invalid");
+        DP_ADD_ABN_STAT(DP_SENDTO_BUF_NULL);
         return -EFAULT;
     }
 
@@ -676,25 +891,40 @@ ssize_t SOCK_Sendto(
     msg.msg_controllen = 0;
     msg.msg_control    = NULL;
     msg.msg_iov        = iov;
-    msg.msg_iovlen     = ARRAY_SIZE(iov);
+    msg.msg_iovlen     = DP_ARRAY_SIZE(iov);
 
-    return SOCK_Sendmsg(sk, &msg, flags);
+    if (UTILS_UNLIKELY(((uint32_t)flags & DP_MSG_ZEROCOPY) != 0)) {     // 清零零拷贝标志位
+        msgFlags = ((uint32_t)flags & ~DP_MSG_ZEROCOPY);
+    }
+
+    return SOCK_Sendmsg(sk, &msg, (int)msgFlags);
 }
 
 ssize_t SOCK_Recvmsg(Sock_t* sk, struct DP_Msghdr* msg, int flags)
 {
     ssize_t ret;
-    if (((uint32_t)flags | DP_MSG_RECV_SUPPORT_FLAGS) != DP_MSG_RECV_SUPPORT_FLAGS) {
+    if (UTILS_UNLIKELY(((uint32_t)flags | DP_MSG_RECV_SUPPORT_FLAGS) != DP_MSG_RECV_SUPPORT_FLAGS)) {
+        DP_LOG_DBG("SOCK_Recvmsg failed with unsupport flags, flags = %d.", flags);
+        DP_ADD_ABN_STAT(DP_RECV_FLAGS_INVAL);
         return -EOPNOTSUPP;
     }
-    ssize_t msgDataLen = SOCK_GetMsgDataLen(msg);
-    if (msgDataLen < 0) {
-        return msgDataLen;
-    } else if (msgDataLen == 0) {
-        return 0;
+
+    ssize_t msgDataLen = 0;
+    if (((uint32_t)flags & DP_MSG_ZEROCOPY) == 0) {
+        msgDataLen = SOCK_GetMsgDataLen(msg, flags);
+        if (msgDataLen <= 0) {
+            DP_ADD_ABN_STAT(DP_RECV_GET_DATALEN_FAILED);
+            return msgDataLen;
+        }
+    } else {     // 零拷贝读时，不计算 msgDataLen
+        ret = SockCheckMsgValidity(msg);
+        DP_ADD_ABN_STAT(DP_RECV_CHECK_MSG_FAILED);
+        if (ret <= 0) {
+            return ret;
+        }
     }
 
-    SOCK_Lock(sk);
+    SOCK_LockOptional(sk);
 
     while (1) {
         ret = sk->ops->recvmsg(sk, msg, flags, (size_t)msgDataLen);
@@ -715,7 +945,10 @@ ssize_t SOCK_Recvmsg(Sock_t* sk, struct DP_Msghdr* msg, int flags)
         }
     }
 
-    SOCK_Unlock(sk);
+    SOCK_UnLockOptional(sk);
+    if (UTILS_UNLIKELY(ret < 0 && ret != -EAGAIN)) {
+        DP_ADD_ABN_STAT(DP_SOCK_RECVMSG_FAILED);
+    }
     return ret;
 }
 
@@ -725,13 +958,15 @@ ssize_t SOCK_Recvfrom(
     ssize_t          ret;
     struct DP_Msghdr msg;
     struct DP_Iovec  iov[1];
+    uint32_t msgFlags = (uint32_t)flags;
 
-    if (len == 0) {
+    if (UTILS_UNLIKELY(len == 0)) {
         return 0;
     }
 
-    if (buf == NULL) {
-        DP_LOG_ERR("Sock recv failed, param invalid");
+    if (UTILS_UNLIKELY(buf == NULL)) {
+        DP_LOG_DBG("Sock recv failed, param invalid");
+        DP_ADD_ABN_STAT(DP_RCVFROM_BUF_NULL);
         return -EFAULT;
     }
 
@@ -742,34 +977,52 @@ ssize_t SOCK_Recvfrom(
     msg.msg_control    = NULL;
     msg.msg_controllen = 0;
     msg.msg_iov        = iov;
-    msg.msg_iovlen     = ARRAY_SIZE(iov);
+    msg.msg_iovlen     = DP_ARRAY_SIZE(iov);
 
-    if (srcAddr != NULL && addrlen != NULL) {
+    if (UTILS_UNLIKELY(srcAddr != NULL && addrlen != NULL)) {
         msg.msg_name    = srcAddr;
         msg.msg_namelen = *addrlen;
     }
 
-    ret = SOCK_Recvmsg(sk, &msg, flags);
+    if (UTILS_UNLIKELY(((uint32_t)flags & DP_MSG_ZEROCOPY) != 0)) {     // 清零零拷贝标志位
+        msgFlags = ((uint32_t)flags & ~DP_MSG_ZEROCOPY);
+    }
 
-    if (addrlen != NULL) {
+    ret = SOCK_Recvmsg(sk, &msg, (int)msgFlags);
+
+    if (UTILS_UNLIKELY(addrlen != NULL)) {
         *addrlen = msg.msg_namelen;
     }
 
     return ret;
 }
 
+typedef struct {
+    int optname;
+    int (*set)(Sock_t* sk, const void* optval, DP_Socklen_t optlen);
+    int (*get)(Sock_t* sk, void* optval, DP_Socklen_t* optlen);
+} SockOptOps_t;
+
+static uint32_t GetValByRange(uint32_t high, uint32_t low, uint32_t val)
+{
+    uint32_t bufVal = val;
+    bufVal = (bufVal > low) ? bufVal : low;
+    bufVal = (bufVal < high) ? bufVal : high;
+    return bufVal;
+}
+
 static int SockSetTimeout(const void* optval, DP_Socklen_t optlen, int* timeout)
 {
     struct DP_Timeval* tv = (struct DP_Timeval*)optval;
 
-    if (tv == NULL || (int)optlen < (int)sizeof(struct DP_Timeval)) {
-        DP_LOG_ERR("Sock set timeout failed, invalid param");
+    if ((int)optlen < (int)sizeof(struct DP_Timeval)) {
+        DP_LOG_DBG("Sock set timeout failed, invalid param");
         return -EINVAL;
     }
 
     // usec需要在0~1000 ms内
     if ((tv->tv_usec < 0) || (tv->tv_usec >= USEC_PER_SEC)) {
-        DP_LOG_ERR("Sock set timeout failed, usec out of range");
+        DP_LOG_DBG("Sock set timeout failed, usec out of range");
         return -EDOM;
     }
 
@@ -788,10 +1041,88 @@ static int SockSetTimeout(const void* optval, DP_Socklen_t optlen, int* timeout)
     return 0;
 }
 
-static int SockSetKeepalive(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
+static int SockGetTimeout(void* optval, DP_Socklen_t *optlen, int timeout)
+{
+    struct DP_Timeval* tv = optval;
+
+    if (*optlen < sizeof(struct DP_Timeval)) {
+        DP_LOG_DBG("Sock timeval with optlen %u invalid", *optlen);
+        return -EINVAL;
+    }
+
+    if (timeout < 0) {
+        tv->tv_sec = 0;
+        tv->tv_usec = 0;
+        return 0;
+    }
+
+    tv->tv_sec = timeout / MSEC_PER_SEC;
+    tv->tv_usec = (timeout % MSEC_PER_SEC) * USEC_PER_MSEC;
+    return 0;
+}
+
+static int SockSetSndTimeo(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    return SockSetTimeout(optval, optlen, &sk->sndTimeout);
+}
+
+static int SockGetSndTimeo(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    int ret = SockGetTimeout(optval, optlen, sk->sndTimeout);
+    *optlen = sizeof(struct DP_Timeval);
+    return ret;
+}
+
+static int SockSetRcvTimeo(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    return SockSetTimeout(optval, optlen, &sk->rcvTimeout);
+}
+
+static int SockGetRcvTimeo(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    int ret = SockGetTimeout(optval, optlen, sk->rcvTimeout);
+    *optlen = sizeof(struct DP_Timeval);
+    return ret;
+}
+
+static int SockSetReuseAddr(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
 {
     if ((int)optlen < (int)sizeof(int)) {
-        DP_LOG_ERR("Sock set keepalive failed, optlen %u invalid", optlen);
+        DP_LOG_DBG("Sock set reuseAddr failed, optlen %u invalid", optlen);
+        return -EINVAL;
+    }
+    sk->reuseAddr = *(int *)optval == 0 ? 0 : 1;
+    return 0;
+}
+
+static int SockGetReuseAddr(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    *(int *)optval = sk->reuseAddr;
+    *optlen = sizeof(DP_Socklen_t);
+    return 0;
+}
+
+static int SockSetReusePort(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    if ((int)optlen < (int)sizeof(int)) {
+        DP_LOG_DBG("Sock set ReusePort failed, optlen %u invalid", optlen);
+        return -EINVAL;
+    }
+    sk->reusePort = *(int *)optval == 0 ? 0 : 1;
+    return 0;
+}
+
+static int SockGetReusePort(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    *(int *)optval = sk->reusePort;
+    *optlen = sizeof(DP_Socklen_t);
+    return 0;
+}
+
+static int SockSetKeepAlive(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    if ((int)optlen < (int)sizeof(int)) {
+        DP_LOG_DBG("Sock set keepalive failed, optlen %u invalid", optlen);
         return -EINVAL;
     }
 
@@ -802,10 +1133,17 @@ static int SockSetKeepalive(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
     return 0;
 }
 
-static int SockSetLinger(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
+static int SockGetKeepAlive(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    *(int *)optval = sk->keepalive;
+    *optlen = sizeof(DP_Socklen_t);
+    return 0;
+}
+
+static int SockSetLinger(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
 {
     if ((int)optlen < (int)sizeof(struct DP_Linger)) {
-        DP_LOG_ERR("Sock set linger failed, optlen %u invalid", optlen);
+        DP_LOG_DBG("Sock set linger failed, optlen %u invalid", optlen);
         return -EINVAL;
     }
 
@@ -819,44 +1157,30 @@ static int SockSetLinger(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
     return 0;
 }
 
-static int SockSetReuseAddr(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
+static int SockGetLinger(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
 {
-    if ((int)optlen < (int)sizeof(int)) {
-        DP_LOG_ERR("Sock set reuseAddr failed, optlen %u invalid", optlen);
+    if (*optlen < sizeof(struct DP_Linger)) {
+        DP_LOG_DBG("Sock linget with optlen %u invalid", *optlen);
         return -EINVAL;
     }
-    sk->reuseAddr = *(int *)optval == 0 ? 0 : 1;
+
+    ((struct DP_Linger*)optval)->l_onoff  = sk->lingerOnoff;
+    ((struct DP_Linger*)optval)->l_linger = sk->linger;
+
+    *optlen = sizeof(struct DP_Linger);
     return 0;
 }
 
-static int SockSetReusePort(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
-{
-    if ((int)optlen < (int)sizeof(int)) {
-        DP_LOG_ERR("Sock set reusePort failed, optlen %u invalid", optlen);
-        return -EINVAL;
-    }
-    sk->reusePort = *(int *)optval == 0 ? 0 : 1;
-    return 0;
-}
-
-static uint32_t GetValByRange(uint32_t high, uint32_t low, uint32_t val)
-{
-    uint32_t bufVal = val;
-    bufVal = (bufVal > low) ? bufVal : low;
-    bufVal = (bufVal < high) ? bufVal : high;
-    return bufVal;
-}
-
-static int SockSetSndBuf(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
+static int SockSetSndBuf(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
 {
     if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
-        DP_LOG_ERR("Sock set sndbuf failed with param invalid");
+        DP_LOG_DBG("Sock set sndbuf failed with param invalid");
         return -EINVAL;
     }
 
     uint32_t hiWat = *(uint32_t *)optval;
 
-    hiWat = GetValByRange((uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_WMEM_MAX), sk->sndHiwat, hiWat);
+    hiWat = GetValByRange((uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_WMEM_MAX), DP_TCP_LOWLIMIT_WMEM_MAX, hiWat);
     sk->sndHiwat = hiWat;
     if (sk->sndLowat > sk->sndHiwat) {
         sk->sndLowat = sk->sndHiwat;
@@ -865,16 +1189,23 @@ static int SockSetSndBuf(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
     return 0;
 }
 
-static int SockSetRcvBuf(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
+static int SockGetSndBuf(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    *(uint32_t *)optval = sk->sndHiwat * 2; // 接口行为与内核保持一致，设置缓冲区大小为A，获取到的结果为A * 2
+    *optlen = sizeof(DP_Socklen_t);
+    return 0;
+}
+
+static int SockSetRcvBuf(Sock_t*sk, const void* optval, DP_Socklen_t optlen)
 {
     if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
-        DP_LOG_ERR("Sock set rcvbuf failed with param invalid");
+        DP_LOG_DBG("Sock set rcvbuf failed with param invalid");
         return -EINVAL;
     }
 
     uint32_t hiWat = *(uint32_t *)optval;
 
-    hiWat = GetValByRange((uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_RMEM_MAX), sk->rcvHiwat, hiWat);
+    hiWat = GetValByRange((uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_RMEM_MAX), DP_TCP_LOWLIMIT_RMEM_MAX, hiWat);
     sk->rcvHiwat = hiWat;
     if (sk->rcvLowat > sk->rcvHiwat) {
         sk->rcvLowat = sk->rcvHiwat;
@@ -883,144 +1214,328 @@ static int SockSetRcvBuf(const void* optval, DP_Socklen_t optlen, Sock_t* sk)
     return 0;
 }
 
-int SOCK_Setsockopt(Sock_t* sk, int level, int optname, const void* optval, DP_Socklen_t optlen)
+static int SockGetRcvBuf(Sock_t*sk, void* optval, DP_Socklen_t* optlen)
 {
-    int ret = 0;
+    *(uint32_t *)optval = sk->rcvHiwat * 2; // 接口行为与内核保持一致，设置缓冲区大小为A，获取到的结果为A * 2
+    *optlen = sizeof(DP_Socklen_t);
+    return 0;
+}
 
+static int SockGetError(Sock_t*sk, void* optval, DP_Socklen_t* optlen)
+{
+    *(int *)optval = sk->error;
+    *optlen = sizeof(DP_Socklen_t);
+    sk->error = 0;
+    return 0;
+}
+
+static int SockSetUserData(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (optlen < sizeof(void*)) {
+        DP_LOG_DBG("SockSetUserData failed, optlen = %u.", optlen);
+        return -EINVAL;
+    }
+    sk->userData = *((void**)optval);
+    return 0;
+}
+
+static int SockGetUserData(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    if (*optlen < sizeof(void*)) {
+        DP_LOG_DBG("SockGetUserData failed, *optlen = %u.", *optlen);
+        return -EINVAL;
+    }
+
+    *((void**)optval) = sk->userData;
+    *optlen = sizeof(void*);
+    return 0;
+}
+
+static int SockSetRcvLow(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((uint32_t)optlen < (uint32_t)sizeof(uint32_t))) {
+        DP_LOG_DBG("Sock set rcvlow failed with param invalid");
+        return -EINVAL;
+    }
+
+    uint32_t lowWat = *(uint32_t *)optval;
+    lowWat = (lowWat == 0) ? 1 : lowWat;
+
+    sk->rcvLowat = UTILS_MIN(lowWat, sk->rcvHiwat >> 1);
+
+    if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
+        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
+    }
+
+    return 0;
+}
+
+static int SockGetRcvLow(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    *(uint32_t *)optval = sk->rcvLowat;
+    *optlen = sizeof(uint32_t);
+    return 0;
+}
+
+static int SockSetPriority(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0) || (*(int *)optval > SOCK_PRIORITY_MAX)) {
+        DP_LOG_DBG("Sock set priority failed with param invalid");
+        return -EINVAL;
+    }
+
+    sk->priority = *(int *)optval;
+
+    return 0;
+}
+
+static int SockGetPriority(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    *(int *)optval = sk->priority;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static int SockGetProtocol(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    *(int *)optval = sk->ops->protocol;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static int SockGetAcceptConn(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    if (sk->ops->protocol != DP_IPPROTO_TCP) {
+        return -EINVAL;
+    }
+    *((int *)optval) = SOCK_IS_LISTENED(sk) ? 1 : 0;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static int SockGetSockType(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    *((int *)optval) = sk->sockType;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static int SockSetSndLowat(Sock_t*sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
+        DP_LOG_DBG("Sock set snd lowat failed with param invalid");
+        return -EINVAL;
+    }
+
+    if (sk->ops->protocol != DP_IPPROTO_TCP) {
+        return -EINVAL;
+    }
+
+    uint32_t loWat = *(uint32_t *)optval;
+    sk->sndLowat = loWat > sk->sndHiwat ? sk->sndHiwat : loWat;
+    return 0;
+}
+
+static int SockGetSndLowat(Sock_t* sk, void *optval, DP_Socklen_t *optlen)
+{
+    if (sk->ops->protocol != DP_IPPROTO_TCP) {
+        return -EINVAL;
+    }
+    *((uint32_t *)optval) = sk->sndLowat;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static int SockSetBroadcast(Sock_t*sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
+        DP_LOG_DBG("Sock set broadcast failed with param invalid");
+        return -EINVAL;
+    }
+
+    if (sk->ops->protocol != DP_IPPROTO_UDP) {
+        return -EINVAL;
+    }
+
+    int isBroadcast = *(int *)optval;
+    sk->broadcast = isBroadcast == 0 ? 0 : 1;
+    return 0;
+}
+
+static int SockSetRcvBufForce(Sock_t*sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
+        DP_LOG_DBG("Sock set rcvbuf force failed with param invalid");
+        return -EINVAL;
+    }
+
+    if (sk->ops->protocol != DP_IPPROTO_TCP) {
+        return -EINVAL;
+    }
+
+    uint32_t hiWat = *(uint32_t *)optval;
+    sk->rcvHiwat = hiWat;
+    if (sk->rcvLowat > sk->rcvHiwat) {
+        sk->rcvLowat = sk->rcvHiwat;
+    }
+
+    return 0;
+}
+
+static int SockSetTimestamp(Sock_t*sk, const void* optval, DP_Socklen_t optlen)
+{
+    if (((int)optlen < (int)sizeof(int)) || (*(int *)optval < 0)) {
+        DP_LOG_DBG("Sock set Timestamp failed with param invalid");
+        return -EINVAL;
+    }
+
+    sk->isTimestamp = *(int *)optval == 0 ? 0 : 1;
+    return 0;
+}
+
+static int SockGetTimestamp(Sock_t* sk, void* optval, DP_Socklen_t* optlen)
+{
+    if (*optlen < sizeof(int)) {
+        DP_LOG_DBG("Sock Timestamp with optlen %u invalid", *optlen);
+        return -EINVAL;
+    }
+
+    *((int *)optval) = sk->isTimestamp;
+    *optlen = sizeof(int);
+    return 0;
+}
+
+static SockOptOps_t g_sockOptOps[] = {
+    {DP_SO_SNDTIMEO, SockSetSndTimeo, SockGetSndTimeo},
+    {DP_SO_RCVTIMEO, SockSetRcvTimeo, SockGetRcvTimeo},
+    {DP_SO_REUSEADDR, SockSetReuseAddr, SockGetReuseAddr},
+    {DP_SO_REUSEPORT, SockSetReusePort, SockGetReusePort},
+    {DP_SO_KEEPALIVE, SockSetKeepAlive, SockGetKeepAlive},
+    {DP_SO_LINGER, SockSetLinger, SockGetLinger},
+    {DP_SO_SNDBUF, SockSetSndBuf, SockGetSndBuf},
+    {DP_SO_RCVBUF, SockSetRcvBuf, SockGetRcvBuf},
+    {DP_SO_ERROR, NULL, SockGetError},
+    {DP_SO_USERDATA, SockSetUserData, SockGetUserData},
+    {DP_SO_RCVLOWAT, SockSetRcvLow, SockGetRcvLow},
+    {DP_SO_PRIORITY, SockSetPriority, SockGetPriority},
+    {DP_SO_PROTOCOL, NULL, SockGetProtocol},
+    {DP_SO_ACCEPTCONN, NULL, SockGetAcceptConn},
+    {DP_SO_TYPE, NULL, SockGetSockType},
+    {DP_SO_SNDLOWAT, SockSetSndLowat, SockGetSndLowat},
+    {DP_SO_BROADCAST, SockSetBroadcast, NULL},
+    {DP_SO_RCVBUFFORCE, SockSetRcvBufForce, NULL},
+    {DP_SO_TIMESTAMP, SockSetTimestamp, SockGetTimestamp},
+};
+
+int SockSetsockopt(Sock_t* sk, int level, int optname, const void* optval, DP_Socklen_t optlen)
+{
     (void)level;
 
     if (optval == NULL) {
-        DP_LOG_ERR("Sock setOpt optval invalid null");
-        ret = -EFAULT;
-        return ret;
+        DP_LOG_DBG("Sock setOpt optval invalid null");
+        return -EFAULT;
     }
 
-    switch (optname) {
-        case DP_SO_SNDTIMEO:
-            ret = SockSetTimeout(optval, optlen, &sk->sndTimeout);
+    for (size_t i = 0; i < DP_ARRAY_SIZE(g_sockOptOps); i++) {
+        if (g_sockOptOps[i].optname != optname) {
+            continue;
+        }
+        if (g_sockOptOps[i].set == NULL) {
+            return -ENOPROTOOPT;
+        }
+        return g_sockOptOps[i].set(sk, optval, optlen);
+    }
+    DP_LOG_DBG("Sock setOpt failed, invalid optname, optname = %d.", optname);
+    return -ENOPROTOOPT;
+}
+
+int SOCK_Setsockopt(Sock_t* sk, int level, int optname, const void* optval, DP_Socklen_t optlen)
+{
+    int ret;
+
+    SOCK_Lock(sk);
+
+    switch (level) {
+        case DP_SOL_SOCKET:
+            ret = SockSetsockopt(sk, level, optname, optval, optlen);
             break;
-        case DP_SO_RCVTIMEO:
-            ret = SockSetTimeout(optval, optlen, &sk->rcvTimeout);
-            break;
-        case DP_SO_REUSEADDR:
-            ret = SockSetReuseAddr(optval, optlen, sk);
-            break;
-        case DP_SO_REUSEPORT:
-            ret = SockSetReusePort(optval, optlen, sk);
-            break;
-        case DP_SO_KEEPALIVE:
-            ret = SockSetKeepalive(optval, optlen, sk);
-            break;
-        case DP_SO_LINGER:
-            ret = SockSetLinger(optval, optlen, sk);
-            break;
-        case DP_SO_SNDBUF:
-            ret = SockSetSndBuf(optval, optlen, sk);
-            break;
-        case DP_SO_RCVBUF:
-            ret = SockSetRcvBuf(optval, optlen, sk);
+        case DP_IPPROTO_IP:
+        case DP_IPPROTO_IPV6:
+        case DP_IPPROTO_TCP:
+        case DP_IPPROTO_UDP:
+            ret = -ENOPROTOOPT;
+            if (sk->ops->setsockopt != NULL) {
+                ret = sk->ops->setsockopt(sk, level, optname, optval, optlen);
+            }
             break;
         default:
             ret = -ENOPROTOOPT;
+            DP_LOG_DBG("DP_Setsockopt failed, invalid level, level = %d.", level);
             break;
     }
+
+    ASSERT(ret <= 0);
+
+    SOCK_Unlock(sk);
 
     return ret;
 }
 
-static int SockGetTimeout(const void* optval, DP_Socklen_t *optlen, int timeout)
+int SockGetsockopt(Sock_t* sk, int level, int optname, void* optval, DP_Socklen_t* optlen)
 {
-    if (*optlen < sizeof(struct DP_Timeval)) {
-        DP_LOG_ERR("Sock timeval with optlen %u invalid", *optlen);
-        return -EINVAL;
-    }
+    (void)level;
 
-    if (timeout < 0) {
-        ((struct DP_Timeval *)optval)->tv_sec = 0;
-        ((struct DP_Timeval *)optval)->tv_usec = 0;
-        return 0;
-    }
-
-    ((struct DP_Timeval *)optval)->tv_sec = timeout / MSEC_PER_SEC;
-    ((struct DP_Timeval *)optval)->tv_usec = (timeout % MSEC_PER_SEC) * USEC_PER_MSEC;
-    return 0;
-}
-
-static int SockGetLinger(const void *optval, DP_Socklen_t *optlen, Sock_t *sk)
-{
-    if (*optlen < sizeof(struct DP_Linger)) {
-        DP_LOG_ERR("Sock linget with optlen %u invalid", *optlen);
-        return -EINVAL;
-    }
-
-    ((struct DP_Linger *)optval)->l_onoff = sk->lingerOnoff;
-    ((struct DP_Linger *)optval)->l_linger = sk->linger;
-    return 0;
-}
-
-static int CheckOptVal(void* optval, DP_Socklen_t* optlen)
-{
     if ((optval == NULL) || (optlen == NULL)) {
-        DP_LOG_ERR("Sock getOpt invalid param");
+        DP_LOG_DBG("Sock getOpt failed, invalid param");
         return -EFAULT;
     }
 
     if ((int)*optlen < (int)sizeof(DP_Socklen_t)) {
+        DP_LOG_DBG("Sock getOpt failed, invalid *optlen, *optlen = %d.", (int)*optlen);
         return -EINVAL;
     }
-    return 0;
+
+    for (size_t i = 0; i < DP_ARRAY_SIZE(g_sockOptOps); i++) {
+        if (g_sockOptOps[i].optname != optname) {
+            continue;
+        }
+        if (g_sockOptOps[i].get == NULL) {
+            return -ENOPROTOOPT;
+        }
+        return g_sockOptOps[i].get(sk, optval, optlen);
+    }
+    DP_LOG_DBG("Sock getOpt failed, invalid optname, optname = %d.", optname);
+    return -ENOPROTOOPT;
 }
 
 int SOCK_Getsockopt(Sock_t* sk, int level, int optname, void* optval, DP_Socklen_t* optlen)
 {
-    (void)level;
-    int ret = CheckOptVal(optval, optlen);
-    if (ret != 0) {
-        return ret;
-    }
+    int ret = 0;
 
-    switch (optname) {
-        case DP_SO_SNDTIMEO:
-            ret = SockGetTimeout(optval, optlen, sk->sndTimeout);
-            *optlen = sizeof(struct DP_Timeval);
+    SOCK_Lock(sk);
+
+    switch (level) {
+        case DP_SOL_SOCKET:
+            ret = SockGetsockopt(sk, level, optname, optval, optlen);
             break;
-        case DP_SO_RCVTIMEO:
-            ret = SockGetTimeout(optval, optlen, sk->rcvTimeout);
-            *optlen = sizeof(struct DP_Timeval);
-            break;
-        case DP_SO_REUSEADDR:
-            *(int *)optval = sk->reuseAddr;
-            *optlen = sizeof(DP_Socklen_t);
-            break;
-        case DP_SO_REUSEPORT:
-            *(int *)optval = sk->reusePort;
-            *optlen = sizeof(DP_Socklen_t);
-            break;
-        case DP_SO_KEEPALIVE:
-            *(int *)optval = sk->keepalive;
-            *optlen = sizeof(DP_Socklen_t);
-            break;
-        case DP_SO_LINGER:
-            ret = SockGetLinger(optval, optlen, sk);
-            *optlen = sizeof(struct DP_Linger);
-            break;
-        case DP_SO_SNDBUF:
-            *(uint32_t *)optval = sk->sndHiwat * 2; // 接口行为与内核保持一致，设置缓冲区大小为A，获取到的结果为A * 2
-            *optlen = sizeof(DP_Socklen_t);
-            break;
-        case DP_SO_RCVBUF:
-            *(uint32_t *)optval = sk->rcvHiwat * 2; // 接口行为与内核保持一致，设置缓冲区大小为A，获取到的结果为A * 2
-            *optlen = sizeof(DP_Socklen_t);
-            break;
-        case DP_SO_ERROR:
-            *(int *)optval = sk->error;
-            *optlen = sizeof(DP_Socklen_t);
-            sk->error = 0;
+        case DP_IPPROTO_IP:
+        case DP_IPPROTO_IPV6:
+        case DP_IPPROTO_TCP:
+        case DP_IPPROTO_UDP:
+            ret = -EOPNOTSUPP;
+            if (sk->ops->getsockopt != NULL) {
+                ret = sk->ops->getsockopt(sk, level, optname, optval, optlen);
+            }
             break;
         default:
-            ret = -ENOPROTOOPT;
+            ret = -EOPNOTSUPP;
+            DP_LOG_DBG("DP_Getsockopt failed, invalid level, level = %d.", level);
             break;
     }
+
+    ASSERT(ret <= 0);
+
+    SOCK_Unlock(sk);
 
     return ret;
 }
@@ -1042,11 +1557,12 @@ int SOCK_Getpeername(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen
 {
     int ret = SOCK_CheckAddrParam(addr, addrlen);
     if (ret != 0) {
-        DP_LOG_ERR("Sock getpeername param invalid");
+        DP_LOG_DBG("Sock getpeername failed, param invalid.");
         return ret;
     }
 
     if (*addrlen == 0) {
+        DP_LOG_INFO("Getpeername with param addrlen 0.");
         return 0;
     }
 
@@ -1054,17 +1570,22 @@ int SOCK_Getpeername(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen
 
     if (SOCK_IS_SHUTWR(sk) || SOCK_IS_SHUTRD(sk)) {
         SOCK_Unlock(sk);
+        DP_LOG_DBG("Sock getpeername failed, sk has been shutdown.");
         return -EINVAL;
     }
 
     if (!SOCK_IS_CONNECTED(sk)) {
         SOCK_Unlock(sk);
+        DP_LOG_DBG("Sock getpeername failed, sk has not connect.");
         return -ENOTCONN;
     }
 
     ASSERT(sk->ops->getAddr != NULL);
 
     ret = sk->ops->getAddr(sk, addr, addrlen, 1);
+    if (ret != 0) {
+        DP_LOG_DBG("Sock getpeername failed, getAddr failed.");
+    }
 
     SOCK_Unlock(sk);
 
@@ -1075,11 +1596,12 @@ int SOCK_Getsockname(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen
 {
     int ret = SOCK_CheckAddrParam(addr, addrlen);
     if (ret != 0) {
-        DP_LOG_ERR("Sock getsockname param invalid");
+        DP_LOG_DBG("Sock getsockname failed, param invalid.");
         return ret;
     }
 
     if (*addrlen == 0) {
+        DP_LOG_INFO("Getsockname with param addrlen 0.");
         return 0;
     }
 
@@ -1087,16 +1609,108 @@ int SOCK_Getsockname(Sock_t* sk, struct DP_Sockaddr* addr, DP_Socklen_t* addrlen
 
     if (SOCK_IS_SHUTWR(sk) || SOCK_IS_SHUTRD(sk)) {
         SOCK_Unlock(sk);
+        DP_LOG_DBG("Sock getsockname failed, sk has been shutdown.");
         return -EINVAL;
     }
 
     ASSERT(sk->ops->getAddr != NULL);
 
     ret = sk->ops->getAddr(sk, addr, addrlen, 0);
+    if (ret != 0) {
+        DP_LOG_DBG("Sock getsockname failed, getAddr failed.");
+    }
 
     SOCK_Unlock(sk);
 
     return ret;
+}
+
+void SockShowInfo(Sock_t* sk)
+{
+    uint32_t offset = 0;
+    char output[LEN_INFO] = {0};
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "\r\n-------- SockInfo --------\n");
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "protocol = %d\n", sk->ops->protocol);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsLingerOn = %u\n", sk->lingerOnoff);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsNonblock = %u\n", sk->nonblock);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsReuseAddr = %u\n", sk->reuseAddr);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsReusePort = %u\n", sk->reusePort);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsBroadcast = %u\n", sk->broadcast);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsKeepalive = %u\n", sk->keepalive);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsBindDev = %u\n", sk->bindDev);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "IsDontRoute = %u\n", sk->dontRoute);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "SockErr = %u\n", sk->error);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "family = %u\n", sk->family);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "linger = %d\n", sk->linger);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "flags = %u\n", sk->flags);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "state = %u\n", sk->state);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "vrfId = %u\n", sk->vrfId);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rdSemCnt = %u\n", sk->rdSemCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "wrSemCnt = %u\n", sk->wrSemCnt);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvTimeout = %d\n", sk->rcvTimeout);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndTimeout = %d\n", sk->sndTimeout);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndLowat = %u\n", sk->sndLowat);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "sndHiwat = %u\n", sk->sndHiwat);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvLowat = %u\n", sk->rcvLowat);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvHiwat = %u\n", sk->rcvHiwat);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "priority = %d\n", sk->priority);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+        "associateFd = %d\n", sk->associateFd);
+    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "notifyType = %d\n", sk->notifyType);
+
+    DEBUG_SHOW(0, output, offset);
+}
+
+void SOCK_ShowSocketInfo(Sock_t* sk)
+{
+    SockShowInfo(sk);
+
+    if (sk->ops->showInfo != NULL) {
+        sk->ops->showInfo(sk);
+    }
+}
+
+static void SockGetDetails(Sock_t* sk, DP_SockDetails_t* details)
+{
+    details->protocol = sk->ops->protocol;
+    details->options = sk->options;
+    details->error = sk->error;
+    details->family = sk->family;
+    details->linger = sk->linger;
+    details->flags = sk->flags;
+    details->state = sk->state;
+    details->rdSemCnt = sk->rdSemCnt;
+    details->wrSemCnt = sk->wrSemCnt;
+    details->rcvTimeout = sk->rcvTimeout;
+    details->sndTimeout = sk->sndTimeout;
+    details->sndDataLen = sk->sndBuf.bufLen;
+    details->rcvDataLen = sk->rcvBuf.bufLen;
+    details->sndLowat = sk->sndLowat;
+    details->sndHiwat = sk->sndHiwat;
+    details->rcvLowat = sk->rcvLowat;
+    details->rcvHiwat = sk->rcvHiwat;
+    details->priority = sk->priority;
+    details->associateFd = sk->associateFd;
+    details->notifyType = sk->notifyType;
+    details->wid = sk->wid;
+}
+
+void SOCK_GetSocketDetails(Sock_t* sk, DP_SockDetails_t* details)
+{
+    SockGetDetails(sk, details);
+
+    if (sk->ops->getDetails != NULL) {
+        sk->ops->getDetails(sk, details);
+    }
+}
+
+int SOCK_GetSocketState(Sock_t* sk, DP_SocketState_t* state)
+{
+    if (sk->ops->getState != NULL) {
+        sk->ops->getState(sk, state);
+        return 0;
+    }
+    return -EOPNOTSUPP;
 }
 
 int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn)
@@ -1109,14 +1723,10 @@ int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn)
     return 0;
 }
 
-void SOCK_Notify(Sock_t* sk, uint8_t oldState)
+void SOCK_Notify(Sock_t* sk, uint8_t oldState, uint8_t event)
 {
-    if (sk->notifyType <= SOCK_NOTIFY_TYPE_NONE || sk->notifyType >= SOCK_NOTIFY_TYPE_MAX) {
-        return;
-    }
-
     if (g_notifyFns[sk->notifyType] != NULL) {
-        g_notifyFns[sk->notifyType](sk, sk->notifyCtx, oldState, sk->state);
+        g_notifyFns[sk->notifyType](sk, sk->notifyCtx, oldState, sk->state, event);
     }
 }
 
@@ -1133,8 +1743,21 @@ uint32_t SOCK_GetRWStateSafe(Sock_t* sk)
     return ret;
 }
 
+uint32_t SOCK_GetState(Sock_t* sk)
+{
+    uint32_t ret;
+
+    ret = sk->state;
+
+    return ret;
+}
+
 void SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, int assocFd)
 {
+    if (type <= SOCK_NOTIFY_TYPE_NONE || type >= SOCK_NOTIFY_TYPE_MAX) {
+        return;
+    }
+
     sk->notifyType  = type;
     sk->notifyCtx   = ctx;
     sk->associateFd = assocFd;
@@ -1203,6 +1826,7 @@ int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize)
         sk->rcvHiwat   = (uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_RMEM_DEFAULT);
         sk->sndLowat   = 1;
         sk->rcvLowat   = 1;
+        sk->flags      = 0;
     } else {
         sk->sndTimeout = parent->sndTimeout;
         sk->rcvTimeout = parent->rcvTimeout;
@@ -1215,10 +1839,18 @@ int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize)
         sk->options = parent->options;
 
         sk->net = parent->net;
+        sk->wid = parent->wid;
+        sk->glbHashTblIdx = parent->glbHashTblIdx;
+        sk->vpnid = parent->vpnid;
+        sk->sockType = parent->sockType;
     }
 
     sk->ref = 1;
     sk->dev = NULL;
+
+    if (g_notifyHook != NULL) {
+        SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_HOOK, NULL, -1);
+    }
 
     return 0;
 }
@@ -1226,7 +1858,19 @@ int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize)
 void SOCK_DeinitSk(Sock_t* sk)
 {
     if (sk->dev != NULL) {
-        NETDEV_DerefDev(sk->dev);
+        NETDEV_PutDev(sk->dev);
+    }
+
+    if (sk->pfDev != NULL) {
+        NETDEV_PutDev(sk->pfDev);
+    }
+
+    if (sk->file != NULL) {
+        FD_Free(sk->file);
+    }
+
+    if (sk->pacingCb != NULL) {
+        MEM_FREE(sk->pacingCb, DP_MEM_FREE);
     }
 
     PBUF_ChainClean(&sk->rcvBuf);
@@ -1234,54 +1878,44 @@ void SOCK_DeinitSk(Sock_t* sk)
     SEM_DEINIT(sk->rdSem);
     SEM_DEINIT(sk->wrSem);
     SPINLOCK_Deinit(&sk->lock);
+    SOCK_DisableNotify(sk);
+}
+
+int SOCK_NotifyHookCreate(SOCK_NotifyFn_t hook)
+{
+    if (UTILS_IsCfgInited() != 0) {
+        DP_LOG_ERR("SFE_NotifyCreate failed, dp already init.");
+        return -1;
+    }
+
+    g_notifyHook = hook;
+
+    return 0;
 }
 
 size_t SOCK_SIZE;
 
 int SOCK_Init(int slave)
 {
-    void (*notifyFns[])(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState) = {
-        NULL,
-        EPOLL_Notify,
-        POLL_Notify,
-        SELECT_Notify,
-    };
-
+    (void)slave;
     if (FD_Init() != 0) {
         DP_LOG_ERR("Sock init fd failed.");
         FD_Deinit();
         return -1;
     }
 
-    if (INET_Init(slave) != 0) {
-        DP_LOG_ERR("Inet init sock_familyOps failed.");
-        return -1;
-    }
-
-#ifdef DPITF_NETLINK
-    if (SOCK_InitNetlink(slave) != 0) {
-        DP_LOG_ERR("Netlink init sock_familyOps failed.");
-        return -1;
-    }
-#endif
-
     SOCK_SIZE = SOCK_ALIGN_SIZE(sizeof(Sock_t));
     SOCK_SIZE += SOCK_ALIGN_SIZE(SEM_Size) * 2; // 包含读写2个信息量
 
-    for (int i = 0; i < (int)ARRAY_SIZE(notifyFns); i++) {
-        if (notifyFns[i] == NULL) {
-            continue;
-        }
-        if (SOCK_SetNotifyFn(i, notifyFns[i]) != 0) {
-            return -1;
-        }
-    }
+    (void)SOCK_SetNotifyFn(SOCK_NOTIFY_TYPE_HOOK, g_notifyHook);
 
     return 0;
 }
 
 void SOCK_Deinit(int slave)
 {
-    INET_Deinit(slave);
+    (void)slave;
+    g_notifyHook = NULL;
+    SockResetFdIdx();
     FD_Deinit();
 }

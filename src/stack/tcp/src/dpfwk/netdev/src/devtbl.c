@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "ns.h"
@@ -48,11 +47,14 @@ int InitDevTbl()
 Netdev_t* GetDev(DevTbl_t* tbl, int ifindex)
 {
     ASSERT(tbl != NULL);
+    (void)ATOMIC32_Inc(&tbl->ref);
     for (int i = 0; i < DEV_TBL_SIZE; ++i) {
         if (tbl->devs[i] != NULL && tbl->devs[i]->ifindex == ifindex) {
+            (void)ATOMIC32_Dec(&tbl->ref);
             return tbl->devs[i];
         }
     }
+    (void)ATOMIC32_Dec(&tbl->ref);
     return NULL;
 }
 
@@ -128,6 +130,7 @@ Netdev_t* PopDev(DevTbl_t* tbl, int ifindex)
             dev          = tbl->devs[i];
             dev->ifindex = -1;
             tbl->devs[i] = NULL;
+            break;
         }
     }
     return dev;

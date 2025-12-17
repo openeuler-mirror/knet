@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 信号量钩子函数注册相关
+ */
+/**
+ * @file dp_sem_api.h
+ * @brief 信号量钩子函数注册相关
  */
 
 #ifndef DP_SEM_API_H
@@ -18,10 +21,10 @@
 #include <stddef.h>
 
 #ifdef __cplusplus
-#if __cplusplus
 extern "C" {
 #endif
-#endif
+
+/** @defgroup dp_sem 信号量模块 */
 
 typedef void* DP_Sem_t;
 
@@ -99,13 +102,13 @@ typedef uint32_t (*DP_SemTimeWaitHook)(DP_Sem_t sem, int32_t timeout);
  * 信号量操作集
  */
 typedef struct {
-    DP_SemInitHook init;          /**< 初始化钩子，必需 */
-    DP_SemDeinitHook deinit;      /**< 去初始化钩子，必需 */
-    DP_SemPVHook post;            /**< 唤醒信号量钩子，必需 */
-    DP_SemPVHook wait;            /**< 等待信号量钩子，暂不使用 */
-    DP_SemPVHook tryWait;         /**< 尝试等待信号量钩子，暂不使用 */
-    DP_SemTimeWaitHook timeWait;  /**< 超时等待信号量钩子，必需 */
-    uint16_t size;                  /**< 信号量结构体大小，必需 */
+    DP_SemInitHook initHook;          /**< 初始化钩子，必需 */
+    DP_SemDeinitHook deinitHook;      /**< 去初始化钩子，必需 */
+    DP_SemPVHook postHook;            /**< 唤醒信号量钩子，必需 */
+    DP_SemPVHook waitHook;            /**< 等待信号量钩子，暂不使用 */
+    DP_SemPVHook tryWaitHook;         /**< 尝试等待信号量钩子，暂不使用 */
+    DP_SemTimeWaitHook timeWaitHook;  /**< 超时等待信号量钩子，必需 */
+    uint16_t semSize;                  /**< 信号量结构体大小，必需 */
 } DP_SemHooks_S;
 
 /**
@@ -114,21 +117,19 @@ typedef struct {
  *
  * @par 描述: 信号量方法注册接口
  * @attention
- * 必须在初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param pHooks [IN]  信号量操作钩子<非NULL>
  *
  * @retval 0 成功
- * @retval 错误码 失败
+ * @retval 其他值 失败
  * @since V100R024C10
  * @see DP_SemHookReg | DP_SemHooks_S
 */
 uint32_t DP_SemHookReg(const DP_SemHooks_S *pHooks);
 
 #ifdef __cplusplus
-#if __cplusplus
 }
-#endif
 #endif
 
 #endif

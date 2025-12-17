@@ -68,11 +68,23 @@ typedef struct {
     uint32_t iss;
 } DP_PACKED TcpCookieInetHashInfo_t; // 保存TCP五元组信息
 
+typedef struct {
+    DP_In6Addr_t laddr;
+    DP_In6Addr_t paddr;
+    uint16_t sport;
+    uint16_t dport;
+    uint32_t iss;
+} TcpCookieInet6HashInfo_t; // 保存TCP五元组信息
+
 int TcpCookieGetMssIndex(uint16_t mss);
 
 void TcpCookieCalcInetIss(TcpPktInfo_t* pi, TcpCookieInetHashInfo_t* info, uint16_t mss);
 
 bool TcpCookieVerifyInetIss(TcpPktInfo_t* pi, TcpCookieInetHashInfo_t* info, uint16_t* mss);
+
+void TcpCookieCalcInet6Iss(TcpPktInfo_t* pi, TcpCookieInet6HashInfo_t* info, uint16_t mss);
+
+bool TcpCookieVerifyInet6Iss(TcpPktInfo_t* pi, TcpCookieInet6HashInfo_t* info, uint16_t* mss);
 
 uint32_t TcpCookieGenTsval(TcpSynOpts_t* synOpts, uint8_t hasOpt);
 

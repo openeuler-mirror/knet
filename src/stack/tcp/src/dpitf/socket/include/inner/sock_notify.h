@@ -9,16 +9,23 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef SOCK_NOTIFY_H
 #define SOCK_NOTIFY_H
 
 #include "sock.h"
-#include "pmgr.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+int SOCK_NotifyHookCreate(SOCK_NotifyFn_t hook);
+
+static inline void SOCK_NotifyHookSetCtx(Sock_t* sk, void* ctx)
+{
+    if (sk->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
+        sk->notifyCtx = ctx;
+    }
+}
 
 #ifndef DPITF_EPOLL
 #define EPOLL_NOTIFY_ATTR ATTR_WEAK
@@ -38,11 +45,11 @@ extern "C" {
 #define SELECT_NOTIFY_ATTR
 #endif
 
-extern void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState) EPOLL_NOTIFY_ATTR;
+extern void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) EPOLL_NOTIFY_ATTR;
 
-extern void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState) POLL_NOTIFY_ATTR;
+extern void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) POLL_NOTIFY_ATTR;
 
-extern void SELECT_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState) SELECT_NOTIFY_ATTR;
+extern void SELECT_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) SELECT_NOTIFY_ATTR;
 
 #ifdef __cplusplus
 }

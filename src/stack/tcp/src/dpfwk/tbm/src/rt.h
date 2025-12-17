@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef RT_H
 #define RT_H
 
@@ -21,11 +20,18 @@ extern "C" {
 #endif
 
 typedef struct TBM_RtKey  RtKey_t;
+typedef struct TBM_Rt6Key  Rt6Key_t;
 typedef struct TBM_RtItem RtItem_t;
+typedef struct TBM_Rt6Item Rt6Item_t;
 typedef struct TBM_RtTbl  RtTbl_t;
 typedef struct TBM_Cache  RtCache_t;
 
 #define RTTBL_HASH_MASK ((CFG_GET_VAL(DP_CFG_RT_MAX)) - 1)
+
+static inline void WaitRtTblIdle(RtTbl_t* tbl)
+{
+    while (ATOMIC32_Load(&tbl->ref) != 0) {}
+}
 
 void* AllocRtTbl(void);
 
@@ -45,7 +51,6 @@ RtItem_t* LookupRt(RtTbl_t* tbl, RtKey_t* rtKey);
 RtItem_t* GetRt(RtTbl_t* tbl, DP_InAddr_t dst);
 
 void PutRt(RtItem_t* item);
-
 
 #ifdef __cplusplus
 }

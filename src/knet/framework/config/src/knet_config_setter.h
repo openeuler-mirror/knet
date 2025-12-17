@@ -1,0 +1,56 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ 
+ * K-NET is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+      http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+
+#ifndef __KNET_CONFIG_SETTER_H__
+#define __KNET_CONFIG_SETTER_H__
+
+#include "cJSON.h"
+
+#include "knet_config.h"
+#include "knet_config_core_queue.h"
+
+#define REG_PATTERN_LEN 128
+
+union KnetCfgValidateParam {
+    char pattern[REG_PATTERN_LEN];
+    struct {
+        int64_t min;
+        int64_t max;
+    } intValue;
+};
+
+typedef int (*FuncSetter)(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int IntSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int Uint64Setter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int CtrVcpuRingSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int CtrlVcpuArraySetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int StringSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int IpSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int NetMaskSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int MacSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int CoreListGlobalSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int LogLevelSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+int BdfNumsSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidateParam *param);
+
+#endif // __KNET_CONFIG_SETTER_H__

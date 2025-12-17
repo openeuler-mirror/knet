@@ -9,8 +9,7 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
-#include "fd.h"
+#include "dp_fd.h"
 
 #include <securec.h>
 
@@ -19,22 +18,22 @@
 #include "utils_base.h"
 #include "utils_cfg.h"
 #include "utils_log.h"
-#include "utils_debug.h"
 #include "utils_spinlock.h"
+#include "dp_socket_types_api.h"
 
 typedef struct FdNode {
     struct FdNode* next;
     Fd_t*          file;
-} FdNode_t;
+    Spinlock_t     lock;
+    bool           isClosed;
+} ALIGNED_TO(CACHE_LINE) FdNode_t;
 
 typedef struct {
     int           maxFdCnt; // 表示最大创建的fd的数量
     FdNode_t*     nodes;    // 在实际使用时进行初始化内存
-    atomic32_t    ref;
-
-    FdNode_t*      unusedNodes;
-    FdNode_t*      unusedNodesTail;
-    Spinlock_t     lock;
+    FdNode_t*     unusedNodes;
+    FdNode_t*     unusedNodesTail;
+    Spinlock_t    lock;
 } FdTbl_t;
 
 int            g_fdOffset = 0;
@@ -44,21 +43,24 @@ static int InitFdNodes(FdTbl_t* tbl)
 {
     int       maxFdCnt;
     FdNode_t* node;
+    size_t    allocSize;
 
     maxFdCnt = CFG_GET_VAL(DP_CFG_TCPCB_MAX);
     maxFdCnt += CFG_GET_VAL(DP_CFG_UDPCB_MAX);
-    maxFdCnt += CFG_GET_VAL(CFG_RAWCB_IP_MAX);
-    maxFdCnt += CFG_GET_VAL(CFG_RAWCB_ETH_MAX);
+    maxFdCnt += CFG_GET_VAL(DP_CFG_EPOLLCB_MAX);
+
+    allocSize = (uint32_t)maxFdCnt * sizeof(FdNode_t);
 
     tbl->maxFdCnt = maxFdCnt;
-    tbl->nodes    = MEM_MALLOC((uint32_t)maxFdCnt * sizeof(FdNode_t), MOD_FD, DP_MEM_FIX);
+    tbl->nodes    = MEM_MALLOC_ALIGN(allocSize, CACHE_LINE, MOD_FD, DP_MEM_FIX);
     if (tbl->nodes == NULL) {
         DP_LOG_ERR("Malloc memory failed for fdNodes.");
         return -1;
     }
-    (void)memset_s(tbl->nodes, (uint32_t)maxFdCnt * sizeof(FdNode_t), 0, (uint32_t)maxFdCnt * sizeof(FdNode_t));
-    node = &tbl->nodes[0];
 
+    (void)memset_s(tbl->nodes, allocSize, 0, allocSize);
+
+    node = &tbl->nodes[0];
     for (int i = 0; i < maxFdCnt - 1; i++, node++) {
         node->next = (node + 1);
     }
@@ -74,6 +76,7 @@ int FD_Init(void)
     FdTbl_t* tbl = &g_fdTbl;
 
     if (tbl->nodes != NULL) {
+        DP_LOG_ERR("FD_Init failed for g_fdTbl->nodes not NULL.");
         return -1;
     }
 
@@ -90,35 +93,29 @@ int FD_Init(void)
     return 0;
 }
 
-static inline void RefTbl(void)
-{
-    ATOMIC32_Inc(&g_fdTbl.ref);
-}
-
-static inline void DerefTbl(void)
-{
-    ATOMIC32_Dec(&g_fdTbl.ref);
-}
-
-static inline void WaitTblIdle(void)
-{
-    while (ATOMIC32_Load(&g_fdTbl.ref) != 0) { }
-}
-
 static inline int LockFdTbl(void)
 {
-    return SPINLOCK_Lock(&g_fdTbl.lock);
+    return SPINLOCK_DoLock(&g_fdTbl.lock);
 }
 
 static inline void UnlockFdTbl(void)
 {
-    return SPINLOCK_Unlock(&g_fdTbl.lock);
+    return SPINLOCK_DoUnlock(&g_fdTbl.lock);
 }
 
-static FdNode_t* GetUnusedNode(void)
+static inline void LockFdNode(FdNode_t* node)
+{
+    SPINLOCK_Lock(&node->lock);
+}
+
+static inline void UnlockFdNode(FdNode_t* node)
+{
+    SPINLOCK_Unlock(&node->lock);
+}
+
+static FdNode_t* GetUnusedNode(FdTbl_t* tbl)
 {
     FdNode_t* node;
-    FdTbl_t*  tbl = &g_fdTbl;
 
     node = tbl->unusedNodes;
     if (node == NULL) {
@@ -134,43 +131,29 @@ static FdNode_t* GetUnusedNode(void)
     return node;
 }
 
-static Fd_t* PutUnusedNodeUnsafe(FdTbl_t* tbl, int fdIdx)
+static void PutUnusedNode(FdTbl_t* tbl, FdNode_t* node)
 {
-    Fd_t*     file;
-    FdNode_t* node;
-
-    node = &tbl->nodes[fdIdx];
-    if (node->file == NULL) {
-        return NULL;
-    }
-
-    ASSERT(node->next == NULL);
-
-    file       = node->file;
-    node->file = NULL;
-    node->next = NULL;
-
     if (tbl->unusedNodesTail == NULL) {
         tbl->unusedNodes = node;
     } else {
         tbl->unusedNodesTail->next = node;
     }
     tbl->unusedNodesTail = node;
-
-    return file;
 }
 
-static Fd_t* PutUnusedNode(int fdIdx)
+static inline int RefFd(Fd_t* file)
 {
-    Fd_t* ret;
+    uint32_t ref;
 
-    LockFdTbl();
-
-    ret = PutUnusedNodeUnsafe(&g_fdTbl, fdIdx);
-
-    UnlockFdTbl();
-
-    return ret;
+    while (1) {
+        ref = ATOMIC32_Load(&file->ref);
+        if (ref == 0) {
+            return -1;
+        }
+        if (ATOMIC32_Cas(&file->ref, ref, ref + 1)) {
+            return 0;
+        }
+    }
 }
 
 Fd_t* FD_Alloc(void)
@@ -181,6 +164,7 @@ Fd_t* FD_Alloc(void)
     file = MEM_MALLOC(sizeof(Fd_t), MOD_FD, DP_MEM_FREE);
     if (file == NULL) {
         DP_LOG_ERR("Malloc memory failed for fd file.");
+        DP_ADD_ABN_STAT(DP_FD_MEM_ERR);
         DP_SET_ERRNO(ENOMEM);
         return NULL;
     }
@@ -189,48 +173,59 @@ Fd_t* FD_Alloc(void)
 
     file->ref = 1;
 
-    RefTbl();
     LockFdTbl();
 
-    node = GetUnusedNode();
+    node = GetUnusedNode(&g_fdTbl);
     if (node != NULL) {
         node->file  = file;
         file->fdIdx = node - g_fdTbl.nodes;
+        node->isClosed = false;
     } else {
         MEM_FREE(file, DP_MEM_FREE);
+        DP_ADD_ABN_STAT(DP_FD_NODE_FULL);
         DP_SET_ERRNO(EMFILE);
         file = NULL;
     }
 
     UnlockFdTbl();
-    DerefTbl();
-
     return file;
 }
 
 void FD_Free(Fd_t* file)
 {
-    ASSERT(file->priv == NULL);
+    FdNode_t* node = &g_fdTbl.nodes[file->fdIdx];
 
-    PutUnusedNode(file->fdIdx);
+    LockFdTbl();
+
+    // 调用 FD_Free 时，node 不会被外界持有，无需加锁
+    node->file = NULL;
+    node->isClosed = true;
+
+    PutUnusedNode(&g_fdTbl, node);
+
+    UnlockFdTbl();
+
     MEM_FREE(file, DP_MEM_FREE);
 }
 
 static int FdClose(int realFd)
 {
     Fd_t* file;
+    FdNode_t* node = &g_fdTbl.nodes[realFd];
 
-    RefTbl();
+    LockFdNode(node);
 
-    file = PutUnusedNode(realFd);
-    if (file == NULL) {
-        DP_LOG_ERR("PosixClose failed, no unused node.");
-        DerefTbl();
+    file = node->file;
+    if (file == NULL || node->isClosed || (file->ops->canClose(file->priv) != 1)) {
+        UnlockFdNode(node);
+
+        DP_LOG_DBG("FdClose failed, fd is invalid.");
         return -EBADF;
     }
 
-    DerefTbl();
-    WaitTblIdle();
+    node->isClosed = true;
+
+    UnlockFdNode(node);
 
     FD_Put(file);
 
@@ -243,12 +238,15 @@ int FD_Close(int fd)
     int ret;
 
     if (realFd < 0 || realFd >= g_fdTbl.maxFdCnt) {
-        DP_LOG_ERR("PosixClose failed, invalid fd.");
+        DP_LOG_DBG("PosixClose failed, invalid fd.");
         return -EBADF;
     }
 
     ret = FdClose(realFd);
-
+    if ((ret != 0)) {
+        DP_SET_ERRNO(-ret);
+        return -1;
+    }
     return ret;
 }
 
@@ -257,25 +255,91 @@ int DP_Close(int fd)
     return FD_Close(fd);
 }
 
-static int FdGet(int realFd, int type, Fd_t** out)
+static int FdGet(int realFd, int type, Fd_t** out, int refOp)
 {
-    Fd_t* file = g_fdTbl.nodes[realFd].file;
-    if (file == NULL) {
-        return -EBADF;
+    int ret = 0;
+    Fd_t* file;
+    FdNode_t* node = &g_fdTbl.nodes[realFd];
+
+    if (refOp != DP_FD_OP_NOREF) {
+        LockFdNode(node);
     }
 
-    if (file->type != type) {
-        if (type == FD_TYPE_SOCKET) {
-            return -ENOTSOCK;
-        }
-        return -EINVAL;
+    file = node->file;
+
+    if (node->isClosed || file == NULL) {
+        DP_ADD_ABN_STAT(DP_FD_GET_CLOSED);
+        ret = -EBADF;
+        goto end;
     }
 
-    ATOMIC32_Inc(&file->ref);
+    if (type != FD_TYPE_INVALID && file->type != type) {
+        ret = (type == FD_TYPE_SOCKET) ? -ENOTSOCK : -EINVAL;
+        DP_ADD_ABN_STAT(DP_FD_GET_INVAL_TYPE);
+        goto end;
+    }
+
+    if (refOp == DP_FD_OP_DEFAULT && RefFd(file) != 0) {
+        DP_ADD_ABN_STAT(DP_FD_GET_REF_ERR);
+        ret = -EBADF;
+        goto end;
+    }
 
     *out = file;
 
-    return 0;
+end:
+    if (refOp != DP_FD_OP_NOREF) {
+        UnlockFdNode(node);
+    }
+    return ret;
+}
+
+int DP_Fcntl(int fd, int cmd, int val)
+{
+    Fd_t*   file;
+    int     ret = 0;
+    ret = FD_Get(fd, FD_TYPE_INVALID, &file);
+    if (ret != 0) {
+        return ret;
+    }
+
+    if ((CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) || (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE))  {
+        if (file->ops->canFcntl(file->priv) != 1) {
+            FD_Put(file);
+            DP_LOG_ERR("Fcntl failed, fd is invalid.");
+            DP_SET_ERRNO(EBADF);
+            return -1;
+        }
+    }
+
+    switch (cmd) {
+        case DP_F_GETFD:
+            ret = (int)file->flags;
+            break;
+        case DP_F_SETFD:
+            file->flags |= (uint32_t)val;
+            break;
+        case DP_F_GETFL:
+        case DP_F_SETFL:
+            if (file->ops->fcntl != NULL) {
+                ret = file->ops->fcntl(file->priv, cmd, val);
+            } else {
+                ret = -EINVAL;
+                DP_LOG_DBG("Sock fcntl failed, DP_F_SETFL failed.");
+            }
+            break;
+        default:
+            ret = -EINVAL;
+            DP_LOG_DBG("Sock fcntl failed, cmd %d not support", cmd);
+            break;
+    }
+
+    FD_Put(file);
+    if (ret < 0) {
+        DP_SET_ERRNO(-ret);
+    }
+
+    return ret < 0 ? -1 : ret;
 }
 
 int FD_Get(int fd, int type, Fd_t** file)
@@ -284,15 +348,32 @@ int FD_Get(int fd, int type, Fd_t** file)
     int ret = 0;
 
     if ((realFd < 0) || (realFd >= g_fdTbl.maxFdCnt) || (g_fdTbl.nodes == NULL)) {
-        DP_LOG_ERR("Fd get failed, invalid fd.");
+        DP_LOG_DBG("Fd get failed, invalid fd.");
+        DP_ADD_ABN_STAT(DP_FD_GET_INVAL);
         return -EBADF;
     }
 
-    RefTbl();
+    ret = FdGet(realFd, type, file, DP_FD_OP_DEFAULT);
 
-    ret = FdGet(realFd, type, file);
+    return ret;
+}
 
-    DerefTbl();
+int FD_GetOptRef(int fd, int type, Fd_t** file)
+{
+    int realFd = FD_GetRealFd(fd);
+    int ret = 0;
+    int refOp = DP_FD_OP_DEFAULT;
+
+    if ((realFd < 0) || (realFd >= g_fdTbl.maxFdCnt) || (g_fdTbl.nodes == NULL)) {
+        DP_LOG_DBG("Fd get failed, invalid fd.");
+        DP_ADD_ABN_STAT(DP_FD_GET_INVAL);
+        return -EBADF;
+    }
+
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        refOp = DP_FD_OP_NOREF;
+    }
+    ret = FdGet(realFd, type, file, refOp);
 
     return ret;
 }
@@ -304,7 +385,13 @@ void FD_Put(Fd_t* file)
     ref = ATOMIC32_Dec(&file->ref);
     if (ref == 0) {
         file->ops->close(file->priv);
-        MEM_FREE(file, DP_MEM_FREE);
+    }
+}
+
+void FD_PutOptRef(Fd_t* file)
+{
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) != DP_DEPLOYMENT_CO_THREAD) {
+        FD_Put(file);
     }
 }
 
@@ -324,6 +411,5 @@ void FD_Deinit(void)
 
     tbl->unusedNodes = NULL;
     tbl->unusedNodesTail = NULL;
-    tbl->ref = 0;
     SPINLOCK_Deinit(&tbl->lock);
 }

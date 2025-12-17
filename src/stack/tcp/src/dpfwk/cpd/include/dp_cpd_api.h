@@ -8,9 +8,11 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 控制面对接相关对外接口
  */
-
+/**
+ * @file dp_cpd_api.h
+ * @brief 控制面对接相关对外接口
+ */
 
 #ifndef DP_CPD_API_H
 #define DP_CPD_API_H
@@ -48,12 +50,57 @@ int DP_CpdInit(void);
  * 2.该接口从内核同步ARP表项至DP，通过netlink读取内核的更新信息。
  * 3.该接口通过转发链路读取内核发送的控制报文(ARP ICMP),从对应的NetDev设备转发至外部。
  *
- * @param NA
+ * @param cpdId cpd线程id
  * @retval 0 成功
  * @retval -1 异常
  * @see DP_CpdInit
  */
-int DP_CpdRunOnce(void);
+int DP_CpdRunOnce(int cpdId);
+
+/**
+ * @ingroup cpd
+ * @brief 控制面内核转发入队接口
+ *
+ * @attention
+ * 1.必须在调用DP_CpdInit之后调用。
+ * 2.该接口在数据面将内核报文送到延后队列处理，每次送入1个pbuf
+ *
+ * @param cpdQueueId cpd队列id
+ * @retval 0 队列已满，实际送入队列成功的报文为0
+ * @retval 1 成功送入队列的pbuf，每次限制送入1个pbuf
+ * @see DP_CpdInit
+ */
+typedef int (*DP_CpdEnqueHook_t)(void* pbuf, int cpdQueueId);
+
+/**
+ * @ingroup cpd
+ * @brief 控制面内核转发出队接口
+ *
+ * @attention
+ * 1.必须在调用DP_CpdInit之后调用。
+ * 2.该接口在控制面将内核报文从延后队列拿出
+ *
+ * @param cpdQueueId cpd队列id
+ * @retval 实际出队的pbuf数量
+ * @see DP_CpdInit
+ */
+typedef int (*DP_CpdDequeHook_t)(void** pbuf, unsigned int dequeSize,  int cpdQueueId);
+
+typedef struct {
+    DP_CpdEnqueHook_t cpdEnque;
+    DP_CpdDequeHook_t cpdDeque;
+} DP_CpdqueOps_t;
+
+/**
+ * @ingroup cpd
+ * @brief 注冊队列操作钩子
+ *
+ * @param queOps 队列操作钩子DP_CpdqueOps_t的泛化指针
+ * @retval 0 成功
+ * @retval -1 异常
+ * @see DP_CpdQueHooksReg
+ */
+int DP_CpdQueHooksReg(void* queOps);
 
 #ifdef __cplusplus
 }

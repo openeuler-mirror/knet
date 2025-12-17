@@ -9,18 +9,22 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef PBUF_H
 #define PBUF_H
 
-#include <stdbool.h>
 #include <stdio.h>
 
 #include "dp_pbuf_api.h"
 
+#include "utils_debug.h"
+#include "dp_inet.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define DP_PBUF_FLAGS_EXTERNAL   0x01
+#define DP_PBUF_FLAGS_REFERENCED 0x02
 
 typedef struct DP_Pbuf Pbuf_t;
 
@@ -56,6 +60,7 @@ enum {
 #define PBUF_MIN_PAYLOAD_LEN 64
 #endif
 
+#define PBUF_PKTFLAGS_BROADCAST 0x1
 #define PBUF_PKTFLAGS_MULTICAST 0x4
 
 #define PBUF_PKTFLAGS_IFINDEX 0x10 // rx属性，放入到缓冲区后，不能保存netdev指针
@@ -101,6 +106,27 @@ void PBUF_Free(Pbuf_t* pbuf);
 ********************************************************************************/
 
 /**
+ * @brief 从 data 中构建一个 pbuf
+ *
+ * @param data 数据
+ * @param dataLen 数据长度
+ * @param headroom 头部空间
+ * @return 构建的 pbuf
+ */
+Pbuf_t* PBUF_Build(const uint8_t* data, uint16_t dataLen, uint16_t headroom);
+
+
+/**
+ * @brief 使用 pbuf 的数据构建一个 新的 pbuf
+ *
+ * @param src 源 pbuf
+ * @param dataLen 数据长度，内部调用保证 dataLen 小于 src 的 pbuf 长度
+ * @param headroom 头部空间
+ * @return 构建的 pbuf
+ */
+Pbuf_t* PBUF_BuildFromPbuf(const Pbuf_t* src, uint16_t dataLen, uint16_t headroom);
+
+/**
  * @brief 添加数据，如果当前数据空间不足，则会申请新的pbuf
  *
  * @param pbuf pbuf指针
@@ -138,7 +164,7 @@ uint16_t PBUF_CutTailData(Pbuf_t* pbuf, uint16_t len);
  * @param pbuf
  * @return
  */
-uint32_t PBUF_CalcCksum(Pbuf_t* pbuf);
+uint32_t PBUF_CalcCksumAcc(Pbuf_t* pbuf);
 
 /** 获取pbuf中数据开始地址 */
 #define PBUF_MTOD(pbuf, type) (type)((pbuf)->payload + (pbuf)->offset)
@@ -202,24 +228,36 @@ Pbuf_t* PBUF_Splice(Pbuf_t* pbuf, uint16_t spliceLen, uint16_t headroom);
 Pbuf_t* PBUF_Clone(Pbuf_t* src);
 
 /**
- * @brief PBUF合并，cpyChainNode表示是否复制chainNext/chainPrev字段
+ * @brief PBUF合并，dst和src连接
  */
-static inline void PBUF_Merge(Pbuf_t *dst, Pbuf_t *src, bool cpyChainNode)
+static inline void PBUF_Concat(Pbuf_t *dst, Pbuf_t *src)
 {
-    do {
-        (dst)->end->next = (src);
-        (dst)->end       = (src)->end;
-        (dst)->nsegs += (src)->nsegs;
-        (dst)->totLen += (src)->totLen;
-        if (cpyChainNode) {
-            (dst)->chainNext = (src)->chainNext;
-            if ((dst)->chainNext != NULL) {
-                (dst)->chainNext->chainPrev = (dst);
-            }
-            (src)->chainNext = NULL;
-            (src)->chainPrev = NULL;
-        }
-    } while (0);
+    dst->end->next = src;
+    dst->end       = src->end;
+    dst->nsegs    += src->nsegs;
+    dst->totLen   += src->totLen;
+}
+
+/**
+ * @brief 合并chain上的at及其下一个pbuf
+ *
+ * @param chain buf chain
+ * @param at 待合并的pbuf
+ * @return NA
+ */
+static inline void PBUF_ChainMergeNext(PBUF_Chain_t* chain, Pbuf_t* at)
+{
+    Pbuf_t *next = at->chainNext;
+    ASSERT(next != NULL);  // 当前仅在IP重组场景使用，调用点保证next不为空
+    at->chainNext = next->chainNext;
+    PBUF_Concat(at, next);
+    if (at->chainNext != NULL) {
+        at->chainNext->chainPrev = at;
+    } else {
+        chain->tail = at;
+    }
+
+    chain->pktCnt--;
 }
 
 /*******************************************************************************
@@ -239,8 +277,20 @@ static inline void PBUF_Merge(Pbuf_t *dst, Pbuf_t *src, bool cpyChainNode)
 #define PBUF_GET_DEV(pbuf)         ((pbuf)->dev)
 #define PBUF_SET_DEV(pbuf, netdev) (pbuf)->dev = (void*)(netdev)
 
-#define PBUF_GET_DST_ADDR(pbuf)       (pbuf)->paddr.in
-#define PBUF_SET_DST_ADDR(pbuf, addr) (pbuf)->paddr.in = (addr)
+#define PBUF_GET_DST_ADDR4(pbuf)       (pbuf)->paddr.in
+#define PBUF_GET_DST_ADDR6(pbuf)       (pbuf)->paddr.in6
+// 返回为 void*类型指针
+#define PBUF_GET_DST_ADDR(pbuf)                                                                     \
+    ({                                                                                              \
+        ASSERT(PBUF_GET_L3_TYPE(pbuf) == DP_ETH_P_IP || PBUF_GET_L3_TYPE(pbuf) == DP_ETH_P_IPV6); \
+        PBUF_GET_L3_TYPE(pbuf) == DP_ETH_P_IP ? &((pbuf)->paddr.in) : (void*)((pbuf)->paddr.in6);  \
+    })
+
+#define PBUF_SET_DST_ADDR4(pbuf, addr) (pbuf)->paddr.in = (addr)
+#define PBUF_SET_DST_ADDR6(pbuf, addr) (pbuf)->paddr.in6 = (addr)
+
+#define PBUF_SET_DST_MAC(pbuf, addr) (pbuf)->paddr.mac = (addr)
+#define PBUF_GET_DST_MAC(pbuf)       (pbuf)->paddr.mac
 
 #define PBUF_GET_FLOW(pbuf) ((((pbuf)->pktFlags & PBUF_PKTFLAGS_FLOW) != 0) ? (pbuf)->flow : NULL)
 #define PBUF_SET_FLOW(pbuf, f)                   \
@@ -255,21 +305,18 @@ static inline void PBUF_Merge(Pbuf_t *dst, Pbuf_t *src, bool cpyChainNode)
 #define PBUF_GET_L3_TYPE(pbuf)       (pbuf)->l3type
 #define PBUF_SET_L3_TYPE(pbuf, type) (pbuf)->l3type = (type)
 
-#define PBUF_SET_L3_OFF(pbuf) (pbuf)->l3Off = (uint8_t)((pbuf)->offset)
+#define PBUF_SET_L3_OFF(pbuf) (pbuf)->l3Off = (pbuf)->offset
 #define PBUF_GET_L3_OFF(pbuf) (pbuf)->l3Off
 #define PBUF_GET_L3_HDR(pbuf) ((pbuf)->l3Off + (pbuf)->payload)
 
 #define PBUF_GET_L4_TYPE(pbuf)       (pbuf)->l4type
 #define PBUF_SET_L4_TYPE(pbuf, type) (pbuf)->l4type = (type)
 
-#define PBUF_SET_L4_OFF(pbuf) (pbuf)->l4Off = (uint8_t)((pbuf)->offset)
+#define PBUF_SET_L4_OFF(pbuf) (pbuf)->l4Off = (pbuf)->offset
 #define PBUF_GET_L4_OFF(pbuf) (pbuf)->l4Off
 #define PBUF_GET_L4_HDR(pbuf) ((pbuf)->l4Off + (pbuf)->payload)
 
 #define PBUF_SET_L4_LEN(pbuf, len) ((pbuf)->l4Len = (len))
-
-#define PBUF_SET_WID(pbuf, id) ((pbuf)->wid) = (id)
-#define PBUF_GET_WID(pbuf)     ((pbuf)->wid)
 
 #define PBUF_SET_PKT_TYPE(pbuf, type) ((pbuf)->pktType) = (type)
 #define PBUF_GET_PKT_TYPE(pbuf)       ((pbuf)->pktType)
@@ -293,6 +340,9 @@ static inline void PBUF_Merge(Pbuf_t *dst, Pbuf_t *src, bool cpyChainNode)
         }                                                      \
         ifindex;                                               \
     })
+
+#define PBUF_SET_USER_DATA(pbuf, data) (pbuf)->userData = (data)
+#define PBUF_GET_USER_DATA(pbuf) (pbuf)->userData
 
 /*******************************************************************************
 * ------------------------------------------------------------------------------
@@ -412,6 +462,33 @@ static inline void PBUF_ChainPush(PBUF_Chain_t *chain, Pbuf_t *pbuf)
 }
 
 /**
+ * @brief 从PBUF chain链表中弹出链表尾部pbuf
+ *
+ * @param chain pbuf链
+ * @param pbuf 弹出的pbuf指针
+ */
+#define PBUF_CHAIN_POP_TAIL(chain)            \
+    ({                                        \
+        Pbuf_t* _pbuf = NULL;                 \
+        do {                                  \
+            if ((chain)->tail == NULL) {      \
+                _pbuf = NULL;                 \
+                break;                        \
+            }                                 \
+            _pbuf         = (chain)->tail;    \
+            (chain)->tail = _pbuf->chainPrev; \
+            if ((chain)->tail == NULL) {      \
+                (chain)->head = NULL;         \
+            } else {                          \
+                (chain)->tail->chainNext = NULL; \
+            }                                 \
+            (chain)->pktCnt--;                \
+            (chain)->bufLen -= _pbuf->totLen; \
+        } while (0);                          \
+        _pbuf;                                \
+    })
+
+/**
  * @brief 从PBUF chain链表中弹出链表头部pbuf
  *
  * @param chain pbuf链
@@ -419,23 +496,23 @@ static inline void PBUF_ChainPush(PBUF_Chain_t *chain, Pbuf_t *pbuf)
  */
 #define PBUF_CHAIN_POP(chain)                  \
     ({                                        \
-        Pbuf_t* pbuf_ = NULL;                 \
+        Pbuf_t* inPbuf = NULL;                 \
         do {                                  \
             if ((chain)->head == NULL) {      \
-                pbuf_ = NULL;                 \
+                inPbuf = NULL;                 \
                 break;                        \
             }                                 \
-            pbuf_         = (chain)->head;    \
-            (chain)->head = pbuf_->chainNext; \
+            inPbuf         = (chain)->head;    \
+            (chain)->head = inPbuf->chainNext; \
             if ((chain)->head == NULL) {      \
                 (chain)->tail = NULL;         \
             } else {                          \
                 (chain)->head->chainPrev = NULL; \
             }                                 \
             (chain)->pktCnt--;                \
-            (chain)->bufLen -= pbuf_->totLen; \
+            (chain)->bufLen -= inPbuf->totLen; \
         } while (0);                          \
-        pbuf_;                                \
+        inPbuf;                                \
     })
 
 static inline void PBUF_ChainConcat(PBUF_Chain_t* dst, PBUF_Chain_t* src)
@@ -529,22 +606,26 @@ static inline void PBUF_ChainRemove(PBUF_Chain_t *chain, Pbuf_t *pbuf)
         }
         (chain)->pktCnt--;
         (chain)->bufLen -= (pbuf)->totLen;
+        (pbuf)->chainNext = NULL;
+        (pbuf)->chainPrev = NULL;
     } while (0);
 }
 
 /**
  * @brief 释放掉pbuf及之后的所有报文
  */
-static inline void PBUF_ChainRemoveAfter(PBUF_Chain_t *chain, Pbuf_t *pbuf)
+static inline uint16_t PBUF_ChainRemoveAfter(PBUF_Chain_t *chain, Pbuf_t *pbuf)
 {
     Pbuf_t* curPbuf  = pbuf;
     Pbuf_t* prevPbuf = PBUF_CHAIN_PREV(pbuf);
     Pbuf_t* nextPbuf = NULL;
+    uint16_t pktCnt = 0;
 
     while (curPbuf != NULL) {
         chain->pktCnt--;
         chain->bufLen -= curPbuf->totLen;
         nextPbuf = PBUF_CHAIN_NEXT(curPbuf);
+        pktCnt += curPbuf->nsegs;
         PBUF_Free(curPbuf);
         curPbuf = nextPbuf;
     }
@@ -556,12 +637,233 @@ static inline void PBUF_ChainRemoveAfter(PBUF_Chain_t *chain, Pbuf_t *pbuf)
     } else {
         prevPbuf->chainNext = NULL;
     }
+
+    return pktCnt;
 }
+
+/**
+ * @brief extern buffer 申请
+ */
+void* PBUF_ExtBufAlloc(void);
+
+/**
+ * @brief extern buffer 释放
+ */
+void PBUF_ExtBufFree(void* ebuf);
+
+/**
+ * @brief 根据提供的 extern buffer 的内存片段构造 pbuf
+ */
+Pbuf_t* PBUF_Construct(void* ebuf, uint64_t offset, uint16_t len);
+
+/**
+ * @brief zero copy 版本的 pbuf chain read，限制每次读取一个 pbuf 中的数据
+ */
+size_t PBUF_ChainReadZcopy(PBUF_Chain_t* chain, struct DP_ZIovec* iov);
+
+Pbuf_t* PBUF_BuildZcopy(Pbuf_t* pbuf, uint32_t dataLen, uint32_t segNum, uint16_t fragSize);
+
+int Pbuf_Zcopy_Alloc(Pbuf_t** pbuf);
 
 int PBUF_MpInit(void);
 void PBUF_MpDeinit(void);
 
+/**
+ * @ingroup pbuf
+ * @brief pbuf内存申请钩子
+ *
+ * @param mp 内存池句柄，全局一个内存池
+ * @param payload 内存分配大小
+ * @retval 内存指针 成功
+ * @retval NULL 失败
+ */
+typedef Pbuf_t* (*PBUF_PbufAllocHook_t)(void* mp, uint32_t payload);
+
+/**
+ * @ingroup pbuf
+ * @brief pbuf内存释放钩子
+ *
+ * @param mp 内存池句柄，全局一个内存池
+ * @param pbuf 需要释放的pbuf内存指针
+ * @retval NA
+ */
+typedef void (*PBUF_PbufFreeHook_t)(void* mp, Pbuf_t* pbuf);
+
+/**
+ * @ingroup pbuf
+ * @brief pbuf内存单元构造钩子
+ * 根据 extern buffer 上的某一个内存片段，通过 attach 的方式构造一个 pbuf， \n
+ 从而避免拷贝的发生，以实现发送方向的零拷贝
+ *
+ * @param mp 内存池句柄，全局一个内存池
+ * @param ebuf 用于构造 pbuf 的 extern buffer 的内存指针
+ * @param offset 内存片段的起始地址相较于 extern buffer 起始地址的偏移量
+ * @param len 内存片段的长度
+ * @retval 内存指针 成功
+ * @retval NULL 失败
+ * @since
+ */
+typedef Pbuf_t* (*PBUF_PbufConstruct_t)(void* mp, void* ebuf, uint64_t offset, uint16_t len);
+
+/**
+ * @ingroup pbuf
+ * pbuf内存管理钩子信息
+ */
+typedef struct {
+    void* mp; // 分配 pbuf 的内存池句柄，全局一个内存池
+    uint16_t payloadLen; // 每个pbuf的数据空间大小
+    uint16_t res[3];
+    PBUF_PbufAllocHook_t pbufAlloc;
+    PBUF_PbufFreeHook_t pbufFree;
+    PBUF_PbufConstruct_t pbufConstruct;
+} PBUF_PbufMemHooks_t;
+
+/**
+ * @ingroup pbuf
+ * @brief pbuf内存管理接口注册
+ *
+ * @param pbufMemHooks 外部注册的pbuf内存管理函数
+ * @retval 0 成功
+ * @retval -1 失败
+ */
+int PBUF_PbufMemHooksReg(PBUF_PbufMemHooks_t* pbufMemHooks);
+
+/**
+ * @ingroup pbuf
+ * @brief extern buffer 内存申请钩子
+ *
+ * @param ep extern buffer pool 句柄，全局存在一个定长内存池
+ * @retval 内存指针 成功
+ * @retval NULL 失败
+ * @since
+ */
+typedef void* (*PBUF_EbufAllocHook_t)(void* ep);
+
+/**
+ * @ingroup pbuf
+ * @brief extern buffer 内存释放钩子
+ *
+ * @param ep extern buffer pool 句柄，全局存在一个定长内存池
+ * @param ebuf 需要释放的 extern buffer 内存指针
+ * @retval NA
+ * @since
+ */
+typedef void (*PBUF_EbufFreeHook_t)(void* ep, void* ebuf);
+
+/**
+ * @ingroup pbuf
+ * extern buffer 内存管理钩子信息
+ */
+typedef struct {
+    void* ep; //！用于分配 extern buffer 的内存池，采用定长内存池实现
+    PBUF_EbufAllocHook_t ebufAlloc;
+    PBUF_EbufFreeHook_t ebufFree;
+} PBUF_EbufMemHooks_t;
+
+/**
+ * @ingroup pbuf
+ * @brief extern buffer 内存管理接口注册
+ *
+ * @param ebufMemHooks 外部注册的 extern buffer 内存管理函数
+ * @retval 0 成功
+ * @retval -1 失败
+ * @since
+ */
+int PBUF_EbufMemHooksReg(PBUF_EbufMemHooks_t* ebufMemHooks);
+
 void PBUF_MemHooksUnreg(void);
+
+/**
+ * @brief 在零拷贝发送流程中，用于引用类型的pbuf来传递iov所属的extern buffer的信息，
+ * 该cb中的内容在将ref pbuf放入sendBuf中时填入，在ref pbuf被从sendQue中取出时使用，
+ * ref pbuf从sendQue上取下后将被销毁。
+ */
+typedef struct {
+    void* ebuf;
+} RefPbufCb_t;
+
+static inline RefPbufCb_t* PBUF_GetRefPbufCb(Pbuf_t* pbuf)
+{
+    ASSERT(PBUF_GET_CB_SIZE() >= sizeof(RefPbufCb_t));
+
+    return PBUF_GET_CB(pbuf, RefPbufCb_t*);
+}
+
+uint16_t PBUF_GetSegLen(void);
+
+/**
+ * @ingroup pbuf
+ * @brief ref pbuf 内存申请钩子
+ *
+ * @param mp ref pbuf pool 句柄
+ * @retval 内存指针 成功
+ * @retval NULL 失败
+ * @since
+ */
+typedef Pbuf_t* (*PBUF_RefPbufAllocHook_t)(void* mp);
+
+/**
+ * @ingroup pbuf
+ * @brief extern buffer 内存释放钩子
+ *
+ * @param mp ref pbuf pool 句柄
+ * @param pbuf 需要释放的 extern buffer 内存指针
+ * @retval NA
+ * @since
+ */
+typedef void (*PBUF_RefPbufFreeHook_t)(void* mp, Pbuf_t* pbuf);
+
+/**
+ * @ingroup pbuf
+ * @brief ref pbuf内存单元构造钩子
+ * 根据 extern buffer 上的某一个内存片段，通过 attach 的方式构造一个 ref pbuf
+ *
+ * @param mp 内存池句柄
+ * @param ebuf 用于构造 pbuf 的 extern buffer 的内存指针
+ * @param offset 内存片段的起始地址相较于 extern buffer 起始地址的偏移量
+ * @param len 内存片段的长度
+ * @retval 内存指针 成功
+ * @retval NULL 失败
+ * @since
+ */
+typedef Pbuf_t* (*PBUF_RefPbufConstruct_t)(void* mp, void* ebuf, uint64_t offset, uint16_t len);
+
+/**
+ * @ingroup pbuf
+ * ref pbuf 内存管理钩子信息
+ */
+typedef struct {
+    void* mp;
+    PBUF_RefPbufAllocHook_t refPbufAlloc;
+    PBUF_RefPbufFreeHook_t refPbufFree;
+    PBUF_RefPbufConstruct_t refPbufConstruct;
+} PBUF_RefPbufMemHooks_t;
+
+/**
+ * @ingroup pbuf
+ * @brief ref pbuf 内存管理接口注册
+ *
+ * @param refPbufMemHooks 外部注册的 ref pbuf 内存管理函数
+ * @retval 0 成功
+ * @retval -1 失败
+ * @since
+ */
+int PBUF_RefPbufMemHooksReg(PBUF_RefPbufMemHooks_t* refPbufMemHooks);
+
+/**
+ * @brief ref pbuf 申请
+ */
+Pbuf_t* PBUF_RefPbufAlloc(void);
+
+/**
+ * @brief ref pbuf 释放
+ */
+void PBUF_RefPbufFree(Pbuf_t* pbuf);
+
+/**
+ * @brief ref pbuf 构造
+ */
+Pbuf_t* PBUF_RefPbufConstruct(void* ebuf, uint64_t offset, uint16_t len);
 
 #ifdef __cplusplus
 }

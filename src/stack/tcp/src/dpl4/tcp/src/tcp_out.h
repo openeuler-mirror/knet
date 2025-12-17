@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_OUT_H
 #define TCP_OUT_H
 
@@ -25,6 +24,10 @@ extern "C" {
 
 #define IP_INET_MAX_HDR_LEN 128
 
+// 发送FIN且被ack的状态
+#define TCP_CANT_REXMIT(tcp) ((tcp)->state == TCP_FIN_WAIT2 || (tcp)->state == TCP_TIME_WAIT || \
+                              (tcp)->state == TCP_CLOSED)
+
 uint16_t TcpCalcTxCksum(uint32_t pseudoHdrCksum, Pbuf_t* pbuf);
 
 Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd);
@@ -38,8 +41,7 @@ Pbuf_t* TcpGenCtrlPkt(TcpSk_t* tcp, uint8_t thflags, int upWnd);
 
 Pbuf_t* TcpGenRstPktByPkt(DP_TcpHdr_t* origTcpHdr, TcpPktInfo_t* pi);
 
-Pbuf_t* TcpGenCookieSynAckPktByPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t* pi, TcpSynOpts_t* opts,
-                                   TcpCookieInetHashInfo_t* info);
+Pbuf_t* TcpGenCookieSynAckPktByPkt(Pbuf_t* pbuf, TcpSk_t* parent, TcpPktInfo_t* pi, TcpSynOpts_t* opts, uint32_t iss);
 
 // 计算可用发送窗口
 uint32_t TcpCalcFreeWndSize(TcpSk_t* tcp);
@@ -48,11 +50,13 @@ uint32_t TcpCalcFreeWndSize(TcpSk_t* tcp);
 bool TcpCanSendPbuf(TcpSk_t* tcp, uint32_t pktLen, uint16_t mss, int force);
 
 // 发送顺序报文
-void TcpXmitData(TcpSk_t* tcp, int force);
+int TcpXmitData(TcpSk_t* tcp, uint8_t force, int isNeedRst);
 
 // 发送控制报文，根据TCP状态发送报文
 void TcpXmitCtrlPkt(TcpSk_t* tcp, uint8_t thflags);
 
+// ICMPv6TooBig调用
+void TcpRexmitAll(TcpSk_t* tcp);
 // RTO时调用
 void TcpRexmitPkt(TcpSk_t* tcp);
 // 重传报文
@@ -68,11 +72,8 @@ void TcpFastRecoryPkt(TcpSk_t* tcp);
 // 快速重传Sack
 int TcpFastRexmitSack(TcpSk_t* tcp);
 
-// 发送窗口探测报文
-void TcpXmitZeroWndProbePkt(TcpSk_t* tcp);
-
-// 发送保活探测报文
-void TcpSndKeepProbe(TcpSk_t* tcp);
+// 发送探测报文
+void TcpSndProbePkt(TcpSk_t* tcp);
 
 // 以下接口为独立传输报文使用
 #define TcpXmitSynPkt(tcp)    TcpXmitCtrlPkt((tcp), DP_TH_SYN)

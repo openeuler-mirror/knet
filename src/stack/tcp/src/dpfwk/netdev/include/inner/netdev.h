@@ -16,7 +16,7 @@
 #include <stdbool.h>
 
 #include "dp_if_api.h"
-#include "dp_netdev_api.h"
+#include "dp_netdev.h"
 
 #include "utils_base.h"
 #include "utils_ring.h"
@@ -30,10 +30,15 @@ extern "C" {
 #endif
 
 #define DEV_TBL_SIZE 16
+#define DEV_MAX_QUEUE_SIZE 64
 
 #define QUE_SIZE_MAX 128
 
 #define CACHE_DEEP_SIZE_MAX 4096
+
+#define MAX_SEG_NUM_MAX 128
+
+#define FLASH_SIZE_MAX 256
 
 typedef struct Netdev Netdev_t;
 
@@ -43,7 +48,10 @@ typedef struct NetdevQue {
     Spinlock_t     lock;
     Ring_t         cached;
     Netdev_t*      dev;
+    void**         flash;
+    uint16_t       flashSize;
     LIST_ENTRY(NetdevQue) node;
+    DP_DevStats_t  info;
 } NetdevQue_t;
 
 typedef struct NETDEV_IfAddr {
@@ -61,6 +69,22 @@ typedef struct NETDEV_Inet {
     NETDEV_IfAddr_t* ifAddr;
     uint8_t          ndEntry;
 } NETDEV_Inet_t;
+
+typedef struct NETDEV_IfAddr6 {
+    struct NETDEV_IfAddr6* next;
+
+    DP_In6Addr_t local;
+    DP_In6Addr_t multicast;
+    DP_In6Addr_t mask;
+
+    Netdev_t* dev;
+} NETDEV_IfAddr6_t;
+
+typedef struct NETDEV_Inet6 {
+    // ip6 addr
+    NETDEV_IfAddr6_t* ifAddr;
+    uint8_t          ndEntry;
+} NETDEV_Inet6_t;
 
 #define NETDEV_VLANID_INVALID (0xFFFF)
 
@@ -102,7 +126,10 @@ struct Netdev {
     uint32_t offloads;
     uint32_t enabledOffloads;
 
-    NETDEV_Inet_t in; // ipv4地址管理
+    uint16_t maxSegNum;
+
+    NETDEV_Inet_t  in;      // ipv4地址管理
+    NETDEV_Inet6_t in6;     // ipv6地址管理
 
     atomic32_t ref;
 
@@ -110,107 +137,16 @@ struct Netdev {
     NetdevQue_t* txQues;
 };
 
-/**
- * @brief 分配 dev 设备对象，如果 cfg->ifindex = -1 ，会自动分配 ifindex
- *
- */
-DP_Netdev_t* DP_AllocNetdev(DP_NetdevCfg_t* cfg);
+#define NET_DEV_ADD_RX_PKTS(que, cnt)  (que)->info.rxStats.packets   += (cnt)
+#define NET_DEV_ADD_RX_BYTES(que, cnt) (que)->info.rxStats.bytes     += (cnt)
+#define NET_DEV_ADD_RX_ERRS(que, cnt)  (que)->info.rxStats.errs      += (cnt)
+#define NET_DEV_ADD_RX_DROP(que, cnt)  (que)->info.rxStats.drop      += (cnt)
+#define NET_DEV_ADD_RX_MULT(que, cnt)  (que)->info.rxStats.multicast += (cnt)
 
-/**
- * @brief 释放 dev 设备对象内存，如果调用 DP_InitNetdev 成功
- *
- */
-int DP_FreeNetdev(DP_Netdev_t* dev);
-
-/**
- * @brief 初始化 netdev
- */
-int DP_InitNetdev(DP_Netdev_t* dev, DP_NetdevCfg_t* cfg);
-
-/**
- * @brief 通过接口index获取设备指针，计算场景不使用
- *
- */
-DP_Netdev_t* DP_GetNetdev(int ifindex);
-
-/**
- * @brief 通过devtbl的索引获取设备指针，CPD模块使用，计算场景不使用
- *
- */
-DP_Netdev_t* DP_GetNetdevByIndex(int index);
-
-/**
- * @brief 通过命名获取设备指针，计算场景不使用
- *
- */
-DP_Netdev_t* DP_GetNetdevByName(const char* name);
-
-/**
- * @brief 在cfg->rxBurst为空场景下，通过此接口将报文放到dev缓存队列中，计算场景不使用
- *
- */
-int DP_PutPkts(DP_Netdev_t* dev, void** bufs, int cnt);
-
-/**
- * @brief 计算场景不使用
- *
- */
-void* DP_GetDevPrivate(const char* name);
-
-struct DP_Ifconf {
-    int ifc_len;
-    union {
-        char*              ifcu_buf;
-        struct DP_Ifreq* ifcu_req;
-    } ifc_ifcu;
-};
-
-#ifndef ifc_buf
-#define ifc_buf ifc_ifcu.ifcu_buf /* Buffer address.  */
-#define ifc_req ifc_ifcu.ifcu_req /* Array of structures.  */
-#endif
-
-/**
- * @brief 计算场景不使用
- *
- */
-int DP_GetIfconf(struct DP_Ifconf* ifconf);
-
-typedef struct {
-    char ifname[DP_IF_NAMESIZE];
-    struct {
-        uint64_t bytes;
-        uint64_t packets;
-        uint64_t errs;
-        uint64_t drop;
-        uint64_t fifo;
-        uint64_t frame;
-        uint64_t compressed;
-        uint64_t multicast;
-    } rxStats;
-    struct {
-        uint64_t bytes;
-        uint64_t packets;
-        uint64_t errs;
-        uint64_t drop;
-        uint64_t fifo;
-        uint64_t colls;
-        uint64_t carrier;
-        uint64_t compressed;
-    } txStats;
-} DP_DevStats_t;
-
-/**
- * @brief 查询设备名，计算场景不使用
- *
- */
-int DP_DumpDevStats(int ifindex, DP_DevStats_t* stats);
-
-/**
- * @brief 查询所有已注册设备名，计算场景不使用
- *
- */
-int DP_DumpAllDevStats(DP_DevStats_t* stats, int cnt);
+#define NET_DEV_ADD_TX_PKTS(que, cnt)  (que)->info.txStats.packets   += (cnt)
+#define NET_DEV_ADD_TX_BYTES(que, cnt) (que)->info.txStats.bytes     += (cnt)
+#define NET_DEV_ADD_TX_ERRS(que, cnt)  (que)->info.txStats.errs      += (cnt)
+#define NET_DEV_ADD_TX_DROP(que, cnt)  (que)->info.txStats.drop      += (cnt)
 
 /**
  * @brief 维测接口，不对外暴露
@@ -235,9 +171,41 @@ static inline uint16_t NETDEV_GetRxQueWid(Netdev_t* dev, uint8_t queId)
     return dev->rxQues[queId].wid;
 }
 
+static inline NetdevQue_t* NETDEV_GetTxQue(const Netdev_t* dev, uint8_t queId)
+{
+    int reqId = queId >= dev->txQueCnt ? 0 : queId;
+
+    return &dev->txQues[reqId];
+}
+
+static inline NetdevQue_t* NETDEV_GetRxQue(const Netdev_t* dev, uint8_t queId)
+{
+    int reqId = queId >= dev->rxQueCnt ? 0 : queId;
+
+    return &dev->rxQues[reqId];
+}
+
 Netdev_t* NETDEV_RefDevByIfindex(NS_Net_t* net, int ifindex);
 Netdev_t* NETDEV_RefDevByName(NS_Net_t* net, const char* name);
-void      NETDEV_DerefDev(Netdev_t* dev);
+
+static inline int32_t NETDEV_RefDev(Netdev_t* dev)
+{
+    uint32_t ref;
+    while (1) {
+        ref = ATOMIC32_Load(&dev->ref);
+        if (ref == 0) {
+            return -1;
+        }
+        if (ATOMIC32_Cas(&dev->ref, ref, ref + 1)) {
+            return 0;
+        }
+    }
+}
+
+static inline uint32_t NETDEV_DerefDev(Netdev_t* dev)
+{
+    return ATOMIC32_Dec(&dev->ref);
+}
 
 static inline bool NETDEV_IsDevUsed(Netdev_t* dev)
 {
@@ -261,10 +229,6 @@ NETDEV_IfAddr_t* NETDEV_AllocIfAddr(void);
 NETDEV_IfAddr_t* NETDEV_CopyIfAddr(NETDEV_IfAddr_t* addr);
 
 void NETDEV_FreeIfAddr(NETDEV_IfAddr_t* ifAddr);
-
-typedef union {
-    int VID;
-} DP_VlanIoctlArgs_t;
 
 Netdev_t* NETDEV_FindVlanDev(Netdev_t* dev, uint16_t vlanid);
 
@@ -361,6 +325,15 @@ typedef struct {
 // 维测接口，不对外暴露
 void DevTask(int wid);
 
+// 获取worker使用的队列信息，queMap的长度为4.只允许在共线程部署模式下使用
+uint8_t NETDEV_TaskQueMapGet(int wid, int ifIndex, uint32_t* queMap, uint32_t mapCnt);
+
+// 获取网卡收包的散列结果，源/目的地址以接收报文的方向填写
+int16_t NETDEV_RxHash(Netdev_t* dev, const struct DP_Sockaddr* rAddr, DP_Socklen_t rAddrLen,
+    const struct DP_Sockaddr *lAddr, DP_Socklen_t lAddrLen);
+int NETDEV_SetNs(Netdev_t* dev, int id);
+
+void NETDEV_PutDev(DP_Netdev_t *dev);
 
 #ifdef __cplusplus
 }

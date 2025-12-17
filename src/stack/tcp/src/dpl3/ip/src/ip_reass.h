@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef IP_REASS_H
 #define IP_REASS_H
 
@@ -22,7 +21,7 @@ extern "C" {
 
 #define IP_DF_FRAG UTILS_HTONS(DP_IP_FRAG_DF) // 不分片
 
-#define IP_REASS_TIME_INTERVAL (100) // 每个一秒扫描一次超时
+#define IP_REASS_TIME_INTERVAL (100) // 每隔一秒扫描一次超时
 
 #define IsFragPkt(ipHdr) (((ipHdr)->off & (~IP_DF_FRAG)) != 0)
 

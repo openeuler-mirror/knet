@@ -26,13 +26,13 @@ typedef enum {
     CPD_DEL_NEIGH,
 } Cpd_NeighOpt_t;
 
-void CpdTblMissHandle(TBM_Notify_t* tn, int type, int op, void* item);
+void CpdTblMissHandle(void* tn, int type, int op, uint8_t family, void* item);
 
-int CpdPktTranfer(uint32_t ifindex, void* pbuf, uint32_t dataLen);
+int CpdPktTranfer(uint32_t ifindex, void* pbuf, uint32_t dataLen, int cpdQueueId);
 
 void CpdTblSync(void);
 
-void CpdPktHandle(void);
+void CpdPktHandle(int cpdQueueId);
 
 #ifdef __cplusplus
 }

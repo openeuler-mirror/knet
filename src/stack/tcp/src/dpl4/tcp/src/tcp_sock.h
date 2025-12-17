@@ -9,11 +9,12 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_SOCK_H
 #define TCP_SOCK_H
 
-#include "tcp_types.h"
+#include <unistd.h>
+#include <pthread.h>
+
 #include "tcp_tsq.h"
 #include "dp_tcp.h"
 
@@ -28,6 +29,23 @@ extern "C" {
 /**
  * @brief tcp socket公共处理接口
  */
+
+#define TCP_FLAGS_CLOSED 0x01  // 用户已经调用了 close
+#define TCP_FLAGS_FREED  0x02  // tcp 已经释放
+#define TCP_FLAGS_CLEANUP 0x04  // tcp 已经调用 cleanup
+#define TCP_FLAGS_ABORT  0x08  // tcp 已经调用 Abort
+#define TCP_FLAGS_RCVRST  0x10  // tcp 已经收到 RST
+#define TCP_FLAGS_TSQ_EXCEPT 0x20 // tcp 已经处理了异常事件
+
+#define TCP_SET_CLOSED(tcp)       ((tcp)->flags |= TCP_FLAGS_CLOSED)
+#define TCP_IS_CLOSED(tcp)        (((tcp)->flags & TCP_FLAGS_CLOSED) != 0)
+#define TCP_SET_FREED(tcp)       ((tcp)->flags |= TCP_FLAGS_FREED)
+#define TCP_IS_FREED(tcp)        (((tcp)->flags & TCP_FLAGS_FREED) != 0)
+#define TCP_SET_CLEANUP(tcp)       ((tcp)->flags |= TCP_FLAGS_CLEANUP)
+#define TCP_IS_CLEANUP(tcp)        (((tcp)->flags & TCP_FLAGS_CLEANUP) != 0)
+#define TCP_SET_ABORT(tcp)       ((tcp)->flags |= TCP_FLAGS_ABORT)
+#define TCP_SET_RCVRST(tcp)       ((tcp)->flags |= TCP_FLAGS_RCVRST)
+#define TCP_SET_TSQ_EXCEPT(tcp)       ((tcp)->flags |= TCP_FLAGS_TSQ_EXCEPT)
 
 void TcpInitTcpSk(TcpSk_t* tcp);
 
@@ -55,9 +73,35 @@ ssize_t TcpRecvmsg(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t msgDataL
 
 void TcpFreeSk(Sock_t* sk);
 
+void TcpFreeUnconnectedSk(Sock_t* sk);
+
+int TcpShutdown(Sock_t* sk, int how);
+
 int TcpClose(Sock_t* sk);
+
 void TcpCleanUp(TcpSk_t* tcp);
+
 void TcpRemoveFromParentList(TcpSk_t* tcp);
+
+TcpSk_t* TcpReuse(TcpSk_t* tcp, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi);
+
+// 结束 tcp 连接并释放内存
+static inline void TcpDone(TcpSk_t* tcp)
+{
+    DP_INC_TCP_STAT(tcp->wid, DP_TCP_CLOSED);
+
+    if (!TCP_IS_CLEANUP(tcp)) {
+        TcpCleanUp(tcp);
+    }
+
+    if (tcp->parent != NULL) {
+        TcpRemoveFromParentList(tcp);
+    }
+
+    TcpSetState(tcp, TCP_CLOSED);
+    TcpFreeSk(TcpSk2Sk(tcp));
+}
+
 enum {
     TCP_PRIV_OPS_INSERT_HASH,
     TCP_PRIV_OPS_REMOVE_HASH, // 移除hash表
@@ -69,7 +113,6 @@ static inline uint16_t TcpGetRsvPort(uint16_t minPort, uint16_t range)
 }
 extern TcpFamilyOps_t* g_tcpInetOps;
 extern TcpFamilyOps_t* g_tcpInet6Ops;
-extern TcpCfgCtx_t g_tcpCfgCtx;
 
 static inline void TcpInsertListener(Sock_t* sk)
 {
@@ -105,6 +148,25 @@ static inline void TcpGlobalRemove(Sock_t* sk)
     } else {
         g_tcpInet6Ops->globalRemove(sk);
     }
+}
+
+static inline void TcpConnectRemove(TcpSk_t* tcp)
+{
+    if (TcpSk2Sk(tcp)->family == DP_AF_INET) {
+        g_tcpInetOps->connectTblRemove(TcpSk2Sk(tcp));
+    } else {
+        g_tcpInet6Ops->connectTblRemove(TcpSk2Sk(tcp));
+    }
+}
+
+extern __thread long int g_tcpCacheTid;
+static inline long int TcpGetTid(void)
+{
+    if (g_tcpCacheTid == 0) {
+        g_tcpCacheTid = (long int)pthread_self();
+    }
+
+    return g_tcpCacheTid;
 }
 
 #ifdef __cplusplus

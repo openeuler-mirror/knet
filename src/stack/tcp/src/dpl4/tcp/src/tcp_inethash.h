@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_INET_HASH_H
 #define TCP_INET_HASH_H
 
@@ -24,70 +23,105 @@
 extern "C" {
 #endif
 
-typedef struct {
-    Hash_t hash;
-} TcpInetPerCpuTbl_t;
+#define JHASH_3(a, b, c)                            \
+    do {                                            \
+        (a) -= (b); (a) -= (c); (a) ^= ((c) >> 13); \
+        (b) -= (c); (b) -= (a); (b) ^= ((a) << 8);  \
+        (c) -= (a); (c) -= (b); (c) ^= ((b) >> 13); \
+        (a) -= (b); (a) -= (c); (a) ^= ((c) >> 12); \
+        (b) -= (c); (b) -= (a); (b) ^= ((a) << 16); \
+        (c) -= (a); (c) -= (b); (c) ^= ((b) >> 5);  \
+        (a) -= (b); (a) -= (c); (a) ^= ((c) >> 3);  \
+        (b) -= (c); (b) -= (a); (b) ^= ((a) << 10); \
+        (c) -= (a); (c) -= (b); (c) ^= ((b) >> 15); \
+    } while (0)
+
+typedef struct TcpPortInterval {
+    uint16_t port;
+    uint16_t portMask;
+    uint16_t usedCnt;
+    uint16_t maxCnt;
+    LIST_ENTRY(TcpPortInterval) node;
+} TcpPortInterval_t;
+
+typedef struct TcpPortIntervalTbl {
+    LIST_HEAD(, TcpPortInterval) portList;
+} TcpPortIntervalTbl_t;
 
 typedef struct {
     Spinlock_t     lock;
+    Spinlock_t     listenLock;
     atomic32_t     ref;
     // 存放bind全局表
-    Hash_t         global;
+    Hash_t*        global;
     // 存放监听socket资源
-    Hash_t         listener;
+    Hash_t*        listener;
     // 存放主动建链的五元组
-    Hash_t         connectTbl;
+    Hash_t*        connectTbl;
     // 存放已经完成建链的五元组
     Hash_t*        perWorkerHash;
-} TcpInetTbl_t;
+    // 存放空闲的端口区间，全局共用
+    TcpPortIntervalTbl_t globalPortTbl;
+    // 存放每个worker使用的端口区间
+    TcpPortIntervalTbl_t* perWorkerPortTbl;
+} TcpHashTbl_t;
 
-void* TcpInetAllocHash(void);
+void* TcpHashAlloc(void);
 
-void TcpInetFreeHash(void* ptr);
+void TcpHashFree(void* ptr);
 
-static inline void TcpInetLockTbl(TcpInetTbl_t* tbl)
+static inline void TcpHashLockListenTbl(TcpHashTbl_t* tbl)
+{
+    SPINLOCK_Lock(&tbl->listenLock);
+}
+
+static inline void TcpHashUnlockListenTbl(TcpHashTbl_t* tbl)
+{
+    SPINLOCK_Unlock(&tbl->listenLock);
+}
+
+static inline void TcpHashLockTbl(TcpHashTbl_t* tbl)
 {
     SPINLOCK_Lock(&tbl->lock);
 }
 
-static inline void TcpInetUnlockTbl(TcpInetTbl_t* tbl)
+static inline void TcpHashUnlockTbl(TcpHashTbl_t* tbl)
 {
     SPINLOCK_Unlock(&tbl->lock);
 }
 
-static inline TcpInetTbl_t* TcpInetGetTbl(NS_Net_t* net)
+static inline TcpHashTbl_t* TcpHashGetTbl(NS_Net_t* net)
 {
     return NS_GET_TCP_TBL(net);
 }
 
-static inline TcpInetTbl_t* TcpInetRefTbl(NS_Net_t* net)
+static inline TcpHashTbl_t* TcpHashRefTbl(NS_Net_t* net)
 {
-    TcpInetTbl_t* tbl = TcpInetGetTbl(net);
+    TcpHashTbl_t* tbl = TcpHashGetTbl(net);
 
     ATOMIC32_Inc(&tbl->ref);
 
     return tbl;
 }
 
-static inline void TcpInetDerefTbl(TcpInetTbl_t* tbl)
+static inline void TcpHashDerefTbl(TcpHashTbl_t* tbl)
 {
     ATOMIC32_Dec(&tbl->ref);
 }
 
-static inline void TcpInetWaitTblIdle(TcpInetTbl_t* tbl)
+static inline void TcpHashWaitTblIdle(TcpHashTbl_t* tbl)
 {
     while (ATOMIC32_Load(&tbl->ref) != 0) {}
 }
 
-int TcpInetCanBind(TcpInetTbl_t* tbl, INET_Hashinfo_t* hi, int reuse);
+int TcpInetCanBind(uint32_t glbHashTblIdx, TcpHashTbl_t* tbl, INET_Hashinfo_t* hi, int reuse, void* userData);
 
-int TcpInetCanConnect(TcpInetTbl_t* tbl, INET_Hashinfo_t* hi);
+int TcpInetCanConnect(uint32_t hashTblIdx, TcpHashTbl_t* tbl, INET_Hashinfo_t* hi, uint32_t isBinded, void* userData);
 
-int TcpInetGenPort(TcpInetTbl_t* tbl, uint8_t isBind, INET_Hashinfo_t* hi, int reuse);
+int TcpInetGenPort(uint32_t glbHashTblIdx, TcpHashTbl_t* tbl, uint8_t isBind,
+    INET_Hashinfo_t* hi, int reuse, void* userData);
 
 void TcpInetGlobalInsert(Sock_t* sk);
-
-void TcpInetGlobalRemove(Sock_t* sk);
 
 void TcpInetGlobalRemoveSafe(Sock_t* sk);
 
@@ -97,9 +131,10 @@ void TcpInetPerWorkerTblRemove(Sock_t* sk);
 
 void TcpInetWaitIdle(Sock_t* sk);
 
-TcpSk_t* TcpInetLookup(NS_Net_t* net, int wid, INET_Hashinfo_t* hi);
+TcpSk_t* TcpInetLookupByPkt(Pbuf_t* pbuf, TcpPktInfo_t* pi);
 
-TcpSk_t* TcpInetLookupPerWorker(NS_Net_t* net, int wid, INET_Hashinfo_t* hi);
+TcpSk_t* TcpInetLookupListener(uint8_t wid, NS_Net_t* net, INET_Hashinfo_t* hi);
+TcpSk_t* TcpInetLookupPerWorker(int wid, NS_Net_t* net, INET_Hashinfo_t* hi);
 
 void TcpInetListenerInsertSafe(Sock_t* sk);
 
@@ -111,7 +146,14 @@ int TcpInetConnectTblInsertSafe(Sock_t* sk);
 
 void TcpInetConnectTblRemoveSafe(Sock_t *sk);
 
-void TcpInetConnectTblTryRemove(Sock_t *sk);
+int TcpInetCanUseAddr(INET_Hashinfo_t* hi);
+
+void TcpInetReleaseAddr(INET_Hashinfo_t* hi);
+
+int TcpInetPreBind(INET_Hashinfo_t* hi, void* userData);
+
+int TcpInetPortRef(NS_Net_t* net, uint16_t port, uint16_t portMask, int8_t wid);
+
 #ifdef __cplusplus
 }
 #endif

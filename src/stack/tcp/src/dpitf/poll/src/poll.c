@@ -9,19 +9,20 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_poll.h"
 #include "dp_errno.h"
 
-#include "fd.h"
+#include "dp_fd.h"
 #include "sock.h"
 #include "shm.h"
 #include "utils_log.h"
 #include "utils_base.h"
 #include "utils_debug.h"
 #include "utils_spinlock.h"
+#include "utils_statistic.h"
+#include "worker.h"
 
 typedef struct {
     DP_Sem_t        sem;
@@ -76,6 +77,7 @@ static int InitPollCtx(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
     SPINLOCK_Init(&ctx->lock);
 
     if (CopyFdsFromUser(ctx, fds, nfds) != 0) {
+        DP_LOG_ERR("InitPollCtx failed, copy err.");
         SPINLOCK_Deinit(&ctx->lock);
         SEM_DEINIT(ctx->sem);
         return -ENOMEM;
@@ -155,10 +157,11 @@ static inline int SetRevents(struct DP_Pollfd* pollFd, uint8_t state)
     return pollFd->revents;
 }
 
-void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState)
+void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
 {
     ASSERT(ctx != NULL);
     (void)oldState;
+    (void)event;
 
     PollCtx_t* pollCtx = ctx;
     int        fd      = sk->associateFd;
@@ -194,6 +197,7 @@ static int EnableNotify(struct DP_Pollfd* pollFd, PollCtx_t* ctx)
     int     ret;
 
     if ((ret = FD_Get(pollFd->fd, FD_TYPE_SOCKET, &skFile)) != 0) {
+        DP_LOG_DBG("EnableNotify failed, get socket fd failed.");
         DP_SET_ERRNO(EFAULT);
         return -1;
     }
@@ -295,6 +299,10 @@ static int Wait(PollCtx_t* ctx, int timeout)
     SPINLOCK_Unlock(&ctx->lock);
 
     ret = (int)SEM_WAIT(ctx->sem, timeout);
+    if (ret == DP_ERR) {
+        DP_SET_ERRNO(EFAULT);
+        return -1;
+    }
     if (ret != 0 && ret != ETIMEDOUT) {
         DP_SET_ERRNO(ret);
         return -1;
@@ -302,17 +310,28 @@ static int Wait(PollCtx_t* ctx, int timeout)
     return 0;
 }
 
-static int PollFd(struct DP_Pollfd* pollFd)
+static int PollFd(struct DP_Pollfd* pollFd, int32_t wid)
 {
     pollFd->revents = 0;
     Sock_t* sk;
     Fd_t*   skFile;
     int     ret;
     if ((ret = FD_Get(pollFd->fd, FD_TYPE_SOCKET, &skFile)) != 0) {
+        DP_LOG_DBG("PollFd failed, get socket fd failed.");
         DP_SET_ERRNO(EFAULT);
         return -1;
     }
     sk = (Sock_t*)skFile->priv;
+
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        if (sk->wid != wid) {
+            FD_Put(skFile);
+            DP_SET_ERRNO(EBADF);
+            DP_LOG_DBG("poll fd fail, get wid error");
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            return -1;
+        }
+    }
 
     // 读取 sk 状态，不需要加锁
     SetRevents(pollFd, sk->state);
@@ -327,12 +346,23 @@ static int PollOnce(struct DP_Pollfd* fds, DP_Nfds_t nfds)
     DP_Nfds_t i;
     int readys = 0;
 
+    int32_t wid = -1;
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        wid = WORKER_GetSelfId();
+        if (wid < 0) {
+            DP_SET_ERRNO(EFAULT);
+            DP_LOG_DBG("poll once fail, get wid error");
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            return -1;
+        }
+    }
+
     for (i = 0; i < nfds; i++) {
         if (fds[i].fd < 0) {
             fds[i].revents = 0;
             continue;
         }
-        if (PollFd(&fds[i]) < 0) {
+        if (PollFd(&fds[i], wid) < 0) {
             return -1;
         }
         if (fds[i].revents != 0) {
@@ -349,13 +379,13 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
     int        ret = -1;
 
     if (fds == NULL) {
-        DP_LOG_ERR("Poll failed, invalid parameter.");
+        DP_LOG_DBG("Poll failed, invalid parameter.");
         DP_SET_ERRNO(EFAULT);
         return -1;
     }
 
     if (nfds > (DP_Nfds_t)FD_GetFileLimit()) {
-        DP_LOG_ERR("Poll failed, invalid parameter.");
+        DP_LOG_DBG("Poll failed, invalid parameter.");
         DP_SET_ERRNO(EINVAL);
         return -1;
     }
@@ -377,6 +407,7 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
     FdsDisableNotify(ctx, ctx->nfds);
 
     if (ret != 0) {
+        DP_LOG_DBG("DP_Poll failed by wait err, errno = %d.", errno);
         goto out;
     }
 

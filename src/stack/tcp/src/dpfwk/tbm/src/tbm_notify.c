@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "dp_errno.h"
 
 #include "shm.h"
@@ -98,7 +97,7 @@ void TBM_DelNotify(NS_Net_t* net, TBM_Notify_t* tn)
     SPINLOCK_Unlock(&tm->lock);
 }
 
-void TBM_Notify(NS_Net_t* net, int type, int op, void* item)
+void TBM_Notify(NS_Net_t* net, int type, int op, uint8_t family, void* item)
 {
     TbmMc_t*      tm = NS_GET_NL_TBL(net);
     TBM_Notify_t* tn = NULL;
@@ -107,7 +106,7 @@ void TBM_Notify(NS_Net_t* net, int type, int op, void* item)
     {
         SPINLOCK_Lock(&tn->lock);
         if ((tn->groups & (uint32_t)type) != 0) {
-            tn->cb(tn, type, op, item);
+            tn->cb(tn, type, op, family, item);
         }
         SPINLOCK_Unlock(&tn->lock);
     }

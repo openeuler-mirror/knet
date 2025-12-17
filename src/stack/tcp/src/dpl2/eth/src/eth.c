@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "dp_tbm.h"
 
 #include "dp_ethernet.h"
@@ -20,21 +19,28 @@
 #include "tbm.h"
 #include "netdev.h"
 
+#ifdef DPL2_PACKET
+#include "packet.h"
+#endif
+
 static Pbuf_t* EthInput(Pbuf_t* pbuf)
 {
     DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ETH_IN);
     DP_EthHdr_t*   ethHdr = PBUF_MTOD(pbuf, DP_EthHdr_t*);
     uint16_t       pktLen = PBUF_GET_SEG_LEN(pbuf);
-    Netdev_t*      dev;
     uint16_t       hdrLen = sizeof(DP_EthHdr_t);
 
     if (pktLen <= sizeof(*ethHdr)) {
         goto drop;
     }
 
+#ifdef DPL2_PACKET
+    PACKET_Input(pbuf, ethHdr);
+#endif
+
     PBUF_CUT_HEAD(pbuf, hdrLen);
 
-    dev = PBUF_GET_DEV(pbuf);
+    Netdev_t* dev = PBUF_GET_DEV(pbuf);
     PBUF_SET_PKT_TYPE(pbuf, PBUF_PKTTYPE_HOST);
     // 排除源mac是本接口的报文
     if (DP_MAC_IS_EQUAL(&ethHdr->src, &dev->hwAddr.mac)) {
@@ -42,8 +48,13 @@ static Pbuf_t* EthInput(Pbuf_t* pbuf)
     }
     // 非arp报文需要校验dmac，如果是vlan的话，则需要在此校验前判断
     if (!(DP_MAC_IS_EQUAL(&ethHdr->dst, &dev->hwAddr.mac))) {
+        NetdevQue_t* rxQue = NETDEV_GetRxQue(dev, PBUF_GET_QUE_ID(pbuf));
         if (DP_MAC_IS_BROADCAST(&ethHdr->dst)) {
+            NET_DEV_ADD_RX_MULT(rxQue, 1);
             PBUF_SET_PKT_TYPE(pbuf, PBUF_PKTTYPE_BROADCAST);
+        } else if (DP_MAC_IS_MUTICAST(&ethHdr->dst)) {
+            NET_DEV_ADD_RX_MULT(rxQue, 1);
+            PBUF_SET_PKT_TYPE(pbuf, PBUF_PKTTYPE_MULTICAST);
         } else {
             goto drop;
         }
@@ -52,6 +63,9 @@ static Pbuf_t* EthInput(Pbuf_t* pbuf)
     switch (ethHdr->type) {
         case UTILS_HTONS(DP_ETH_P_IP):
             PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_IP_IN);
+            return pbuf;
+        case UTILS_HTONS(DP_ETH_P_IPV6):
+            PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_IP6_IN);
             return pbuf;
         case UTILS_HTONS(DP_ETH_P_ARP):
             DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ARP_DELIVER);
@@ -89,7 +103,7 @@ static Pbuf_t* NdOutput(Pbuf_t* pbuf)
     PBUF_PUT_HEAD(pbuf, sizeof(DP_EthHdr_t));
     hdr = PBUF_MTOD(pbuf, DP_EthHdr_t*);
 
-    hdr->type = PBUF_GET_L3_TYPE(pbuf);
+    hdr->type = DP_Htons(PBUF_GET_L3_TYPE(pbuf));
     DP_MAC_COPY(&hdr->src, &dev->hwAddr.mac);
     if (nd != NULL) {
         DP_MAC_COPY(&hdr->dst, (DP_EthAddr_t*)&nd->mac);
@@ -97,11 +111,12 @@ static Pbuf_t* NdOutput(Pbuf_t* pbuf)
         DP_MAC_SET_BROADCAST(&hdr->dst);
     } else {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ARP_SEARCH_IN);
-        nd = TBM_GetNdItem(dev->net, dev->vrfId, PBUF_GET_DST_ADDR(pbuf));
+        TBM_IpAddr_t* dst = (TBM_IpAddr_t*)PBUF_GET_DST_ADDR(pbuf);
+        nd = TBM_GetNdItem(dev->net, dev->vrfId, *dst);
         // 真表中不存在表项或表项不可用时，查找假表
         if (nd == NULL || (nd->state != DP_ND_STATE_REACHABLE && nd->state != DP_ND_STATE_PERMANENT)) {
             PBUF_CUT_HEAD(pbuf, sizeof(DP_EthHdr_t));
-            TBM_UpdateFakeNdItem(dev, pbuf);
+            TBM_UpdateFakeNdItem(dev, pbuf, *dst);
             PBUF_Free(pbuf);
 
             if (nd != NULL) {

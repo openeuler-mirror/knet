@@ -8,9 +8,11 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: ARP协议首部及相关类型定义
  */
- 
+/**
+ * @file dp_arp.h
+ * @brief ARP协议首部及相关类型定义
+ */
 
 #ifndef DP_ARP_H
 #define DP_ARP_H

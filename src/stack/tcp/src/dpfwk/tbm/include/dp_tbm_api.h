@@ -8,7 +8,11 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
-* Description: 定义表项管理相关对外接口
+ */
+/**
+ * Copyright (c) Huawei Technologies Co., Ltd. 2024-2024. All rights reserved.
+ * @file dp_tbm_api.h
+ * @brief 定义表项管理相关对外接口
  */
 
 #ifndef DP_TBM_API_H
@@ -79,6 +83,7 @@ enum {
     DP_RTA_PROTOINFO,
     DP_RTA_FLOW,
     DP_RTA_CACHEINFO,
+    DP_RTA_NS,
     DP_RTA_MAX
 };
 

@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "rt.h"
@@ -22,11 +21,6 @@
 #include "tbm_utils.h"
 
 #define RT_KEY_EQUAL(l, r) (((l)->addr & (l)->mask) == ((r)->addr & (r)->mask))
-
-static inline void WaitRtTblIdle(RtTbl_t* tbl)
-{
-    while (ATOMIC32_Load(&tbl->ref) != 0) {}
-}
 
 static inline uint32_t RtRef(RtItem_t* item)
 {
@@ -44,7 +38,7 @@ static void RtItemFree(void *para)
     PutRt(item);
 }
 
-static void CreateFibTbl(RtTbl_t* tbl)
+static void CreateFib4Tbl(RtTbl_t* tbl)
 {
     int ret;
     DP_Fib4TblCfg_t fib4TblCfg = {0};
@@ -56,7 +50,7 @@ static void CreateFibTbl(RtTbl_t* tbl)
 
     fib4TblCfg.entrySize = sizeof(uint32_t);
     fib4TblCfg.entryNum = (uint32_t)tbl->maxCnt;
-    fib4TblCfg.vpnNum = 4096; /* 来自默认配置4096，暂时保持不变 */
+    fib4TblCfg.vpnNum = 4096; /* 默认配置4096，暂时保持不变 */
     fib4TblCfg.flag = 1;
     fib4TblCfg.createType = 0;
     fib4TblCfg.updateFreq = 0;
@@ -91,12 +85,12 @@ void* AllocRtTbl(void)
         return NULL;
     }
 
-    CreateFibTbl(tbl);
+    CreateFib4Tbl(tbl);
 
     return tbl;
 }
 
-static void DestroyFibTbl(RtTbl_t* tbl)
+static void DestroyFib4Tbl(RtTbl_t* tbl)
 {
     if (tbl->fibTblUsed == false) {
         return;
@@ -110,7 +104,7 @@ void FreeRtTbl(void* tbl)
 {
     RtTbl_t *rtTbl = (RtTbl_t *)tbl;
 
-    DestroyFibTbl(rtTbl);
+    DestroyFib4Tbl(rtTbl);
     MemPoolDestroy(rtTbl->rtItemPool);
 
     if (rtTbl->dftRt != NULL) {
@@ -187,7 +181,7 @@ static int32_t LookupRtIndex(RtTbl_t* tbl, RtKey_t* rtKey)
     return -1;
 }
 
-RtItem_t *LookupRt(RtTbl_t* tbl, RtKey_t* rtKey)
+RtItem_t* LookupRt(RtTbl_t* tbl, RtKey_t* rtKey)
 {
     int32_t idx;
 
@@ -204,8 +198,6 @@ static int InsertDftRt(RtTbl_t* tbl, RtItem_t* rtItem)
     RtItem_t* temp = tbl->dftRt;
     tbl->dftRt = rtItem;
 
-    tbl->updCnt++;
-
     if (temp != NULL) {
         WaitRtTblIdle(tbl);
         PutRt(temp);
@@ -214,7 +206,7 @@ static int InsertDftRt(RtTbl_t* tbl, RtItem_t* rtItem)
     return 0;
 }
 
-static int32_t InsertFibIndexTbl(RtTbl_t* tbl, RtKey_t* rtKey, int32_t idx)
+static int32_t InsertFib4IndexTbl(RtTbl_t* tbl, RtKey_t* rtKey, int32_t idx)
 {
     DP_Fib4Key_t key = {0};
 
@@ -234,14 +226,17 @@ static int32_t InsertFibIndexTbl(RtTbl_t* tbl, RtKey_t* rtKey, int32_t idx)
 int InsertRt(RtTbl_t* tbl, RtItem_t* rtItem)
 {
     if (rtItem->key.addr == DP_INADDR_ANY) {
+        DP_LOG_INFO("Insert Default Rt item.");
         return InsertDftRt(tbl, rtItem);
     }
 
     if (tbl->cnt >= tbl->maxCnt) {
+        DP_LOG_ERR("InsertRt failed, tbl is full");
         return -1;
     }
 
     if (LookupRt(tbl, &rtItem->key) != NULL) {
+        DP_LOG_ERR("InsertRt failed, the same rtKey is exist in table.");
         return -1;
     }
 
@@ -251,16 +246,17 @@ int InsertRt(RtTbl_t* tbl, RtItem_t* rtItem)
     }
 
     if (MemNodeSetPointer(tbl->rtItemPool, idx, rtItem) != 0) {
+        DP_LOG_ERR("InsertRt failed, MemNodeSetPointer failed.");
         MemNodeFree(tbl->rtItemPool, idx);
         return -1;
     }
 
-    if (InsertFibIndexTbl(tbl, &rtItem->key, idx) < 0) {
+    if (InsertFib4IndexTbl(tbl, &rtItem->key, idx) < 0) {
+        DP_LOG_ERR("InsertRt failed, InsertFib4IndexTbl failed.");
         MemNodeFree(tbl->rtItemPool, idx);
         return -1;
     }
 
-    tbl->updCnt++;
     tbl->cnt++;
 
     return 0;
@@ -280,11 +276,10 @@ static int RemoveDftRt(RtTbl_t* tbl)
     WaitRtTblIdle(tbl);
     PutRt(temp);
 
-    tbl->updCnt++;
     return 0;
 }
 
-static int32_t RemoveFibIndexTbl(RtTbl_t* tbl, RtKey_t* rtKey)
+static int32_t RemoveFib4IndexTbl(RtTbl_t* tbl, RtKey_t* rtKey)
 {
     uint32_t index;
     DP_Fib4Key_t key = {0};
@@ -309,24 +304,29 @@ int RemoveRt(RtTbl_t* tbl, RtKey_t* rtKey)
     int32_t idx;
 
     if (rtKey->addr == DP_INADDR_ANY) {
+        DP_LOG_INFO("Remove Default Rt item.");
         return RemoveDftRt(tbl);
     }
 
     idx = LookupRtIndex(tbl, rtKey);
     if (idx < 0) {
+        DP_LOG_ERR("RemoveRt failed, the rtKey is not exist in table.");
         return -1;
     }
 
-    if (RemoveFibIndexTbl(tbl, rtKey) != 0) {
+    if (RemoveFib4IndexTbl(tbl, rtKey) != 0) {
         // 在前面已查找成功，此处索引删除失败说明出现未知故障，也要完成实际数据删除，此处只记录日志
         DP_LOG_INFO("Remove fib4 index failed.");
     }
 
     rtItem = MemNodeGetPointer(tbl->rtItemPool, idx);
-    MemNodeFree(tbl->rtItemPool, idx);
+    if (rtItem == NULL) {
+        DP_LOG_ERR("RemoveRt failed, can't find the rtItem node.");
+        return -1;
+    }
 
+    MemNodeFree(tbl->rtItemPool, idx);
     tbl->cnt--;
-    tbl->updCnt++;
 
     rtItem->valid = 0;
     WaitRtTblIdle(tbl);
@@ -335,7 +335,7 @@ int RemoveRt(RtTbl_t* tbl, RtKey_t* rtKey)
     return 0;
 }
 
-static RtItem_t* MatchFibIndexTbl(RtTbl_t* tbl, DP_InAddr_t dst)
+static RtItem_t* MatchFib4IndexTbl(RtTbl_t* tbl, DP_InAddr_t dst)
 {
     uint32_t index;
     DP_Fib4Key_t key = {0};
@@ -379,7 +379,8 @@ static RtItem_t* MatchRt(RtTbl_t* tbl, DP_InAddr_t dst)
     struct MatchRtContext ctx;
 
     if (tbl->fibTblUsed == true) {
-        return MatchFibIndexTbl(tbl, dst);
+        RtItem_t* item = MatchFib4IndexTbl(tbl, dst);
+        return item == NULL ? tbl->dftRt : item;
     }
 
     ctx.rtKey = &key;
@@ -410,6 +411,9 @@ RtItem_t* GetRt(RtTbl_t* tbl, DP_InAddr_t dst)
 void PutRt(RtItem_t* item)
 {
     if (RtDeref(item) == 0) {
+        if (item->ifaddr->dev != NULL) {
+            NETDEV_PutDev(item->ifaddr->dev);
+        }
         NETDEV_FreeIfAddr(item->ifaddr);
         FreeRtItem(item);
     }

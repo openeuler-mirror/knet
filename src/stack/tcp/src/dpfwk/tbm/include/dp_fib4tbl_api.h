@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
-* Description: 定义需要适配FIB4表项操作接口
+ */
+/**
+ * @file dp_fib4tbl_api.h
+ * @brief 定义产品需要适配FIB4表项操作接口
  */
 
 #ifndef DP_FIB4TBL_API_H

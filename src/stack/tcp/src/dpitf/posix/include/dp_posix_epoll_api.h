@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 提供epoll相关对外接口
+ */
+/**
+ * @file dp_posix_epoll_api.h
+ * @brief 提供epoll相关对外接口
  */
 
 #ifndef DP_POSIX_EPOLL_API_H
@@ -59,8 +62,8 @@ typedef struct DP_EpollNotify {
  * \n
  * 支持返回的errno: \n
  * EINVAL: 入参size小于等于0 \n
- * ENOMEM: 内存申请失败 \n
- * EMFILE: 文件描述符资源已耗尽
+ * EMFILE: 文件描述符资源已耗尽，超过允许创建的数量 \n
+ * ENOMEM: 内存申请失败
 
  */
 int DP_PosixEpollCreate(int size);
@@ -90,7 +93,8 @@ int DP_EpollCreateNotify(int size, DP_EpollNotify_t* callback);
  *
  * @par 描述:将fd需监控的事件加入epoll管理
  * @attention
- * 业务多线程并发操作相同epoll/socket对象时，需要考虑对象一致性编程（比如不同的线程同时进行读/写/删操作epoll或fd）
+ * @li 业务多线程并发操作相同epoll/socket对象时，需要考虑对象一致性编程（比如不同的线程同时进行读/写/删操作epoll或fd）
+ * @li 此接口调用要在协议栈启动初始化完成之后才能正常使用
  *
  * @param epfd[IN]epoll句柄<大于0>
  * @param op[IN]操作类型,加入、删除、修改<EPOLL_CTL_ADD, EPOLL_CTL_DEL, EPOLL_CTL_MOD>
@@ -101,14 +105,15 @@ int DP_EpollCreateNotify(int size, DP_EpollNotify_t* callback);
  * @retval -1 具体错误通过errno呈现 \n
  * \n
  * 支持返回的errno: \n
- * EBADF: 参数epfd或者fd无效 \n
- * EINVAL: 入参op不在支持范围内或epfd对应的套接字不是epoll类型 \n
- * EPERM: fd对应的套接字不是socket类型 \n
- * ENOMEM: 内存申请失败 \n
- * EMFILE: 文件描述符资源已耗尽 \n
+ * EBADF: 入参epfd无效，或者fd无效 \n
+ * EEXIST: 入参op为EPOLL_CTL_ADD时，该fd已经在epoll监听列表中 \n
+ * EINVAL: 1.入参epfd不是epoll描述符 \n
+ *         2.入参op不在支持范围内 \n
+ *         3.入参fd与epfd相同 \n
  * ENOENT: 待操作的fd不在epoll监听列表中 \n
- * EFAULT: event为空 \n
- * EEXIST: op为EPOLL_CTL_ADD，且fd已经在epoll监听列表中
+ * ENOMEM: 入参op为EPOLL_CTL_ADD时，内存申请失败 \n
+ * EPERM: 入参fd不是套接字类型fd \n
+ * EFAULT: 入参op为EPOLL_CTL_ADD、EPOLL_CTL_MOD时，入参event为空指针
 
  */
 int DP_PosixEpollCtl(int epfd, int op, int fd, struct epoll_event *event);
@@ -122,6 +127,7 @@ int DP_PosixEpollCtl(int epfd, int op, int fd, struct epoll_event *event);
  * @li maxevents必须小于events元素的个数，否则可能出现踩内存异常
  * @li 业务多线程并发操作相同epoll/socket对象时，需要考虑对象一致性编程 \n
  * （比如不同的线程同时进行读/写/删操作epoll或fd）
+ * @li 此接口调用要在协议栈启动初始化完成之后才能正常使用
  *
  * @param epfd[IN]epoll句柄<大于0>
  * @param events[OUT]记录产生事件的fd及对应事件信息，该值作为出参，会覆盖数组的原数据内容，如后续需使用原数据，必须先保存到其他地方。
@@ -135,10 +141,11 @@ int DP_PosixEpollCtl(int epfd, int op, int fd, struct epoll_event *event);
  * @retval -1 具体错误通过errno呈现 \n
  * \n
  * 支持返回的errno: \n
- * EBADF: 参数epfd无效 \n
- * EINVAL: maxevents小于0或者大于EPOLL监控的最大事件数 \n
- * EPERM: fd对应的套接字不是socket类型 \n
- * EFAULT: event为空
+ * EBADF: 入参epfd无效 \n
+ * EFAULT: 入参events为空指针 \n
+ * EINTR: 被信号中断 \n
+ * EINVAL: 1.入参epfd不是epoll类型文件描述符 \n
+ *         2.入参maxevents小于0或者大于EPOLL监控的最大事件数
 
  */
 int DP_PosixEpollWait(int epfd, struct epoll_event *events, int maxevents, int timeout);

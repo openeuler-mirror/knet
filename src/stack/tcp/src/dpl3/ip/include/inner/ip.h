@@ -9,13 +9,18 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef IP_H
 #define IP_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define IP_POLICY_DROP (-1)
+#define IP_POLICY_HOST (0)
+#define IP_POLICY_FWD  (1)
+
+#define IP_RSV_HEADROOM (64)
 
 int IP_Init(int slave);
 

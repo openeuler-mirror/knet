@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 地址扩展相关接口
+ */
+/**
+ * @file dp_addr_ext_api.h
+ * @brief 地址扩展相关接口
  */
 
 #ifndef DP_ADDR_EXT_API_H
@@ -23,6 +26,8 @@ extern "C" {
 /** @defgroup addr_ext 地址扩展
  * @ingroup socket
  */
+
+#define DP_ADDR_QUE_MAP_MAX 4
 
 /**
  * @ingroup addr_ext
@@ -39,9 +44,14 @@ typedef enum {
  * @brief 地址事件信息
  */
 typedef struct {
-    int protocol; // 协议
-    struct DP_Sockaddr localAddr; // 本端地址
+    struct DP_Sockaddr* localAddr; // 本端地址
     DP_Socklen_t localAddrLen; // 本端地址长度
+    int protocol; // 协议
+    unsigned short portMask; // 端口掩码，区间流表使用
+    unsigned short reserve;
+
+    int ifIndex; // 接口id
+    unsigned int queMap[DP_ADDR_QUE_MAP_MAX]; // 队列bitmap，只在共线程部署时生效
 } DP_AddrEvent_t;
 
 /**
@@ -58,11 +68,36 @@ typedef int (*DP_AddrEventHook_t)(DP_AddrEventType_t type, const DP_AddrEvent_t*
 
 /**
  * @ingroup addr_ext
+ * @brief 内核端口绑定钩子，绑定内核端口
+ *
+ * @param userData [IN] 用户数据
+ * @param addr [IN] 对于Socket4，addr按照struct sockaddr_in的定义来赋值，调用本接口时再转换 \n
+ *                  成struct sockaddr *类型<非空指针> \n
+ *                  对于Socket6，addr按照struct sockaddr_in6的定义来赋值，调用本接口时再转换 \n
+ *                  成struct sockaddr *类型<非空指针>
+ * @param addrlen [IN] 对于Socket4，addrlen是struct sockaddr_in的长度 <大于0> \n
+ *                     对于Socket6，addrlen是struct sockaddr_in6的长度 <大于0>
+ * @retval 0 成功
+ * @retval 错误码 失败
+
+ */
+typedef int (*DP_AddrPreBindHook_t)(void* userData, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen);
+
+/**
+ * @ingroup addr_ext
  * @brief 地址事件钩子
  */
 typedef struct {
     DP_AddrEventHook_t eventNotify;
 } DP_AddrHooks_t;
+
+/**
+ * @ingroup addr_ext
+ * @brief 地址绑定钩子
+ */
+typedef struct {
+    DP_AddrPreBindHook_t preBind;
+} DP_AddrBindHooks_t;
 
 /**
  * @ingroup addr_ext
@@ -76,6 +111,19 @@ typedef struct {
 
  */
 int DP_AddrHooksReg(DP_AddrHooks_t* addrHooks);
+
+/**
+ * @ingroup addr_ext
+ * @brief 注册地址绑定相关钩子
+ *
+ * @attention
+ *
+ * @param addrBindHooks [IN] 地址绑定钩子
+ * @retval 0 成功
+ * @retval -1 失败
+
+ */
+int DP_AddrBindHooksReg(DP_AddrBindHooks_t* addrBindHooks);
 
 #ifdef __cplusplus
 }

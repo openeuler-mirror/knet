@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 网络设备管理对外接口
+ */
+/**
+ * @file dp_netdev_api.h
+ * @brief 网络设备管理对外接口
  */
 
 #ifndef DP_NETDEV_API_H
@@ -28,6 +31,8 @@ extern "C" {
  */
 
 #define DP_IF_NAME_SIZE 16
+
+#define DP_NETDEV_FLASH_SIZE_DEFAULT 16
 
 #define DP_NETDEV_OFFLOAD_RX_IPV4_CKSUM 0x1
 #define DP_NETDEV_OFFLOAD_TX_IPV4_CKSUM 0x2
@@ -52,6 +57,7 @@ typedef enum {
     DP_NETDEV_TYPE_LO, // LO Back设备
     DP_NETDEV_TYPE_ETH, // 以太设备
     DP_NETDEV_TYPE_ETHVLAN, // VLAN设备
+    DP_NETDEV_TYPE_VI, // 虚拟 IP 设备
     DP_NETDEV_TYPE_BUTT,
 } DP_NetdevType_t;
 
@@ -62,7 +68,8 @@ typedef enum {
 typedef struct {
     int type; /**< 固定写arp中定义的设备类型，例如 ARPHRD_ETHER，参考 linux的if_arp.h定义值，需要填写 */
     int (*ctrl)(void* ctx, int opt, void* arg, uint32_t argLen);  /**< 预留，调整设备参数使用，当前不需注册 */
-    int (*rxHash)(void* ctx, uint8_t* pkt, size_t len); /**< 预留，多队列使用，当前不需注册 */
+    int (*rxHash)(void* ctx, const struct DP_Sockaddr* rAddr, DP_Socklen_t rAddrLen,
+        const struct DP_Sockaddr *lAddr, DP_Socklen_t lAddrLen); /**< 多队列主动散列回调，需要注册 */
     int (*txHash)(void* ctx, uint8_t* pkt, size_t len); /**< 预留，多队列使用，当前不需注册 */
     int (*rxBurst)(void* ctx, uint16_t queId, void** buf, int cnt); /**< 报文接收接口，需要注册 */
     int (*txBurst)(void* ctx, uint16_t queId, void** buf, int cnt); /**< 报文发送接口，需要注册 */
@@ -86,6 +93,12 @@ typedef struct {
 
     uint32_t offloads;   // 设备支持的 offloads 能力
     uint16_t tsoSize;    // 设备 TSO 报文长度
+
+    uint16_t maxSegNum;  // 设备tx所支持的最大seg num
+
+    uint16_t rxFlashSize; // 设备每次批量收包的数量, 1~256, 填0时使用默认批量收包数量（16）
+
+    uint16_t res[3];
 
     void* ctx;
     const DP_NetdevOps_t* ops;
@@ -123,6 +136,36 @@ DP_Netdev_t* DP_CreateNetdev(DP_NetdevCfg_t* cfg);
  * @retval 错误码 失败
  */
 int DP_ProcIfreq(DP_Netdev_t* dev, int request, struct DP_Ifreq* ifreq);
+
+/**
+ * @ingroup netdev
+ * @brief 通过worker id和接口id获取对应的netdev queue id
+ *
+ * @attention
+ * 当前queue id规格为0~127，所以mapCnt最小值为4；
+ * Netdev通过DP_ProcIfreq接口设置接口flags为DP_IFF_UP后才能被该接口查找到
+ *
+ * @param wid [IN] worker id，传入无效的worker id时返回失败
+ * @param ifIndex [IN] 接口 id，与创建netdev时传入的ifindex相同；传入无效的ifindex时查找不到queue id
+ * @param queMap [OUT] 通过bit map的形式输出queue id
+ * @param mapCnt [IN] queMap长度，不小于4
+ *
+ * @retval >=0 worker对应的队列数量
+ * @retval <0 失败
+ */
+int32_t DP_GetNetdevQueMap(int32_t wid, int32_t ifIndex, uint32_t* queMap, int32_t mapCnt);
+
+/**
+ * @ingroup netdev
+ * @brief 删除 netdev
+ *
+ * @attention OS栈场景使用
+ *
+ * @param ifIndex [IN] 接口 id，与创建netdev时传入的ifindex相同
+ *
+ * @retval 0成功，非0失败
+ */
+int32_t DP_DestroyNetdev(int ifIndex);
 
 #ifdef __cplusplus
 }

@@ -9,9 +9,19 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <netinet/tcp.h>        // struct tcp_info
+
+#include <securec.h>
 
 #include "dp_posix_socket_api.h"
+#include "dp_socket_api.h"
+#include "dp_in_api.h"
+
 #include "dp_socket.h"
+#include "dp_errno.h"
+#include "utils_statistic.h"
+#include "utils_atomic.h"
+#include "utils_log.h"
 
 int DP_PosixSocket(int domain, int type, int protocol)
 {
@@ -43,8 +53,52 @@ int DP_PosixGetsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
     return DP_Getsockname(sockfd, (struct DP_Sockaddr *)addr, (DP_Socklen_t *)addrlen);
 }
 
+static int GetLinuxTcpInfo(int sockfd, void *optval, socklen_t *optlen)
+{
+    if (optval == NULL || optlen == NULL) {
+        DP_ADD_ABN_STAT(DP_GETOPT_PARAM_INVAL);         // 统计信息与内部保持一致
+        DP_SET_ERRNO(EFAULT);
+        DP_LOG_DBG("GetLinuxTcpInfo failed, optval or optlen NULL.");
+        return -1;
+    }
+    if (*optlen < (int)sizeof(struct tcp_info)) {
+        DP_ADD_ABN_STAT(DP_GETOPT_INFO_INVAL);
+        DP_SET_ERRNO(EINVAL);
+        DP_LOG_DBG("GetLinuxTcpInfo failed, invalid *optlen, *optlen = %u.", *optlen);
+        return -1;
+    }
+
+    DP_TcpInfo_t tcpInfo;
+    socklen_t len = sizeof(tcpInfo);
+    int ret = DP_Getsockopt(sockfd, DP_IPPROTO_TCP, DP_TCP_INFO, &tcpInfo, (DP_Socklen_t *)&len);
+    if (ret != 0) {
+        DP_LOG_DBG("GetLinuxTcpInfo failed, DP_Getsockopt failed.");
+        return ret;         // 内部已设置errno
+    }
+
+    *optlen = sizeof(struct tcp_info);
+
+    struct tcp_info* linuxInfo = optval;
+    (void)memset_s(linuxInfo, sizeof(struct tcp_info), 0, sizeof(struct tcp_info));
+    linuxInfo->tcpi_state = tcpInfo.tcpState;
+    linuxInfo->tcpi_ca_state = tcpInfo.tcpCaState;
+    linuxInfo->tcpi_snd_wscale = tcpInfo.tcpSndWScale;
+    linuxInfo->tcpi_rcv_wscale = tcpInfo.tcpRcvWScale;
+    linuxInfo->tcpi_rtt = tcpInfo.tcpRtt;
+    linuxInfo->tcpi_rttvar = tcpInfo.tcpRttVar;
+    linuxInfo->tcpi_snd_mss = tcpInfo.tcpSndMSS;
+    linuxInfo->tcpi_rcv_mss = tcpInfo.tcpRcvMSS;
+    linuxInfo->tcpi_total_retrans = tcpInfo.tcpTotalRetrans;
+    linuxInfo->tcpi_snd_cwnd = tcpInfo.tcpSndCwnd;
+    linuxInfo->tcpi_rcv_space = tcpInfo.tcpRcvWnd;
+    return 0;
+}
+
 int DP_PosixGetsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
 {
+    if (level == DP_IPPROTO_TCP && optname == DP_TCP_INFO) {
+        return GetLinuxTcpInfo(sockfd, optval, optlen);
+    }
     return DP_Getsockopt(sockfd, level, optname, optval, (DP_Socklen_t *)optlen);
 }
 

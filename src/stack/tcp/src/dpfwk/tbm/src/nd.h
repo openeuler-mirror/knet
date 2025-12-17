@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef ND_H
 #define ND_H
 
@@ -35,11 +34,11 @@ void FreeNdItem(NdItem_t* ndItem);
 
 int InsertNd(NdTbl_t* tbl, NdItem_t* item);
 
-int RemoveNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev);
+int RemoveNd(NdTbl_t* tbl, TBM_IpAddr_t dst, Netdev_t* dev);
 
 int GetNdCnt(NdTbl_t* tbl);
 
-NdItem_t* GetNd(NdTbl_t* tbl, DP_InAddr_t dst);
+NdItem_t* GetNd(NdTbl_t* tbl, TBM_IpAddr_t dst);
 
 void PutNd(NdItem_t* item);
 
@@ -49,18 +48,18 @@ void FreeFakeNdItem(NdFakeItem_t* fakeItem);
 
 void PutFakeNd(NdFakeItem_t* fakeItem);
 
-NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev);
+NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, TBM_IpAddr_t dst, Netdev_t* dev);
 
 bool IsNeedNotify(NdFakeItem_t* fakeItem);
 
-NdFakeItem_t* GetFakeNd(NdTbl_t* tbl, DP_InAddr_t dst);
+NdFakeItem_t* GetFakeNd(NdTbl_t* tbl, TBM_IpAddr_t dst);
 
 int PushNdMissCache(NdFakeItem_t* fakeItem, Pbuf_t* pbuf);
 
 /**
  * @brief 删除假表项并且发送假表项缓存的报文，在控制面更新表项和删除老化表项时调用
  */
-void RemoveFakeNdItem(NdTbl_t* tbl, DP_InAddr_t dst);
+void RemoveFakeNdItem(NdTbl_t* tbl, TBM_IpAddr_t dst);
 
 void ClearFakeNd(NdTbl_t* tbl);
 

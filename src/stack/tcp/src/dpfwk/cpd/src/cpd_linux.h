@@ -18,6 +18,8 @@
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
 
+#include "dp_ip.h"
+
 #include "utils_base.h"
 #include "cpd.h"
 
@@ -38,6 +40,7 @@ typedef struct {
     ssize_t (*real_sendmsg)(int sockfd, const struct msghdr *pstMsg, int flags);
     ssize_t (*real_recvmsg)(int sockfd, struct msghdr *msg, int flags);
     ssize_t (*real_write)(int fd, const void *buf, size_t count);
+    ssize_t (*real_writev)(int fd, struct iovec *dataIov, int iovCnt);
     ssize_t (*real_read)(int fd, void *buf, size_t count);
     ssize_t (*real_sendto)(int sockfd, const void *buf, size_t len,
         int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
@@ -53,19 +56,19 @@ typedef struct {
     };
 } NetlinkReqMsg_t;
 
-typedef struct CpdArpOpNode {
-    LIST_ENTRY(CpdArpOpNode) node;
+typedef struct CpdNdOpNode {
+    LIST_ENTRY(CpdNdOpNode) node;
     uint32_t ifindex;
-    uint32_t ip;
+    TBM_IpAddr_t ip;
     DP_EthAddr_t mac;
     uint16_t state;
     uint8_t type;
-    uint8_t resv;
-} CpdArpOpList_t;
+    uint8_t family;
+} CpdNdOpList_t;
 
-typedef LIST_HEAD(, CpdArpOpNode) CpdArpOpNodeHead;
+typedef LIST_HEAD(, CpdNdOpNode) CpdNdOpNodeHead;
 
-extern CpdArpOpNodeHead g_cpdArpOpList;
+extern CpdNdOpNodeHead g_cpdNdOpList;
 
 CpdSysHandle* GetCpdSysHandle(void);
 
@@ -77,11 +80,13 @@ int CpdCpInit(void);
 
 int CPD_SyncTable(SycnTableEntry *entryList, uint32_t* entryNum);
 
-int CPD_SendPkt(uint32_t ifindex, const void* buf, uint32_t len);
+int CPD_SendPkt(uint32_t ifindex, const void* buf, uint32_t len, int cpdQueueId);
+ 
+int CPD_SendPktV(uint32_t ifindex, struct iovec *dataIov, int iovCnt, uint32_t len, int cpdQueueId);
+ 
+int CPD_RcvPkt(uint32_t ifindex, void* buf, uint32_t len, int cpdQueueId);
 
-int CPD_RcvPkt(uint32_t ifindex, void* buf, uint32_t len);
-
-int CPD_TblMissHandle(int type, void* srcAddr, void* dstAddr);
+int CPD_TblMissHandle(int type, int ifindex, void* srcAddr, void* dstAddr);
 
 int CPD_TapAlloc(DP_Netdev_t *dev);
 

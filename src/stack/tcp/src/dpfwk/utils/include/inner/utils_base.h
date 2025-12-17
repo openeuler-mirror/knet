@@ -23,8 +23,13 @@
 
 #include "dp_clock_api.h"
 #include "dp_sem_api.h"
+// #include "dp_clock.h"
+// #include "dp_sem.h"
 
 #include "utils_debug.h"
+#include "utils_log.h"
+#include "utils_statistic.h"
+#include "utils_atomic.h"
 
 #include "dp_types.h"
 
@@ -32,14 +37,26 @@
 extern "C" {
 #endif
 
+#define ATTR_WEAK __attribute__((weak))
+
+#define ALIGNED_TO(bytes) __attribute__((__aligned__((bytes))))
+
 #define CACHE_LINE 64
+
+/**
+ * @ingroup dp_bsl_pubdef
+ * @brief 错误
+ */
+#ifndef DP_ERR
+#define DP_ERR (1)
+#endif
 
 typedef uint32_t (*DP_RandHook_t)(void);
 
 /** 内存的基础方法，所有字段必填 */
 typedef struct {
-    void* (*mallocFunc)(size_t size);
-    void (*freeFunc)(void* ptr);
+    void* (*mAlloc)(size_t size);
+    void (*mFree)(void* ptr);
 } DP_MemHooks_t;
 
 typedef void* DP_Mutex_t;
@@ -69,32 +86,26 @@ typedef struct {
 
 DP_Hooks_t* UTILS_GetBaseFunc(void);
 
-/** mutex初始化 */
-#define MUTEX_INIT(mutex) UTILS_GetBaseFunc()->mutexFns->init((mutex), 0)
-#define MUTEX_DEINIT(mutex) UTILS_GetBaseFunc()->mutexFns->deinit((mutex))
-#define MUTEX_Size UTILS_GetBaseFunc()->mutexFns->size
-#define MUTEX_LOCK(mutex) UTILS_GetBaseFunc()->mutexFns->lock((mutex))
-#define MUTEX_UNLOCK(mutex) UTILS_GetBaseFunc()->mutexFns->unlock((mutex))
-
 /** sem初始化 */
-#define SEM_INIT(sem) UTILS_GetBaseFunc()->semFns->init((sem), 0, 0)
-#define SEM_DEINIT(sem) UTILS_GetBaseFunc()->semFns->deinit((sem))
-#define SEM_Size UTILS_GetBaseFunc()->semFns->size
-#define SEM_WAIT(sem, timeout) UTILS_GetBaseFunc()->semFns->timeWait((sem), (timeout))
-#define SEM_SIGNAL(sem) UTILS_GetBaseFunc()->semFns->post((sem))
+#define SEM_INIT(sem) UTILS_GetBaseFunc()->semFns->initHook((sem), 0, 0)
+#define SEM_DEINIT(sem) UTILS_GetBaseFunc()->semFns->deinitHook((sem))
+#define SEM_Size UTILS_GetBaseFunc()->semFns->semSize
+#define SEM_WAIT(sem, timeout) UTILS_GetBaseFunc()->semFns->timeWaitHook((sem), (timeout))
+#define SEM_SIGNAL(sem) UTILS_GetBaseFunc()->semFns->postHook((sem))
 
 /** 内存申请 */
 #define MEM_MALLOC(size, mod, type)  DP_MemAlloc((size), (mod), (type))
 /** 内存释放 */
 #define MEM_FREE(ptr, type)          DP_MemFree((ptr), (type))
 /** 按照指定字节对齐申请内存 */
-#define MEM_MALLOC_ALIGN(size, align, mod, type) \
-    MEM_MALLOC(((size) + (align) - 1) / (align) * (align), (mod), (type))
+#define MEM_MALLOC_ALIGN(size, align, mod, type) DP_MemAllocAlign((size), (align), (mod), (type))
 
-#define MEMPOOL_CREATE(cfg, attr, mempool) UTILS_GetMpFunc()->mpCreate((cfg), (attr), (mempool))
-#define MEMPOOL_DESTROY(mempool) UTILS_GetMpFunc()->mpDestroy((mempool))
-#define MEMPOOL_FREE(mempool, ptr) UTILS_GetMpFunc()->mpFree((mempool), (ptr))
-#define MEMPOOL_ALLOC(mempool) UTILS_GetMpFunc()->mpAlloc((mempool))
+#define MEMPOOL_CREATE(cfg, attr, mempool) DP_MempoolCreate((cfg), (attr), (mempool))
+#define MEMPOOL_DESTROY(mempool) DP_MempoolDestory((mempool))
+#define MEMPOOL_FREE(mempool, ptr) DP_MempoolFree((mempool), (ptr))
+#define MEMPOOL_ALLOC(mempool) DP_MempoolAlloc((mempool))
+#define MEMPOOL_CONSTRUCT(mempool, addr, offset, len) DP_MempoolConstruct( \
+    (mempool), (addr), (offset), (len))
 
 /** 模块ID信息 */
 enum {
@@ -115,8 +126,11 @@ enum {
     MOD_SELECT,  /**< SELECT事件 */
     MOD_SOCKET,  /**< SOCKET管理 */
     MOD_NETLINK, /**< ARP SK */
+    MOD_PACKET,  /**< AF_PACKET SK */
     MOD_ETH,     /**< 以太层 */
+    MOD_RAW,     /**< IPRAW */
     MOD_IP,      /**< IP协议 */
+    MOD_IP6,     /**< IP6协议 */
     MOD_TCP,     /**< TCP协议 */
     MOD_UDP,     /**< UDP协议 */
     MOD_MAX,
@@ -124,30 +138,50 @@ enum {
 
 /**
 堆内存头部信息，保存模块ID及内存大小，便于统计和释放
-+---------+----------+-------------------+
-|   mod   |   size   |    malloc_size    |
-+---------+----------+-------------------+
-^                    ^                   ^
-DP_MemInfo_t         MemAlloc
++-----------+---------+----------+---------+-------------+
+| padding   | mode    |  padLen  | size    | malloc_size |
++-----------+---------+----------+---------+-------------+
+          DP_MemInfo_t                     MemAlloc
 */
 typedef struct {
     uint32_t mod;
+    uint32_t padLen; // 对齐填充长度
     size_t size;
 } DP_MemInfo_t;
 
 // 变长内存类型
 typedef enum {
-    DP_MEM_FIX,  // 初始化固定内存
-    DP_MEM_FREE, // 过程释放堆内存
+    DP_MEM_FIX = 0,         // 初始化固定内存
+    DP_MEM_FREE,            // 过程释放堆内存
+    DP_MEM_ZCOPY_SEND,      // 零拷贝写过程中申请的写缓冲区内存
+    DP_MEM_ZCOPY_RECV,      // 零拷贝读过程中应用读取到的内存
+    DP_MEM_MAX
 } DP_MemType_t;
 
 /** 时间相关定义 */
+#ifndef SEC_PER_HOUR
 #define SEC_PER_HOUR  (60 * 60)
+#endif
+
+#ifndef MSEC_PER_SEC
 #define MSEC_PER_SEC  (1000)
+#endif
+
+#ifndef USEC_PER_SEC
 #define USEC_PER_SEC  (1000 * 1000)
+#endif
+
+#ifndef USEC_PER_MSEC
 #define USEC_PER_MSEC (1000)
+#endif
+
+#ifndef NSEC_PER_SEC
 #define NSEC_PER_SEC  (1000LL * 1000LL * 1000LL)
+#endif
+
+#ifndef NSEC_PER_MSEC
 #define NSEC_PER_MSEC (1000 * 1000)
+#endif
 
 /** 获取时间 */
 static inline uint32_t UTILS_TimeNow(void)
@@ -160,7 +194,9 @@ static inline uint32_t UTILS_TimeNow(void)
 
     int64_t seconds = 0;
     int64_t nanoseconds = 0;
-    UTILS_GetBaseFunc()->timeFn(DP_CLOCK_MONOTONIC_COARSE, &seconds, &nanoseconds);
+    if (UTILS_GetBaseFunc()->timeFn(DP_CLOCK_MONOTONIC_COARSE, &seconds, &nanoseconds) != 0) {
+        DP_ADD_ABN_STAT(DP_UTILS_TIMER_ERR);
+    }
     int64_t msNow = (nanoseconds / (int64_t)NSEC_PER_MSEC) + (seconds * (int64_t)MSEC_PER_SEC);
 
     return (uint32_t)msNow;
@@ -181,8 +217,8 @@ static inline uint32_t UTILS_TimeNow(void)
 #endif
 
 /** 分支预测 */
-#define UTILS_LIKELY(x)   (x)
-#define UTILS_UNLIKELY(x) (x)
+#define UTILS_LIKELY(x)   __builtin_expect((x), 1)
+#define UTILS_UNLIKELY(x) __builtin_expect((x), 0)
 
 #define UTILS_SWAP16(x) ((((x) >> 8) & 0xFF) | (((x) & 0xFF) << 8))
 #define UTILS_SWAP32(x) ((((x) >> 24) & 0xFF) | (((x) >> 8) & 0xFF00) | (((x) & 0xFF00) << 8) | (((x) & 0xFF) << 24))
@@ -268,10 +304,10 @@ static inline uint32_t UTILS_TimeNow(void)
 #define LIST_INSERT_CHECK(head, elm, field)             \
     ({                                                 \
         int         ret_ = 0;                          \
-        typeof(elm) temp;                              \
-        LIST_FOREACH((head), temp, field)                \
+        typeof(elm) temp_;                              \
+        LIST_FOREACH((head), temp_, field)                \
         {                                              \
-            if (&((temp)->field) == &((elm)->field)) { \
+            if (&((temp_)->field) == &((elm)->field)) { \
                 ret_ = -1;                             \
                 break;                                 \
             }                                          \
@@ -282,10 +318,10 @@ static inline uint32_t UTILS_TimeNow(void)
 #define LIST_REMOVE_CHECK(head, elm, field)             \
     ({                                                 \
         int         ret_ = -1;                         \
-        typeof(elm) temp;                              \
-        LIST_FOREACH((head), temp, field)                \
+        typeof(elm) temp_;                              \
+        LIST_FOREACH((head), temp_, field)                \
         {                                              \
-            if (&((temp)->field) == &((elm)->field)) { \
+            if (&((temp_)->field) == &((elm)->field)) { \
                 ret_ = 0;                              \
                 break;                                 \
             }                                          \
@@ -319,6 +355,19 @@ static inline uint32_t UTILS_TimeNow(void)
         (head)->last = elm;                              \
     } while (0)
 
+#define LIST_INSERT_AFTER(head, dst, elm, field)                \
+    do {                                                 \
+        ASSERT(LIST_INSERT_CHECK((head), (elm), field) == 0); \
+        if ((dst)->field.next == NULL) {                 \
+            (head)->last = (elm);                        \
+        } else {                                         \
+            (dst)->field.next->field.prev = (elm);       \
+        }                                                \
+        (elm)->field.next = (dst)->field.next;           \
+        (elm)->field.prev = (dst);                       \
+        (dst)->field.next = (elm);                       \
+    } while (0)
+
 #define LIST_IS_EMPTY(head) ((head)->first == NULL)
 
 #define LIST_CONCAT(dst, src, field)                    \
@@ -328,6 +377,7 @@ static inline uint32_t UTILS_TimeNow(void)
                 (dst)->first = (src)->first;            \
                 (dst)->last  = (src)->last;             \
             } else {                                    \
+                (src)->first->field.prev = (dst)->last; \
                 (dst)->last->field.next = (src)->first; \
                 (dst)->last             = (src)->last;  \
             }                                           \
@@ -375,13 +425,15 @@ static inline uint32_t UTILS_TimeNow(void)
 
 #define LIST_REMOVE_BEFORE(head, elm) (head)->first = (elm)
 
-#define F_OFFSET(type, filed) (uintptr_t)(&((((type)*)(0))->filed))
+#define F_OFFSET(type, filed) (uintptr_t)(&(((type*)(0))->filed))
 
-#define SIZE_ALIGNED(x, n) (((x) + (n)-1) / (n) * (n))
+#define SIZE_ALIGNED(x, n) (((x) + (n) - 1) / (n) * (n))
 
 #define PTR_ALIGNED(ptr, n)
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#ifndef DP_ARRAY_SIZE
+#define DP_ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#endif
 
 #define ALIGNED(x, n)      (((x) + (n) - 1) / (n) * (n))
 #define PTR_NEXT(ptr, size) ((uint8_t*)(ptr) + (size))
@@ -473,14 +525,28 @@ static inline void TW_WalkNode(TW_Wheel_t* tw, uint32_t twTick)
     TW_NodeHead_t* nh = &tmpNh;
     TW_Node_t*     node;
     TW_Node_t*     next;
+    TW_Node_t*     last;
     TW_NodeHead_t* twNh = &tw->nodeLists[twTick & tw->mask];
 
     LIST_INIT_HEAD(nh);
     LIST_CONCAT(nh, twNh, node);
     node = LIST_FIRST(nh);
 
+    last = LIST_TAIL(nh);
+    if (last != NULL && last->node.next != NULL) {
+        // last 的 nxt 不为 NULL 成环，破坏
+        last->node.next = NULL;
+        DP_LOG_ERR("walk last's next is not null\n");
+        DP_ADD_ABN_STAT(DP_TIMER_CYCLE);
+    }
+
     while (node != NULL) {
         next = LIST_NEXT(node, node);
+
+        // 防止成环
+        node->node.next = NULL;
+        node->node.prev = NULL;
+
         if (tw->cb(tw, node, twTick) != 0) {
             LIST_INSERT_TAIL(twNh, node, node);
         }
@@ -508,6 +574,12 @@ static inline void TW_AddNode(TW_Wheel_t* tw, TW_Node_t* tn, uint32_t twTickExpi
 
     nh = &tw->nodeLists[twTickExpired & tw->mask];
 
+    if (nh->last != NULL && ((&nh->last->node) == (&tn->node))) {
+        DP_LOG_ERR("add node when last is node");
+        DP_ADD_ABN_STAT(DP_TIMER_NODE_EXIST);
+        return;
+    }
+
     LIST_INSERT_TAIL(nh, tn, node);
 }
 
@@ -521,7 +593,12 @@ static inline void TW_DelNode(TW_Wheel_t* tw, TW_Node_t* tn, uint32_t twTickExpi
 }
 
 void* DP_MemAlloc(size_t size, uint32_t mod, DP_MemType_t type);
+void* DP_MemAllocAlign(size_t size, size_t align, uint32_t mod, DP_MemType_t type);
 void DP_MemFree(void* addr, DP_MemType_t type);
+void DP_ZcopyMemCntAdd(uint32_t wid, size_t size, DP_MemType_t type);
+void DP_ZcopyMemCntSub(uint32_t wid, size_t size, DP_MemType_t type);
+void DP_MemCntAdd(uint32_t mod, size_t size, DP_MemType_t type);
+void DP_MemCntSub(uint32_t mod, size_t size, DP_MemType_t type);
 uint64_t DP_MemCntGet(uint32_t mod, DP_MemType_t type);
 
 #ifdef __cplusplus

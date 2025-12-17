@@ -9,19 +9,22 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "dp_epoll.h"
 #include "dp_errno.h"
 
 #include "shm.h"
-#include "fd.h"
+#include "dp_fd.h"
 #include "sock.h"
 #include "utils_log.h"
 #include "utils_base.h"
 #include "utils_debug.h"
 #include "utils_spinlock.h"
+#include "utils_statistic.h"
+#include "utils_cb_cnt.h"
+#include "worker.h"
 
-#define DP_EPOLLET_MODE 1
+#define DP_EPOLLET_MODE      1
+#define DP_EPOLLONESHOT_MODE 2
 
 typedef struct DP_EpollEvent EpollEvent_t;
 
@@ -30,10 +33,11 @@ typedef LIST_HEAD(, EpollItem) EpollItemLists;
 typedef struct {
     EpollItemLists ready;
     EpollItemLists idle;
-    Spinlock_t     lock;
     DP_Sem_t     sem;
+    Spinlock_t     lock;
     int            waitCnt;
     int            wakeupCnt;
+    int32_t        wid;
     Fd_t*          file;
     DP_EpollNotify_t userNotify;
 } Epoll_t;
@@ -46,12 +50,15 @@ typedef struct EpollItem {
     uint8_t state;
     uint8_t exceptState;
     uint8_t mode; // LT/ET/ONESHOT
-    uint8_t ready;
+    uint8_t ready : 1;
+    uint8_t shoted : 1;
+    uint8_t res : 6;
+    uint32_t reserved;
 
     Epoll_t*     ep;
     EpollEvent_t ev;
-
-    uint32_t notifedEvents;
+    uint32_t expectEvents;
+    uint32_t notifiedEvents;
 } EpollItem_t;
 
 static void DisableSockNotify(EpollItem_t* item)
@@ -82,12 +89,47 @@ static int DP_EpollClose(Epoll_t* ep)
         LIST_REMOVE((&ep->idle), item, node);
         SHM_FREE(item, DP_MEM_FREE);
     }
+
+    if (ep->file != NULL) {
+        FD_Free(ep->file);
+    }
+
     SHM_FREE(ep, DP_MEM_FREE);
+    (void)UTILS_DecCbCnt(&g_epollCbCnt);
 
     return 0;
 }
 
-static FdOps_t g_epMeth = { .close = (int (*)(void*))DP_EpollClose };
+static int DpEpollCoThreadCheck(Epoll_t* ep)
+{
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_DEFAULT) {
+        return 1;
+    }
+
+    int32_t wid = WORKER_GetSelfId();
+    if (wid < 0 || wid != ep->wid) {
+        DP_LOG_ERR("close epoll failed, ep wid = %d, cur wid = %d", ep->wid, wid);
+        DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+        return 0;
+    }
+    return 1;
+}
+
+static int DP_EpollCanClose(Epoll_t* ep)
+{
+    return DpEpollCoThreadCheck(ep);
+}
+
+static int DP_EpollCanFcntl(Epoll_t* ep)
+{
+    return DpEpollCoThreadCheck(ep);
+}
+
+static FdOps_t g_epMeth = {
+    .close = (int (*)(void*))DP_EpollClose,
+    .canClose = (int (*)(void*))DP_EpollCanClose,
+    .canFcntl = (int (*)(void*))DP_EpollCanFcntl,
+};
 
 static Epoll_t* CreateEpoll(DP_EpollNotify_t* callback)
 {
@@ -111,7 +153,12 @@ static Epoll_t* CreateEpoll(DP_EpollNotify_t* callback)
     LIST_INIT_HEAD(&ret->idle);
     LIST_INIT_HEAD(&ret->ready);
     SPINLOCK_Init(&ret->lock);
-    SEM_INIT(ret->sem);
+
+    if (SEM_INIT(ret->sem) != 0) {
+        SPINLOCK_Deinit(&ret->lock);
+        SHM_FREE(ret, DP_MEM_FREE);
+        return NULL;
+    }
 
     return ret;
 }
@@ -160,9 +207,42 @@ static uint32_t GetReadyEvents(EpollItem_t* item)
     return events;
 }
 
+static uint32_t GetEtEvents(EpollItem_t* item)
+{
+    uint32_t events = 0;
+    uint8_t etState = item->state & SOCK_STATE_ET;
+
+    if ((etState & SOCK_STATE_READ_ET) != 0) {
+        events |= DP_EPOLLIN;
+    }
+
+    if ((etState & SOCK_STATE_WRITE_ET) != 0) {
+        events |= DP_EPOLLOUT;
+    }
+
+    return events;
+}
+
+static uint8_t GetExceptMode(EpollEvent_t* event)
+{
+    uint8_t mode = 0;
+    if ((event->events & DP_EPOLLET) != 0) {
+        mode |= DP_EPOLLET_MODE;
+    }
+
+    if ((event->events & DP_EPOLLONESHOT) != 0) {
+        mode |= DP_EPOLLONESHOT_MODE;
+    }
+    return mode;
+}
+
 // 这里不用锁，无法保证时序
 static void Wakeup(Epoll_t* ep)
 {
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        return;
+    }
+
     if (ep->waitCnt > ep->wakeupCnt) {
         SEM_SIGNAL(ep->sem);
     }
@@ -176,6 +256,10 @@ static void Wakeup(Epoll_t* ep)
 // SEM_WAIT调用SemWait，返回值为0或errno（正数）
 static int Wait(Epoll_t* ep, int timeout)
 {
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        return 0;
+    }
+
     if (ep->waitCnt == 0) {
         ep->wakeupCnt = 0;
     }
@@ -187,6 +271,10 @@ static int Wait(Epoll_t* ep, int timeout)
 
     SPINLOCK_Lock(&ep->lock);
     ep->waitCnt--;
+
+    if (ret == DP_ERR) {
+        ret = EFAULT;
+    }
 
     return -ret;
 }
@@ -216,20 +304,25 @@ static void UpdateEpList(EpollItem_t* item, uint8_t newState, EpollEvent_t* even
     Epoll_t* ep = item->ep;
 
     if (event != NULL) {
-        item->exceptState = GetExceptState(event);
-        item->ev          = *event;
-        item->mode        = (event->events & DP_EPOLLET) != 0 ? DP_EPOLLET_MODE : 0;
+        item->exceptState    = GetExceptState(event);
+        item->expectEvents   = event->events;
+        item->ev             = *event;
+        item->mode           = GetExceptMode(event);
+        item->shoted         = 0;
+        item->notifiedEvents = 0;
     }
     item->state = newState;
+
+    SPINLOCK_Lock(&ep->lock);
 
     uint32_t readyEvents = GetReadyEvents(item);
     // 边缘触发模式，获取未上报的事件
     if ((item->mode & DP_EPOLLET_MODE) != 0) {
-        item->notifedEvents = item->notifedEvents & readyEvents; // 有事件从1->0时，需要从已上报事件中移除
-        readyEvents = readyEvents & (~item->notifedEvents);
+        uint32_t etEvents = GetEtEvents(item);
+        item->notifiedEvents = item->notifiedEvents & ~etEvents; // 有事件再次触发时，从已上报事件中移除
+        item->notifiedEvents = item->notifiedEvents & readyEvents; // 有事件从1->0时，需要从已上报事件中移除
+        readyEvents = readyEvents & (~item->notifiedEvents);
     }
-
-    SPINLOCK_Lock(&ep->lock);
 
     item->ev.events = readyEvents;
     if (item->ready != 0 && readyEvents == 0) { // ready to idle
@@ -237,10 +330,12 @@ static void UpdateEpList(EpollItem_t* item, uint8_t newState, EpollEvent_t* even
         LIST_INSERT_TAIL(&ep->idle, item, node);
         item->ready = 0;
     } else if (item->ready == 0 && readyEvents != 0) { // idle to ready
-        LIST_REMOVE(&ep->idle, item, node);
-        LIST_INSERT_TAIL(&ep->ready, item, node);
-        Wakeup(ep);
-        item->ready = 1;
+        if (item->shoted == 0) {
+            LIST_REMOVE(&ep->idle, item, node);
+            LIST_INSERT_TAIL(&ep->ready, item, node);
+            Wakeup(ep);
+            item->ready = 1;
+        }
     }
 
     SPINLOCK_Unlock(&ep->lock);
@@ -261,13 +356,14 @@ static void RemoveEpList(EpollItem_t* item)
     SPINLOCK_Unlock(&ep->lock);
 }
 
-void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState)
+void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
 {
     EpollItem_t* item = (EpollItem_t*)ctx;
 
     ASSERT(ctx != NULL);
     (void)sk;
     (void)oldState;
+    (void)event;
 
     if ((newState & SOCK_STATE_CLOSE) != 0) {
         RemoveEpList(item);
@@ -284,6 +380,7 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
 {
     EpollItem_t* item;
     if (event == NULL) {
+        DP_LOG_DBG("CreateEpollItem failed, event is NULL.");
         return EFAULT;
     }
 
@@ -291,7 +388,7 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
     if (sk->notifyType == SOCK_NOTIFY_TYPE_EPOLL && sk->notifyCtx != NULL) {
         item = (EpollItem_t*)sk->notifyCtx;
         if (item->epfd == epfd) {
-            DP_LOG_ERR("the supplied file descriptor fd is already registered with this epoll instance.");
+            DP_LOG_DBG("the supplied file descriptor fd is already registered with this epoll instance.");
             return EEXIST;
         }
     }
@@ -303,14 +400,16 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
         return ENOMEM;
     }
 
-    item->fd            = fd;
-    item->epfd          = epfd;
-    item->state         = sk->state;
-    item->exceptState   = GetExceptState(event);
-    item->mode          = (event->events & DP_EPOLLET) != 0 ? DP_EPOLLET_MODE : 0;
-    item->ev.data       = event->data;
-    item->ep            = ep;
-    item->notifedEvents = 0;
+    item->fd             = fd;
+    item->epfd           = epfd;
+    item->state          = sk->state;
+    item->exceptState    = GetExceptState(event);
+    item->expectEvents   = event->events;
+    item->mode           = GetExceptMode(event);
+    item->ev.data        = event->data;
+    item->ep             = ep;
+    item->notifiedEvents = 0;
+    item->shoted         = 0;
 
     SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_EPOLL, item, epfd);
 
@@ -332,12 +431,18 @@ static int EpollGetEvents(Epoll_t* ep, struct DP_EpollEvent* events, int maxeven
         events[cnt++] = item->ev;
 
         // 边缘触发模式下，需要记录已上报的事件，并挪入空闲队列
-        if ((item->mode & DP_EPOLLET_MODE) != 0) {
+        if ((item->mode & (DP_EPOLLET_MODE | DP_EPOLLONESHOT_MODE)) != 0) {
             LIST_REMOVE(&ep->ready, item, node);
             LIST_INSERT_TAIL(&ep->idle, item, node);
             item->ready = 0;
-            item->notifedEvents |= item->ev.events;
+            if ((item->mode & DP_EPOLLONESHOT_MODE) != 0) {
+                item->shoted = 1;
+            }
+            if ((item->mode & DP_EPOLLET_MODE) != 0) {
+                item->notifiedEvents |= item->ev.events;
+            }
         }
+
         item = next;
     }
     return cnt;
@@ -348,10 +453,13 @@ static int UpdateEpollItem(Sock_t* sk, int epfd, EpollEvent_t* event)
     EpollItem_t* item = (EpollItem_t*)sk->notifyCtx;
 
     if (event == NULL) {
+        DP_LOG_DBG("UpdateEpollItem failed, event is NULL.");
         return EFAULT;
     }
 
     if (item == NULL || sk->associateFd != epfd) {
+        DP_LOG_DBG("UpdateEpollItem failed, item is NULL or fd is not same, "
+                   "epfd = %d, associateFd = %d.", epfd, sk->associateFd);
         return ENOENT;
     }
 
@@ -365,6 +473,8 @@ static int DeleteEpollItem(Sock_t* sk, int epfd)
     EpollItem_t* item = (EpollItem_t*)sk->notifyCtx;
 
     if (item == NULL || sk->associateFd != epfd) {
+        DP_LOG_DBG("DeleteEpollItem failed, item is NULL or fd is not same, "
+                   "epfd = %d, associateFd = %d.", epfd, sk->associateFd);
         return ENOENT;
     }
 
@@ -381,11 +491,21 @@ static int EpollCreateWithCallback(int size, DP_EpollNotify_t* callback)
 {
     Epoll_t* ep;
     Fd_t*    file;
+    int32_t  wid = -1;
 
     if (size <= 0) {
-        DP_LOG_ERR("Epoll create failed, invalid size: %d.", size);
+        DP_LOG_DBG("Epoll create failed, invalid size: %d.", size);
         DP_SET_ERRNO(EINVAL);
         return -1;
+    }
+
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        wid = WORKER_GetSelfId();
+        if (wid < 0) {
+            DP_LOG_DBG("Create epoll socket co thread failed, get wid error, wid = %d", wid);
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            return -EFAULT;
+        }
     }
 
     file = FD_Alloc();
@@ -394,8 +514,17 @@ static int EpollCreateWithCallback(int size, DP_EpollNotify_t* callback)
         return -1;
     }
 
+    if (UTILS_IncCbCnt(&g_epollCbCnt, (uint32_t)CFG_GET_VAL(DP_CFG_EPOLLCB_MAX)) != 0) {
+        DP_LOG_ERR("The num of epoll exceed maxlimit configured.");
+        DP_ADD_ABN_STAT(DP_EPOLL_CREATE_FULL);
+        FD_Free(file);
+        DP_SET_ERRNO(EMFILE);
+        return -1;
+    }
+
     ep = CreateEpoll(callback);
     if (ep == NULL) {
+        (void)UTILS_DecCbCnt(&g_epollCbCnt);
         FD_Free(file);
         DP_SET_ERRNO(ENOMEM);
         return -1;
@@ -406,6 +535,7 @@ static int EpollCreateWithCallback(int size, DP_EpollNotify_t* callback)
     file->ops  = &g_epMeth;
 
     ep->file = file;
+    ep->wid = wid;
 
     return FD_GetUserFd(file);
 }
@@ -419,11 +549,76 @@ int DP_EpollCreate(int size)
 int DP_EpollCreateNotify(int size, DP_EpollNotify_t *callback)
 {
     if (callback == NULL || callback->fn == NULL) {
-        DP_LOG_ERR("Epoll crate notify failed, invalid callback.");
+        DP_LOG_DBG("Epoll crate notify failed, invalid callback.");
         DP_SET_ERRNO(EINVAL);
         return -1;
     }
     return EpollCreateWithCallback(size, callback);
+}
+
+static int GetEpollFromFd(int fd, Fd_t** file, Epoll_t** ep)
+{
+    Fd_t* tmpFile = NULL;
+    int ret = FD_Get(fd, FD_TYPE_EPOLL, &tmpFile);
+    if (ret != 0) {
+        DP_LOG_DBG("GetEpollFromFd failed by get epoll fd failed, ret = %d.", ret);
+        return ret;
+    }
+
+    Epoll_t* tmpEp = (Epoll_t *)(tmpFile->priv);
+    if (tmpEp == NULL) {
+        DP_LOG_DBG("GetEpollFromFd failed, sk or skOps NULL.");
+        FD_Put(tmpFile);
+        return -EBADF;
+    }
+
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        int32_t wid = WORKER_GetSelfId();
+        if (wid != tmpEp->wid) {
+            DP_LOG_DBG("Get epoll from fd failed, wid unmatched: sk->wid = %d, cur wid = %d", tmpEp->wid, wid);
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            FD_Put(tmpFile);
+            return -EINVAL;
+        }
+    }
+    *file = tmpFile;
+    *ep = tmpEp;
+
+    return 0;
+}
+
+static int GetSocketFromFd(int fd, Fd_t** file, Sock_t** sk)
+{
+    Fd_t* tmpFile = NULL;
+    int ret = FD_Get(fd, FD_TYPE_SOCKET, &tmpFile);
+    if (ret != 0) {
+        DP_LOG_ERR("GetSocketFromFd failed by get socket fd failed, ret = %d.", ret);
+        if (ret == -ENOTSOCK) {
+            ret = -EPERM;
+        }
+        return ret;
+    }
+
+    Sock_t* tmpSk = (Sock_t *)(tmpFile->priv);
+    if (tmpSk == NULL) {
+        DP_LOG_ERR("Get sock from fd failed, sk or skOps NULL.");
+        FD_Put(tmpFile);
+        return -EBADF;
+    }
+
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) {
+        int32_t wid = WORKER_GetSelfId();
+        if (wid != tmpSk->wid) {
+            DP_LOG_DBG("Get sock from fd failed, wid unmatched: sk->wid = %d, cur wid = %d", tmpSk->wid, wid);
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            FD_Put(tmpFile);
+            return -EINVAL;
+        }
+    }
+    *file = tmpFile;
+    *sk = tmpSk;
+
+    return 0;
 }
 
 int DP_EpollCtl(int epfd, int op, int fd, struct DP_EpollEvent* event)
@@ -435,38 +630,28 @@ int DP_EpollCtl(int epfd, int op, int fd, struct DP_EpollEvent* event)
     int      ret;
 
     if (op < DP_EPOLL_CTL_ADD || op > DP_EPOLL_CTL_MOD) {
-        DP_LOG_ERR("Epoll ctle failed, invalid op: %d.", op);
+        DP_LOG_DBG("DP_EpollCtl failed, invalid op: %d.", op);
         DP_SET_ERRNO(EINVAL);
         return -1;
     }
 
     if (fd == epfd) {
+        DP_LOG_DBG("DP_EpollCtl failed, fd == epfd.");
         DP_SET_ERRNO(EINVAL);
         return -1;
     }
 
-    if ((ret = FD_Get(epfd, FD_TYPE_EPOLL, &epFile)) != 0) {
+    ret = GetEpollFromFd(epfd, &epFile, &ep);
+    if (ret != 0) {
         DP_SET_ERRNO(-ret);
         return -1;
     }
 
-    if ((ret = FD_Get(fd, FD_TYPE_SOCKET, &skFile)) != 0) {
+    ret = GetSocketFromFd(fd, &skFile, &sk);
+    if (ret != 0) {
         FD_Put(epFile);
         DP_SET_ERRNO(-ret);
-
-        // 非socket fd
-        if (ret == -ENOTSOCK) {
-            DP_SET_ERRNO(EPERM);
-        }
         return -1;
-    }
-
-    sk = (Sock_t*)(skFile->priv);
-    ep = (Epoll_t*)(epFile->priv);
-
-    if (sk == NULL || ep == NULL) {
-        DP_SET_ERRNO(EBADF);
-        goto out;
     }
 
     SOCK_Lock(sk);
@@ -483,7 +668,6 @@ int DP_EpollCtl(int epfd, int op, int fd, struct DP_EpollEvent* event)
 
     DP_SET_ERRNO(ret);
 
-out:
     FD_Put(skFile);
     FD_Put(epFile);
 
@@ -498,22 +682,22 @@ int DP_EpollWait(int epfd, struct DP_EpollEvent* events, int maxevents, int time
     int          cnt;
 
     if (events == NULL) {
+        DP_LOG_DBG("DP_EpollWait failed, event is NULL.");
         DP_SET_ERRNO(EFAULT);
         return -1;
     }
 
     if ((maxevents <= 0) || (maxevents > DP_EPOLL_MAX_NUM)) {
+        DP_LOG_DBG("DP_EpollWait failed, invalid maxevents, maxevents = %d.", maxevents);
         DP_SET_ERRNO(EINVAL);
         return -1;
     }
 
-    ret = FD_Get(epfd, FD_TYPE_EPOLL, &epFile);
+    ret = GetEpollFromFd(epfd, &epFile, &ep);
     if (ret != 0) {
         DP_SET_ERRNO(-ret);
         return -1;
     }
-
-    ep = (Epoll_t*)(epFile->priv);
 
     SPINLOCK_Lock(&ep->lock);
 
@@ -531,6 +715,70 @@ int DP_EpollWait(int epfd, struct DP_EpollEvent* events, int maxevents, int time
     cnt = EpollGetEvents(ep, events, maxevents);
 
     SPINLOCK_Unlock(&ep->lock);
+    FD_Put(epFile);
+    DP_SET_ERRNO(0);
+    return cnt;
+}
+
+static void ListGetDetails(EpollItemLists* list, DP_EpollDetails_t* details, int len, int* cnt)
+{
+    if (LIST_IS_EMPTY(list)) {
+        return;
+    }
+    EpollItem_t* item = LIST_FIRST(list);
+    EpollItem_t* next;
+    while (item != NULL && *cnt < INT_MAX) {
+        next = LIST_NEXT(item, node);
+        if (*cnt < len) {
+            details[*cnt].fd = (uint32_t)item->fd;
+            details[*cnt].expectEvents = item->expectEvents;
+            details[*cnt].readyEvents = item->ev.events;
+            details[*cnt].notifiedEvents = item->notifiedEvents;
+            details[*cnt].shoted = item->shoted;
+            details[*cnt].eventData.u64 = item->ev.data.u64;
+        }
+        (*cnt)++;
+        item = next;
+    }
+}
+
+static int EpollGetDetails(Epoll_t* ep, DP_EpollDetails_t* details, int max)
+{
+    int cnt = 0;
+    ListGetDetails(&ep->ready, details, max, &cnt);
+    ListGetDetails(&ep->idle, details, max, &cnt);
+    return cnt;
+}
+
+int DP_GetEpollDetails(int epFd, DP_EpollDetails_t* details, int len, int *wid)
+{
+    if ((wid == NULL) || (len < 0) || (len != 0 && details == NULL)) {
+        DP_LOG_DBG("param invalid.");
+        DP_SET_ERRNO(EINVAL);
+        return -1;
+    }
+
+    Fd_t* epFile;
+    int ret = FD_Get(epFd, FD_TYPE_EPOLL, &epFile);
+    if (ret != 0) {
+        DP_LOG_DBG("get epoll fd failed, ret = %d.", ret);
+        DP_SET_ERRNO(-ret);
+        return -1;
+    }
+
+    Epoll_t* ep = (Epoll_t *)(epFile->priv);
+    if (ep == NULL) {
+        DP_LOG_DBG("ep is NULL.");
+        FD_Put(epFile);
+        DP_SET_ERRNO(EBADF);
+        return -1;
+    }
+
+    SPINLOCK_Lock(&ep->lock);
+    *wid = ep->wid;
+    int cnt = EpollGetDetails(ep, details, len);
+    SPINLOCK_Unlock(&ep->lock);
+
     FD_Put(epFile);
     DP_SET_ERRNO(0);
     return cnt;

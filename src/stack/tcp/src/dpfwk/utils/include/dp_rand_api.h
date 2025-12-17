@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 随机数钩子函数注册相关
+ */
+/**
+ * @file dp_rand_api.h
+ * @brief 随机数钩子函数注册相关
  */
 
 #ifndef DP_RAND_API_H
@@ -51,12 +54,12 @@ typedef struct {
  *
  * @par 描述: 随机数操作接口注册函数
  * @attention
- * 必须在初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param randHook [IN]  随机数操作钩子<非NULL>
  *
  * @retval 0 成功
- * @retval 错误码 失败
+ * @retval 其他值 失败
 
  * @see DP_RandomHooks_S | DP_RandIntHook
  */

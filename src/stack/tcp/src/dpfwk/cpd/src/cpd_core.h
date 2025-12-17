@@ -12,7 +12,10 @@
 #ifndef CPD_CORE_H
 #define CPD_CORE_H
 
+#include <sys/uio.h>
+
 #include "dp_types.h"
+#include "dp_ethernet.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +29,10 @@ typedef struct {
     int fd;
 } CpdTapInfo;
 
-extern CpdTapInfo g_tapInfoList[];
+extern CpdTapInfo g_tapInfoList[][DEV_MAX_QUEUE_SIZE];
+extern int g_devMaxIndex;
+
+uint32_t CpdCalcTcpHash(DP_EthHdr_t *ethAddr);
 
 #ifdef __cplusplus
 }

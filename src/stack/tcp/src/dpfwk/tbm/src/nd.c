@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_tbm.h"
@@ -40,11 +39,6 @@ static inline uint32_t NdDeref(NdItem_t* item)
     return ATOMIC32_Dec(&item->ref);
 }
 
-static inline uint32_t NdReadRef(NdItem_t* item)
-{
-    return ATOMIC32_Load(&item->ref);
-}
-
 static void NdItemFree(void *para)
 {
     NdItem_t* item = (NdItem_t*)para;
@@ -60,8 +54,8 @@ static void CreateLookUpTbl(NdTbl_t* tbl)
         return;
     }
     hashTblCfg.hashFunc = NULL;
-    hashTblCfg.keySize = sizeof(DP_InAddr_t); /* 当前以目的IP作为key */
-    hashTblCfg.entrySize = sizeof(int32_t);  /* 存储表项的索引 */
+    hashTblCfg.keySize = sizeof(TBM_IpAddr_t); /* 当前以IP的联合体作为key */
+    hashTblCfg.entrySize = sizeof(int32_t);    /* 存储表项的索引 */
     hashTblCfg.entryNum = (uint32_t)tbl->maxCnt;
 
     ret = TbmHashtblCreate(&hashTblCfg, &tbl->ndLookUpTbl);
@@ -122,20 +116,20 @@ static void DestroyLookUpTbl(NdTbl_t* tbl)
 
 void FreeNdTbl(void* tbl)
 {
-    NdTbl_t *freeFunc = (NdTbl_t *)tbl;
+    NdTbl_t *mFree = (NdTbl_t *)tbl;
 
-    DestroyLookUpTbl(freeFunc);
-    MemPoolDestroy(freeFunc->ndItemPool);
-    freeFunc->ndItemPool = NULL;
-    for (int i = 0; i < freeFunc->maxFakeCnt; ++i) {
-        if (freeFunc->fakeItems[i] != NULL) {
-            FreeFakeNdItem(freeFunc->fakeItems[i]);
-            freeFunc->fakeItems[i] = NULL;
+    DestroyLookUpTbl(mFree);
+    MemPoolDestroy(mFree->ndItemPool);
+    mFree->ndItemPool = NULL;
+    for (int i = 0; i < mFree->maxFakeCnt; ++i) {
+        if (mFree->fakeItems[i] != NULL) {
+            FreeFakeNdItem(mFree->fakeItems[i]);
+            mFree->fakeItems[i] = NULL;
         }
     }
-    SPINLOCK_Deinit(&freeFunc->lock);
-    SHM_FREE(freeFunc->fakeItems, DP_MEM_FREE);
-    SHM_FREE(freeFunc, DP_MEM_FIX);
+    SPINLOCK_Deinit(&mFree->lock);
+    SHM_FREE(mFree->fakeItems, DP_MEM_FREE);
+    SHM_FREE(mFree, DP_MEM_FIX);
 }
 
 NdItem_t* AllocNdItem(void)
@@ -193,7 +187,7 @@ void FreeFakeNdItem(NdFakeItem_t* fakeItem)
 }
 
 struct LookupNdContext {
-    DP_InAddr_t dst;
+    TBM_IpAddr_t dst;
     int32_t id;
 };
 
@@ -201,14 +195,14 @@ static uint32_t LookUpHook(void* para, int32_t id, void *out)
 {
     TBM_NdItem_t *item = (TBM_NdItem_t *)para;
     struct LookupNdContext *ctx = (struct LookupNdContext *)out;
-    if (ctx->dst == item->dst) {
+    if (TBM_IPADDR_IS_EQUAL(&ctx->dst, &item->dst)) {
         ctx->id = id;
         return 0;
     }
     return 1;
 }
 
-static int LookupNdIdxFast(NdTbl_t* tbl, DP_InAddr_t dst)
+static int LookupNdIdxFast(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     int32_t idx;
     int ret;
@@ -220,7 +214,7 @@ static int LookupNdIdxFast(NdTbl_t* tbl, DP_InAddr_t dst)
     return idx;
 }
 
-static int LookupNdIdx(NdTbl_t* tbl, DP_InAddr_t dst)
+static int LookupNdIdx(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     struct LookupNdContext ctx;
     ctx.dst = dst;
@@ -273,7 +267,6 @@ int InsertNd(NdTbl_t* tbl, NdItem_t* item)
                 return -1;
             }
         }
-        tbl->updTime++;
         tbl->cnt++;
         return 0;
     } else {
@@ -285,9 +278,10 @@ int InsertNd(NdTbl_t* tbl, NdItem_t* item)
 
         WaitNdTblIdle(tbl);
         if (temp != NULL) {
+            /* 更新老旧item的状态为invlid 在下次发送报文时更新 */
+            temp->valid = 0;
             PutNd(temp);
         }
-        tbl->updTime++;
         return 0;
     }
 }
@@ -305,7 +299,7 @@ static int DeleteNdLookupTbl(NdTbl_t* tbl, NdItem_t* item)
     return 0;
 }
 
-int RemoveNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
+int RemoveNd(NdTbl_t* tbl, TBM_IpAddr_t dst, Netdev_t* dev)
 {
     int       ndidx;
     NdItem_t* item;
@@ -320,7 +314,6 @@ int RemoveNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
         return -1;
     }
 
-    tbl->updTime++;
     tbl->cnt--;
 
     if (DeleteNdLookupTbl(tbl, item) != 0) {
@@ -337,7 +330,7 @@ int RemoveNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
     return 0;
 }
 
-static NdItem_t* LookupNd(NdTbl_t* tbl, DP_InAddr_t dst)
+static NdItem_t* LookupNd(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     int ndidx;
 
@@ -351,7 +344,7 @@ int GetNdCnt(NdTbl_t* tbl)
     return tbl->cnt;
 }
 
-NdItem_t* GetNd(NdTbl_t* tbl, DP_InAddr_t dst)
+NdItem_t* GetNd(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     NdItem_t* item;
 
@@ -369,6 +362,9 @@ NdItem_t* GetNd(NdTbl_t* tbl, DP_InAddr_t dst)
 void PutNd(NdItem_t* item)
 {
     if (NdDeref(item) == 0) {
+        if (item->dev != NULL) {
+            NETDEV_PutDev(item->dev);
+        }
         FreeNdItem(item);
     }
 }
@@ -380,13 +376,13 @@ void PutFakeNd(NdFakeItem_t* fakeItem)
     }
 }
 
-static int LookupFakeNdIdx(NdTbl_t* tbl, DP_InAddr_t dst)
+static int LookupFakeNdIdx(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     for (int i = 0; i < tbl->maxFakeCnt; i++) {
         if (tbl->fakeItems[i] == NULL) {
             continue;
         }
-        if (tbl->fakeItems[i]->item.dst == dst) {
+        if (TBM_IPADDR_IS_EQUAL(&tbl->fakeItems[i]->item.dst, &dst)) {
             return i;
         }
     }
@@ -443,7 +439,7 @@ static int FreeExpireFakeItem(NdTbl_t* tbl)
     return delNum;
 }
 
-NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
+NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, TBM_IpAddr_t dst, Netdev_t* dev)
 {
     NdFakeItem_t* fakeItem = NULL;
     if (tbl->fakeCnt >= tbl->maxFakeCnt) {
@@ -462,7 +458,7 @@ NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
         return NULL;
     }
 
-    fakeItem->item.dst          = dst;
+    TBM_IPADDR_COPY(&fakeItem->item.dst, &dst);
     fakeItem->item.state        = DP_ND_STATE_INCOMPLETE;
     fakeItem->item.flags        = 0;
     fakeItem->item.type         = 0;
@@ -488,7 +484,7 @@ NdFakeItem_t* InsertFakeNd(NdTbl_t* tbl, DP_InAddr_t dst, Netdev_t* dev)
     return NULL;
 }
 
-NdFakeItem_t* GetFakeNd(NdTbl_t* tbl, DP_InAddr_t dst)
+NdFakeItem_t* GetFakeNd(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     int ndidx;
     NdFakeItem_t* fakeItem = NULL;
@@ -545,7 +541,7 @@ int PushNdMissCache(NdFakeItem_t* fakeItem, Pbuf_t* pbuf)
     return 0;
 }
 
-void RemoveFakeNdItem(NdTbl_t* tbl, DP_InAddr_t dst)
+void RemoveFakeNdItem(NdTbl_t* tbl, TBM_IpAddr_t dst)
 {
     NdFakeItem_t* fakeItem = NULL;
     int           ndidx    = -1;

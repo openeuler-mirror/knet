@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_SACK_H
 #define TCP_SACK_H
 
@@ -21,6 +20,7 @@ extern "C" {
 
 #define TCP_OPTLEN_BASE_SACK      2 //!< SACK选项基础长度，不包含控制块
 #define TCP_OPTLEN_SACK_PERBLOCK  8 //!< SACK块每个大小
+#define TCP_OPTLEN_SACK_APPA      4 //!< SACK选项对齐长度
 
 #define TCP_SACK_HOLE_IS_FULL(tcp) (((tcp)->sackInfo->sackHoleNum) >= ((TcpSk2Sk(tcp)->sndHiwat) / ((tcp)->mss)))
 
@@ -34,7 +34,7 @@ void TcpUpdateSackList(TcpSk_t* tcp, TcpPktInfo_t* pi);
 
 void TcpClearSackHole(TcpSackHoleHead* sackHoleHead);
 
-void TcpClearSackBlock(TcpSackInfo_t* sackInfo);
+void TcpClearSackInfo(TcpSackInfo_t *sackInfo, uint32_t sndUna);
 
 Pbuf_t* TcpGetRexmitSack(TcpSk_t* tcp, uint32_t* sndSeq);
 

@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 提供poll事件管理接口
+ */
+/**
+ * @file dp_posix_poll_api.h
+ * @brief 提供poll事件管理接口
  */
 
 #ifndef DP_POSIX_POLL_API_H
@@ -29,6 +32,7 @@ extern "C" {
  * @brief 标准poll接口，获取指定事件的socket集合
  *
  * @attention
+ * @li 此接口调用要在协议栈启动初始化完成之后才能正常使用
  *
  * @param fds [IN/OUT] 可读socket集合
  * @param nfds [IN] 备选最大socket描述符+1 <大于0>
@@ -37,10 +41,12 @@ extern "C" {
  * @retval -1 失败，可以通过errno获取具体错误码 \n
  * \n
  * 支持返回的errno: \n
- * EINTR: 系统调用被中断，信号量初始化或者处理过程中被中断 \n
- * EFAULT: 指向fds的指针无效 \n
- * EINVAL: 指定的nfds无效 \n
- * ENOMEM: 内存分配失败，创建poll上下文失败 \n
+ * EFAULT: 1.入参fds为空指针 \n
+ * 	       2.入参fds中fd无效，与linux不一致 \n
+ *         3.入参fds中fd不是套接字类型fd，与linux不一致 \n
+ * EINTR: 被信号中断 \n
+ * EINVAL: 入参nfds超过最大fd数量 \n
+ * ENOMEM: 内存申请失败
 
  */
 int DP_PosixPoll(struct pollfd *fds, nfds_t nfds, int timeout);

@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "dp_ioctl_defs_api.h"
@@ -127,15 +126,17 @@ static int SetIfFlags(Netdev_t* dev, struct DP_Ifreq* ifreq)
     uint16_t sets = ((uint16_t)(ifreq->ifr_flags)) ^ dev->ifflags;
 
     if ((sets & (~(DP_IFF_UP | DP_IFF_DEBUG | DP_IFF_RUNNING))) != 0) {
+        DP_LOG_ERR("SetIfFlags failed unsupport flags, ifr_flags = %u.", sets);
         return -EINVAL;
     }
 
-    if ((((uint16_t)(ifreq->ifr_flags)) & DP_IFF_UP) != 0) {
-        if ((dev->ifflags & DP_IFF_UP) != 0) {
-            DevStop(dev);
-        } else {
+    // 与内核保持一致，入参IFF_UP置位表示配置设备UP，置空表示配置设备DOWN
+    if ((((uint16_t)(ifreq->ifr_flags)) & DP_IFF_UP) == DP_IFF_UP) {
+        if ((dev->ifflags & DP_IFF_UP) != DP_IFF_UP) {
             DevStart(dev);
         }
+    } else if ((dev->ifflags & DP_IFF_UP) == DP_IFF_UP) {
+        DevStop(dev);
     }
 
     return 0;
@@ -146,6 +147,7 @@ static int GetIfAddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
     struct DP_SockaddrIn* addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_addr);
 
     if (dev->in.ifAddr == NULL) {
+        DP_LOG_ERR("GetIfAddr failed by dev->in.ifAddr NULL.");
         return -EINVAL;
     }
 
@@ -163,6 +165,7 @@ static int SetIfAddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
     if (ifAddr == NULL) {
         ifAddr = NETDEV_AllocIfAddr();
         if (ifAddr == NULL) {
+            DP_LOG_ERR("SetIfAddr failed by alloc ifAddr failed.");
             return -ENOMEM;
         }
         ifAddr->broadcast = DP_INADDR_ANY;
@@ -181,6 +184,7 @@ static int GetIfBrdaddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
     struct DP_SockaddrIn* addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_addr);
 
     if (dev->in.ifAddr == NULL) {
+        DP_LOG_ERR("GetIfBrdaddr failed by dev->in.ifAddr NULL.");
         return -EINVAL;
     }
 
@@ -191,9 +195,16 @@ static int GetIfBrdaddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
 
 static int SetIfBrdaddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
 {
-    (void)dev;
-    (void)ifreq;
-    return -EOPNOTSUPP;
+    struct DP_SockaddrIn* addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_broadaddr);
+
+    if (dev->in.ifAddr == NULL) {
+        DP_LOG_ERR("SetIfBrdaddr failed by dev->in.ifAddr NULL.");
+        return -EINVAL;
+    }
+
+    dev->in.ifAddr->broadcast = addrIn->sin_addr.s_addr;
+
+    return 0;
 }
 
 static int GetIfNetmask(Netdev_t* dev, struct DP_Ifreq* ifreq)
@@ -201,6 +212,7 @@ static int GetIfNetmask(Netdev_t* dev, struct DP_Ifreq* ifreq)
     struct DP_SockaddrIn* addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_addr);
 
     if (dev->in.ifAddr == NULL) {
+        DP_LOG_ERR("GetIfNetmask failed by dev->in.ifAddr NULL.");
         return -EINVAL;
     }
 
@@ -215,6 +227,7 @@ static int SetIfNetmask(Netdev_t* dev, struct DP_Ifreq* ifreq)
     struct DP_SockaddrIn* addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_addr);
 
     if (dev->in.ifAddr == NULL) {
+        DP_LOG_ERR("SetIfNetmask failed by dev->in.ifAddr NULL.");
         return -EINVAL;
     }
 
@@ -232,6 +245,7 @@ static int GetIfMtu(Netdev_t* dev, struct DP_Ifreq* ifreq)
 static int SetIfMtu(Netdev_t* dev, struct DP_Ifreq* ifreq)
 {
     if ((ifreq->ifr_mtu < dev->minMtu) || (ifreq->ifr_mtu > dev->maxMtu)) {
+        DP_LOG_ERR("SetIfMtu failed by invalid mtu, ifr_mtu = %d.", ifreq->ifr_mtu);
         return -EINVAL;
     }
     dev->mtu = (uint16_t)ifreq->ifr_mtu; // mtu不会出现小于0的情况，上面已经做了判断，强转无风险
@@ -248,16 +262,26 @@ static int GetIfHwaddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
 static int SetIfHwaddr(Netdev_t* dev, struct DP_Ifreq* ifreq)
 {
     if (ifreq->ifr_hwaddr.sa_family != DP_ARPHDR_HRD_ETHER) {
+        DP_LOG_ERR("SetIfHwaddr failed by invalid hwaddr family, ifr_hwaddr = %d.", ifreq->ifr_hwaddr.sa_family);
+        return -EINVAL;
+    }
+    DP_EthAddr_t* hwAddr = (DP_EthAddr_t*)(ifreq->ifr_hwaddr.sa_data);
+    if (DP_MAC_IS_DUMMY(hwAddr)) {
+        DP_LOG_ERR("SetIfHwaddr failed by invalid dummy hwaddr data.");
         return -EINVAL;
     }
 
-    DP_MAC_COPY(&dev->hwAddr.mac, (DP_EthAddr_t*)(ifreq->ifr_hwaddr.sa_data));
+    DP_EthAddr_t tmpAddr = {0};
+    DP_MAC_COPY(&tmpAddr, &dev->hwAddr.mac);
+    DP_MAC_COPY(&dev->hwAddr.mac, hwAddr);
+
     return 0;
 }
 
 static int SetIfName(Netdev_t* dev, struct DP_Ifreq* ifreq)
 {
     if (strcpy_s(dev->name, DP_IF_NAMESIZE, ifreq->ifr_name) != 0) {
+        DP_LOG_ERR("SetIfName failed by strcpy_s ifr_name.");
         return -EINVAL;
     }
     return 0;
@@ -305,11 +329,15 @@ int DP_ProcIfreq(Netdev_t* dev, int request, struct DP_Ifreq* ifreq)
     if (fn != NULL) {
         ret = fn(dev, ifreq);
     } else if (g_devOps[dev->devType]->ctrl != NULL) {
+        DP_LOG_INFO("DP_ProcIfreq with unsupport request, use g_devOps->ctrl. request = %d.", request);
         ret = g_devOps[dev->devType]->ctrl(dev, request, ifreq);
     }
 
     NS_Unlock(dev->net);
 
+    if (ret != 0) {
+        DP_LOG_ERR("ProcIfreq failed with ret = %d.", ret);
+    }
     return ret;
 }
 
@@ -325,9 +353,7 @@ static int FillIfconf(Netdev_t* dev, struct DP_Ifreq* ifreq, int bufSize)
         return 0;
     }
 
-    if (strcpy_s(ifreq->ifr_name, DP_IF_NAMESIZE, dev->name)) {
-        return 0;
-    }
+    (void)strcpy_s(ifreq->ifr_name, DP_IF_NAMESIZE, dev->name);
     if (dev->in.ifAddr == NULL) {
         addrIn = (struct DP_SockaddrIn*)(&ifreq->ifr_addr);
 

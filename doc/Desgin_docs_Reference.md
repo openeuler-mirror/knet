@@ -10,9 +10,15 @@ API参考POSIX接口
 | **mode** | 运行模式<br>• 0：表示单进程模式<br>• 1：表示多进程模式，仅用户态协议栈可用 | 0 | 0, 1 | |
 | **common** | 通用配置项 | - | - | - |
 | **log_level** | 日志级别 | "WARNING" | "ERROR", "WARNING", "INFO", "DEBUG" | 支持大小写混写 |
-| **ctrl_cpu_id** | 控制面CPU核 | 0 | 0~n | K-NET控制核处理核号<br> |
+| **ctrl_vcpu_nums** | 控制面CPU核数 | 1 | 1~n | K-NET控制核处理核数<br> |
+| **ctrl_ring_per_vcpu** | 控制面每个cpu分配多少缓存 | 1 | 1~n | 控制面每个cpu分配多少缓存 |
+| **ctrl_vcpu_ids** | 控制面使用核号 | 0 | 0~n | 控制面使用核号 |
+| **zcopy_enable** | 开启零拷贝特性 | 0 | 0,1 | / |
+| **cothread_enable** | 开启共线程特性 | 0 | 0,1 | / |
 | **interface** | 网络接口配置项 | - | - | - |
-| **bdf_num** | 需要DPDK驱动接管的接口BDF号 | "0000:06:00.0" | / | 非空 |
+| **user_bond_enable** | 开启bond模式 | 0 | 0，1 | / |
+| **user_bond_mode** | mode模式 | 4 | 4 | 当前只支持bond4 |
+| **bdf_nums** | 需要DPDK驱动接管的接口BDF号 | "0000:06:00.0" | / | 非空 |
 | **mac** | 网络设备的MAC地址 | "52:54:00:2e:1b:a0" | / | 非空 |
 | **ip** | 网络设备需要配置的IP地址 | "192.168.1.6" | / | 非空 |
 | **netmask** | 网络设置配置的子网掩码 | "255.255.255.0" | / | 非空 |
@@ -22,6 +28,7 @@ API参考POSIX接口
 | **tso** | TCP Segmentation Offload使能标志，默认关闭 | 0 | 0, 1 | 1：表示使能TSO，且需要确保tcp_checksum必须使能 |
 | **lro** | Large Receive Offload使能标志，默认关闭 | 0 | 0, 1 | 1：表示使能LRO，且需要确保tcp_checksum必须使能 |
 | **tcp_checksum** | TCP/IP硬件校验和特性开关，默认关闭 | 0 | 0, 1 | / |
+| **bifur_enable** | 流分叉开关 | 0 | 0, 1,2 | 0关闭分叉，1开启流分叉，2内核流量软件转发 |
 | **proto_stack** | 用户态TCP/IP协议栈配置项 | - | - | - |
 | **max_mbuf** | MBUF初始化时规模大小，单位个 | 20480 | 8192~2147483647 | / |
 | **max_worker_num** | 整个进程最大用户态TCP/IP协议栈实例数量 | 1 | 1~32 | / |
@@ -43,6 +50,9 @@ API参考POSIX接口
 | **tcp_cookie** | TCP是否支持COOKIE功能开关,1表示支持COOKIE功能。开启COOKIE功能后如果同时建链达到门限则触发COOKIE机制 | 0 | 0,1 | / |
 | **reass_max** | 系统缓存真重组节点总个数，单位个 | 1000 | 1-4096 | / |
 | **reass_timeout** | 真重组节点超时时间，单位秒 | 30 | 1-30 | / |
+| **synack_retries** | synack重传最大次数 | 5 | 1~n | / |
+| **zcopy_sge_len** | 零拷贝单片申请内存长度 | 65535 | 1-65535 | / |
+| **zcopy_sge_num** | 零拷贝内存片数量 | 8192 | 1~n | 不超过定长内存池最大申请内存 |
 | **dpdk** | DPDK配置项 | - | - | - |
 | **core_list_global** | 数据面绑核，将数据面绑定的核号固定。用数字列表设置应用程序使用的CPU核，例如：“0,1”，表示绑定0号核和1号核。多进程模式下，绑多个核时，可以使用“-”，如“1-10”，表示绑定1号核到10号核 | "1" | 0~服务器的CPU个数-1 | / |
 | **tx_cache_size** | 发送缓存大小，单位个 | 256 | 256-16384 | / |
@@ -52,6 +62,7 @@ API参考POSIX接口
 | **external_driver** | 不同场景填写不同的pmd驱动。注意前面有个-d | "-dlibrte_net_sp600.so" | "-dlibrte_net_sp600.so"、置空 | / |
 | **telemetry** | 统计信息的开关 | 1 | 0,1 | |
 | **huge_dir** | 大页挂载路径 | / | / | / |
+| **base-virtaddr** | dpdk启动基地址 | / | / | / |
 
 
 # Movitvation

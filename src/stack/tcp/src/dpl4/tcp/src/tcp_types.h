@@ -9,9 +9,10 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef TCP_TYPES_H
 #define TCP_TYPES_H
+
+#include "dp_tcp_cc_api.h"
 
 #include "dp_types.h"
 
@@ -22,6 +23,7 @@
 
 #include "utils_cfg.h"
 #include "utils_base.h"
+#include "utils_minmax.h"
 #include "utils_spinlock.h"
 #include "utils_statistic.h"
 
@@ -33,6 +35,7 @@ enum {
     TCP_TIMERID_FAST,
     TCP_TIMERID_SLOW,
     TCP_TIMERID_DELAYACK,
+    TCP_TIMERID_PACING,
     TCP_TIMERID_BUTT,
 };
 
@@ -41,8 +44,9 @@ enum {
     TCP_PASSIVE,   // 被动建链
 };
 
+// 与DP_SOCKET_STATE保持一致(dp_debug_api.h)
 enum {
-    TCP_CLOSED,
+    TCP_CLOSED = 0,
     TCP_LISTEN,
     TCP_SYN_SENT,
     TCP_SYN_RECV,
@@ -53,22 +57,14 @@ enum {
     TCP_LAST_ACK,
     TCP_FIN_WAIT2,
     TCP_TIME_WAIT,
-    TCP_ABORT, // 用来区别接受RST报文时被动断链时的状态
 
     TCP_MAX_STATES /* Leave at the end! */
 };
 
+#define DP_TCP_MAXWIN 0xFFFF //!< TCP未进行窗口因子缩放时窗口最大值
+#define DP_TCP_MAX_WINSHIFT 14 //!< 最大窗口缩放因子
+
 typedef struct TcpSk TcpSk_t;
-
-typedef struct {
-    LIST_ENTRY(TcpSk) node;
-    uint32_t flags;
-} TcpEvNode_t;
-
-typedef struct {
-    int freeCnt;
-    Spinlock_t lock;
-} TcpCfgCtx_t;
 
 typedef struct {
     uint8_t rcvSynOpt;
@@ -87,76 +83,52 @@ typedef struct {
     Netdev_t* dev;
 } TcpXmitInfo_t;
 
-/**
- * @brief TCP 拥塞算法初始化，在tcp申请时调用
- */
-typedef int (*TcpCaInitFn_t)(TcpSk_t* tcp);
+typedef struct {
+    uint32_t priorAckTime; /* starting timestamp for interval */
+    uint32_t priorAckCnt;  /* tp->delivered at "prior_mstamp" */
+    int32_t incrAckCnt;
+    int32_t intervalMs; /* time for tp->delivered to incr "delivered" */
+    int32_t rttMs;
+    uint32_t losses;          /* number of packets marked lost upon ACK */
+    uint32_t ackedSacked;    /* number of packets newly (S)ACKed upon ACK */
+    uint32_t priorInFlight; /* in flight before this ACK */     // 报文数量
+    bool isAppLimited;
+    uint8_t reserved[7];
+} TcpRateSample_t;
 
-/**
- * @brief TCP拥塞算法去初始化
- */
-typedef int (*TcpCaDeinitFn_t)(TcpSk_t* tcp);
+struct tcpSendTimeState {
+    uint32_t packetTxStamp;
+    uint32_t shotConnFirstTxMstamp;     /* Tcp连接中 周期开始时间戳快照信息 */
+    uint32_t shotConnDeliveredCnt;      /* Tcp连接中 周期开始发包总数快照信息 */
+    uint32_t shotConnDeliveredMstamp;   /* Tcp连接中 周期开始发包总数时间戳快照信息 */
+    bool     isAppLimited;
+    uint8_t  reserved[3];
+};
 
-/**
- * @brief 两个调用点，TCP建链完成后以及长时间无数据传输后
- */
-typedef void (*TcpCaRestartFn_t)(TcpSk_t* tcp);
+struct tcpRecvTimeState {
+    uint32_t packetRecvTime;
+};
 
-/**
- * @brief TCP正常ACK确认
- *        acked: 本次确认的数据长度
- *        rtt: 未经过平滑的rtt时间
- */
-typedef void (*TcpCaAckedFn_t)(TcpSk_t* tcp, uint32_t acked, uint32_t rtt);
+#define TF_SEG_NONE 0x0000U
+#define TF_SEG_SACKED 0x0001U        /* Segment Sacked */
+#define TF_SEG_RETRANSMITTED 0x0002U /* Retransmitted as part of SACK based loss recovery alg */
 
-/**
- * @brief TCP重复ACK确认
- */
-typedef void (*TcpCaDupAckFn_t)(TcpSk_t* tcp);
+typedef struct TcpScoreBoard {
+    uint32_t startSeq;         /* 该报文起始序列号 */
+    uint32_t endSeq;           /* 该报文结束序列号 */
 
-/**
- * @brief TCP超时处理
- */
-typedef void (*TcpCaTimeoutFn_t)(TcpSk_t* tcp);
-
-typedef struct TcpCaMeth {
-    int                     algId;
-    TcpCaInitFn_t           caInit;
-    TcpCaInitFn_t           caDeinit;
-    TcpCaRestartFn_t        caRestart;
-    TcpCaAckedFn_t          caAcked;
-    TcpCaDupAckFn_t         caDupAck;
-    TcpCaTimeoutFn_t        caTimeout;
-    const struct TcpCaMeth* next;
-} TcpCaMeth_t;
-
-#define TCP_TIMER_CNT 3 // REXMIT和KEEPTIMER为固定的是定时器，坚持、2MSL公用一个定时器
-
-// 记录listen和普通tcp的公共数据，继承时也仅需要继承common中的内容
-
-typedef LIST_HEAD(TcpBacklog, TcpSk) TcpBacklog_t;
-
-typedef struct TcpListenerCb {
-    InetSk_t inetSk;
-
-    uint8_t state;
+    /* SACK状态控制块 */
+    uint32_t state;
 
     union {
-        struct {
-            uint8_t noVerifyCksum : 1; // 不校验校验和，通过配置读取
-            uint8_t ackNow : 1;
-            uint8_t delayAckEnable : 1; // 使能延迟ACK功能
-            uint8_t nodelay : 1; // nagle算法使能标记位
-            uint8_t rttRecord : 1; // rtt开始记录标记
-        };
-        uint8_t options;
-    }; // tcp options
+        struct tcpSendTimeState tx;
+        struct tcpRecvTimeState rx;
+    } rtxTimeState;
+} TcpScoreBoard_t;
 
-    TcpBacklog_t uncomplete;
-    TcpBacklog_t complete;
+#define PBUF_GET_SCORE_BOARD(pbuf) ((TcpScoreBoard_t*)((pbuf)->scb))
 
-    int childCnt;
-} TcpListenerCb_t;
+typedef LIST_HEAD(TcpBacklog, TcpSk) TcpBacklog_t;
 
 // 数组 记录sack块（数据接收方）
 typedef struct {
@@ -189,7 +161,7 @@ typedef struct {
     int (*hash)(Sock_t* sk); // per worker hash表插入
     void (*unhash)(Sock_t* sk); // per worker hash表移除
     int  (*getXmitInfo)(Sock_t* sk, TcpXmitInfo_t* info); // ipv4/ipv6 报文下行信息获取
-    void (*freeFunc)(Sock_t* sk); // ipv4/ipv6 sock释放
+    void (*mFree)(Sock_t* sk); // ipv4/ipv6 sock释放
     void (*waitIdle)(Sock_t *sk); // 等待tbl空闲
     void (*listenerInsert)(Sock_t *sk);
     void (*listenerRemove)(Sock_t *sk);
@@ -246,6 +218,8 @@ struct TcpSk {
     uint16_t rcvMss;
     uint16_t mss;
 
+    uint16_t maxSegNum;
+
     uint8_t accDataCnt; // accumulate累计数据报文个数，记录当前收取的数据报文个数
     uint8_t accDataMax; // 设置N个数据回复一个ACK
 
@@ -258,10 +232,11 @@ struct TcpSk {
     uint32_t sndWnd; // send window, peer window
     uint32_t sndUp; // send urgent pointer
     uint32_t sndWl1; // segment sequence number used for last window update
-    // uint32_t sndWl2; // segment acknowledgment number used for last window update
+    uint32_t sndSml; // send small pkt end seq
 
     uint32_t rcvNxt; // receive next
     uint32_t rcvWnd; // receive window, local window
+    uint32_t rcvAdvertise; // 本端向对端通告的接收窗口大小的右边沿序号值, 等于rcvNxt加上通告的窗口大小
     union {
         uint32_t rcvUp; // receive urgent pointer
         uint32_t rcvMax; // 收到FIN后，记录此时的最大序号
@@ -269,7 +244,11 @@ struct TcpSk {
     uint32_t rcvWup; // 最后一次发送窗口更新时的 rcvNxt
 
     uint8_t dupAckCnt;
-    uint8_t caState; // ca状态
+    uint8_t caIsInited : 1;
+    uint8_t caState : 7; // ca状态
+    int8_t  nextCaMethId; // 建链后切换拥塞算法时暂存算法ID，等待TSQ调度
+
+    uint8_t  trType; // 当前使用的定时器类型, 见TCP_TimetType_t
 
     uint32_t cwnd; // cong
     uint32_t ssthresh;
@@ -277,32 +256,70 @@ struct TcpSk {
     uint32_t reorderCnt; // 乱序报文个数，重复ACK超过此数值后，触发快速重传
 
     void*              caCb; // 拥塞算法控制块
-    const TcpCaMeth_t* caMeth; // 拥塞算法
+    const DP_TcpCaMeth_t* caMeth; // 拥塞算法
+    uint32_t initCwnd; // 拥塞窗口初始值
 
     uint32_t rttStartSeq; // 记录rtt评估开始时的序号
 
     uint32_t srtt;
     uint32_t rttval;
+    uint32_t maxRtt;
     uint32_t tsVal;
     uint32_t tsEcho;
+
+    Minmax_t rttMin;
+    uint32_t pacingRate;   /* bytes per second for bbr */
+    /* RTT measurement */
+    uint32_t tcpMstamp;  /* most recent packet received/sent */
+    uint32_t ConnDeliveredMstamp;       // 上一个到达的ack的时间
+    uint32_t ConnFirstTxMstamp;
+    uint32_t inflight;      // 在途数据量
+    TcpRateSample_t rs;
+
+    uint32_t connDeliveredCnt;
+    uint32_t connLostCnt; /* Total data packets cum_lost_cnt incl. rexmits */
+    uint32_t appLimited;  /* limited until "delivered" reaches this val */
 
     uint32_t lastChallengeAckTime;
 
     TW_Node_t twNode[TCP_TIMERID_BUTT];
     uint16_t  expiredTick[TCP_TIMERID_BUTT];
 
-    uint16_t idleStart;
+    uint16_t rxtMin;
+    uint32_t idleStart;
+    uint16_t quickAckNum; // 逐包回复ACK
     uint16_t maxIdleTime;
-    uint16_t keepIdle;
-    uint16_t keepIntvl;
+    uint32_t keepIdle;
+    uint32_t keepIntvl;
     uint8_t  keepProbes;
     uint8_t  keepProbeCnt;
     uint8_t  backoff;
     uint8_t  maxRexmit; // 用户设置DefferAccept场景下的最大重传次数
     uint8_t  fastMode; // 加入快定时器的模式，重传or坚持定时器
+    uint8_t  frto : 1; // 当前是否在 frto 状态
+    uint8_t  rttFlag : 1;   // 标识是否需要更新rtt，在非重传情况发送报文时（建链、数据）设置为1，表示可以更新rtt；在重传时、更新rtt后设置成0
+    uint8_t  cookie : 1;    // 是否通过配置项启用socket
+    uint8_t  resv : 5;
+    uint8_t  force; // 本次是否强制发送数据
 
+    uint8_t  tsqNested;     // 共线程模式使用，记录处于tsq流程的嵌套层数
     uint32_t tsqFlags;
     uint32_t tsqFlagsLock;
+
+    uint32_t rcvDrops;
+    uint32_t rexmitCnt;
+    uint32_t startConn;
+    uint32_t connLatency;       // 建链时延
+
+    uint32_t userTimeout;
+    uint32_t userTimeStartFast;
+    uint32_t userTimeStartSlow;
+
+    uint32_t synRetries; // SYN或SYN/ACK重传的次数
+    uint32_t keepIdleLimit; // keep idle超时上限
+    uint32_t keepIdleCnt;   // keep idle超时次数
+
+    long int tid;
 
     TcpSk_t* parent;
 
@@ -318,7 +335,13 @@ struct TcpSk {
 
     LIST_ENTRY(TcpSk) txEvNode;
     LIST_ENTRY(TcpSk) rxEvNode;
+    uint8_t reserv[8]; // 预留8字节
 };
+
+#define TCP_PI_SACKED_DATA     0x01 /* SACK 了新数据 */
+#define TCP_PI_HAS_TIMESTAMP   0x02 /* 收到报文携带了时间戳 */
+
+#define TCP_PI_ERR_TIMESTAMP 0x01   // 时间戳异常，此时协议栈记录的tsEcho大于报文的tsVal
 
 typedef struct {
     uint8_t  hdrLen;
@@ -330,43 +353,10 @@ typedef struct {
     uint32_t sndWnd;
     uint32_t tsVal;
     uint32_t tsEcho;
+    uint32_t pktType;       // 报文在处理过程中设置，方便其它步骤处理
+    uint32_t errCode;       // 错误码，临时方案，传递报文中的错误信息用于后续处理
     uint8_t* sackOpt;       // optSize sackBlock[x]
 } TcpPktInfo_t;
-
-typedef struct {
-    uint8_t tcpState; /* TCP当前状态 */
-    uint8_t tcpCaState; /* TCP拥塞控制状态 */
-    uint8_t tcpRexmits;
-    uint8_t tcpProbes;
-    uint8_t tcpBackoff;
-    uint8_t tcpOptions;
-    uint8_t tcpSndWScale : 4;  /**< 对端的窗口扩大因子 */
-    uint8_t tcpRcvWScale : 4;  /**< 本端的窗口扩大因子 */
-    uint8_t tcpDeliveryRateLimited : 1;
-
-    uint32_t tcpRto;           /**< 超时重传时间，单位为微秒 */
-    uint32_t tcpAto;
-    uint32_t tcpSndMSS;        /* mss值 对照 tcpi_snd_mss */
-    uint32_t tcpRcvMSS;        /**< 对端通告的MSS */
-
-    uint32_t tcpUnack;
-    uint32_t tcpSacked;
-    uint32_t tcpLost;
-    uint32_t tcpRetrans;
-    uint32_t tcpFackets;
-
-    uint32_t tcpLastDataSent;
-    uint32_t tcpLastAckSend;
-    uint32_t tcpLastDataRecv;
-    uint32_t tcpLastAckRecv;
-
-    uint32_t tcpMtu;
-    uint32_t tcpRcvSshThresh;
-    uint32_t tcpRtt;        /* rtt值 对照 tcpi_rtt */
-    uint32_t tcpRttVar;
-    uint32_t tcpSndSshThresh;
-    uint32_t tcpSndCwnd;    /* 拥塞控制窗口大小 对照tcpi_snd_cwnd */
-} TcpInfo_t; // iperf测试需要，当前只提供这么多字段，以供测试使用
 
 #define TcpSK(sk)     ((TcpSk_t*)(sk))
 #define TcpSk2Sk(tcp) ((Sock_t*)(tcp))
@@ -383,7 +373,6 @@ typedef LIST_HEAD(, TcpSk) TcpListHead_t;
 #define TcpSeqGt(a, b)  (TcpSeqCmp((a), (b)) > 0)
 #define TcpSeqLeq(a, b) (TcpSeqCmp((a), (b)) <= 0)
 #define TcpSeqGeq(a, b) (TcpSeqCmp((a), (b)) >= 0)
-#define TcpTimeLt(a, b) (TcpSeqCmp((a), (b)) < 0)
 
 #define TCP_SEQ_MAX(a, b)                \
     ({                                 \
@@ -399,11 +388,7 @@ typedef LIST_HEAD(, TcpSk) TcpListHead_t;
         TcpSeqLt(aTemp, bTemp) ? aTemp : bTemp; \
     })
 
-#define TcpSetState(tcpcb, newstate) TcpConnStateStat((tcpcb), (newstate))
 #define TcpState(tcpcb)              ((tcpcb)->state)
-
-#define TCP_DEFAULT_SND_WND 8192
-#define TCP_DEFAULT_WS_MIN  7
 
 #define TCP_OPT_TSTAMP_APPA_VAL \
     UTILS_HTONL(                \
@@ -446,14 +431,19 @@ static inline uint32_t TcpGetRcvSpace(TcpSk_t* tcp)
 
 static inline uint32_t TcpGetSndSpace(TcpSk_t* tcp)
 {
-    uint32_t totBufLen =
-        (uint32_t)TcpSk2Sk(tcp)->sndBuf.bufLen + (uint32_t)tcp->rexmitQue.bufLen + (uint32_t)tcp->sndQue.bufLen;
-
-    if (totBufLen >= TcpSk2Sk(tcp)->sndHiwat) {
+    if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD &&
+        (TcpSk2Sk(tcp)->sndBuf.pktCnt + tcp->rexmitQue.pktCnt + tcp->sndQue.pktCnt >=
+        (uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_SNDBUF_PBUFCNT_MAX))) {
         return 0;
     }
 
-    return TcpSk2Sk(tcp)->sndHiwat - totBufLen;
+    size_t totBufLen = TcpSk2Sk(tcp)->sndBuf.bufLen + tcp->rexmitQue.bufLen + tcp->sndQue.bufLen;
+
+    if (totBufLen >= (size_t)TcpSk2Sk(tcp)->sndHiwat) {
+        return 0;
+    }
+
+    return TcpSk2Sk(tcp)->sndHiwat - (uint32_t)totBufLen;
 }
 
 static inline uint32_t TcpGetRcvWnd(TcpSk_t* tcp)
@@ -505,7 +495,6 @@ static const uint32_t paField[TCP_MAX_STATES] = {
     DP_TCP_PASSIVE_LAST_ACK,
     DP_TCP_PASSIVE_FIN_WAIT_2,
     DP_TCP_PASSIVE_TIME_WAIT,
-    DP_TCP_ABORT,
 };
 
 static const uint32_t acField[TCP_MAX_STATES] = {
@@ -520,7 +509,6 @@ static const uint32_t acField[TCP_MAX_STATES] = {
     DP_TCP_ACTIVE_LAST_ACK,
     DP_TCP_ACTIVE_FIN_WAIT_2,
     DP_TCP_ACTIVE_TIME_WAIT,
-    DP_TCP_ABORT,
 };
 
 static inline void ProcTcpOldState(int wid, uint8_t state, uint8_t type)
@@ -546,17 +534,71 @@ static inline void ProcTcpNewState(int wid, uint8_t state, uint8_t type)
 }
 
 /* 设置TCP连接状态，并更新状态统计 */
-static inline void TcpConnStateStat(TcpSk_t* tcp, uint8_t newState)
+static inline void TcpSetState(TcpSk_t* tcp, uint8_t newState)
 {
     uint8_t oldState = tcp->state;
-    int wid = (tcp->wid != -1) ? tcp->wid : (int)WORKER_GetSelfId();
-
+    int wid = (tcp->wid != -1) ? tcp->wid : WORKER_GetSelfId();
     ASSERT(wid < CFG_GET_VAL(DP_CFG_WORKER_MAX));
+    // 获取的wid异常时在0号统计
+    if (wid < 0) {
+        wid = 0;
+    }
 
     tcp->state = newState;
 
     ProcTcpOldState(wid, oldState, tcp->connType);
     ProcTcpNewState(wid, newState, tcp->connType);
+}
+
+// 标记哪些事件目的是通知用户调用 Close
+static const uint8_t g_eventNeedClose[SOCK_EVENT_MAX] = {
+    [SOCK_EVENT_RCVSYN] = 0,
+    [SOCK_EVENT_ACTIVE_CONNECTFAIL] = 1,
+    [SOCK_EVENT_RCVFIN] = 1,
+    [SOCK_EVENT_RCVRST] = 1,
+    [SOCK_EVENT_DISCONNECTED] = 1,
+    [SOCK_EVENT_WRITE] = 0,
+    [SOCK_EVENT_READ] = 0,
+    [SOCK_EVENT_FREE_SOCKCB] = 0,
+    [SOCK_EVENT_UPDATE_MTU] = 0,
+};
+
+// 标记哪些事件必须在 tsq 处理中通知，让用户在回调中能够安全的调用 Close
+static const uint8_t g_eventNeedTsq[SOCK_EVENT_MAX] = {
+    // 事件会 Close 监听 fd ，监听 fd 有引用计数保护，可以不用在 tsq 中通知
+    [SOCK_EVENT_RCVSYN] = 0,
+    // 以下事件会 Close 连接 fd ，需要在 tsq 中通知
+    [SOCK_EVENT_ACTIVE_CONNECTFAIL] = 1,
+    [SOCK_EVENT_RCVFIN] = 1,
+    [SOCK_EVENT_RCVRST] = 1,
+    [SOCK_EVENT_DISCONNECTED] = 1,
+    [SOCK_EVENT_WRITE] = 1,
+    [SOCK_EVENT_READ] = 1,
+    // FREE 事件中调用 Close 会失败，不需要在 tsq 中通知
+    [SOCK_EVENT_FREE_SOCKCB] = 0,
+    [SOCK_EVENT_UPDATE_MTU] = 0,
+};
+
+static inline int TcpNotifyCheck(uint8_t event, uint8_t tsqNested)
+{
+    // 事件需要在 tsq 处理中通知，但是当前没有在 tsq 处理中
+    if (g_eventNeedTsq[event] == 1 && tsqNested == 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static inline void TcpNotifyEvent(Sock_t* sk, uint8_t event, uint8_t tsqNested)
+{
+    (void)tsqNested;
+    ASSERT(TcpNotifyCheck(event, tsqNested) == 0);
+
+    // 如果此事件目的是要用户调用 Close 释放资源，但是用户已经调用了 Close ，不必再通知此事件
+    if ((g_eventNeedClose[event] == 1) && SOCK_IS_CLOSED(sk)) {
+        return;
+    }
+
+    SOCK_NotifyEvent(sk, event);
 }
 
 #ifdef __cplusplus

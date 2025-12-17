@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include <securec.h>
 
 #include "shm.h"
@@ -26,6 +25,7 @@
 #include "tcp_out.h"
 #include "tcp_timer.h"
 #include "tcp_sock.h"
+#include "tcp_cc.h"
 #include "tcp_tsq.h"
 
 TcpTsq_t** g_tsq;
@@ -82,10 +82,10 @@ static int TcpTsqProcEvSlow(Sock_t* sk, TcpSk_t* tcp, uint32_t* tf)
 
     if ((tsqFlags & TCP_TSQ_DISCONNECT) != 0) {
         if ((tsqFlags & TCP_TSQ_CONNECT) != 0) {
-            TcpCleanUp(tcp);
-            TcpSetState(tcp, TCP_CLOSED);
-            DP_INC_TCP_STAT(tcp->wid, DP_TCP_CLOSED);
-            TcpFreeSk(sk);
+            // TSQ事件中同时存在建链和断链事件，即调用connect后立即close。此时TCP状态为TCP_CLOSED，所以TcpCleanUp不会清理；
+            // 并且TCP已加入connectTbl，需要移除
+            TcpConnectRemove(tcp);
+            TcpDone(tcp);
             return -1;
         }
 
@@ -111,12 +111,13 @@ static int TcpTsqProcEvSlow(Sock_t* sk, TcpSk_t* tcp, uint32_t* tf)
     return 0;
 }
 
-static void TcpTsqProcNolockEv(Sock_t* sk, TcpSk_t* tcp, uint32_t tf)
+// 返回-1情况为内部释放了tcp
+static int TcpTsqProcNolockEv(Sock_t* sk, TcpSk_t* tcp, uint32_t tf)
 {
     uint32_t tsqFlags = tf;
     if ((tsqFlags & TCP_TSQ_EV_SLOW) != 0) {
         if (TcpTsqProcEvSlow(sk, tcp, &tsqFlags) != 0) {
-            return;
+            return -1;
         }
     }
 
@@ -128,69 +129,221 @@ static void TcpTsqProcNolockEv(Sock_t* sk, TcpSk_t* tcp, uint32_t tf)
     }
 
     if (((tsqFlags & TCP_TSQ_SEND) != 0) && (tcp->state != TCP_CLOSED)) {
-        TcpXmitData(tcp, (tsqFlags & TCP_TSQ_SEND_FORCE) != 0 ? 1 : 0);
+        if (TcpXmitData(tcp, (tsqFlags & TCP_TSQ_SEND_FORCE) != 0 ? 1 : 0,
+            (tsqFlags & TCP_TSQ_SEND_RST) != 0 ? 1 : 0) != 0) {
+            return -1;
+        }
     }
 
     if ((tsqFlags & TCP_TSQ_KEEPALIVE_OFF) != 0) {
-        // 只在Established状态下更改保活定时器状态
+        // 只在Established状态、close_wait状态下更改保活定时器状态
         if (TCP_SHOULD_DEACTIVE_KEEP(tcp)) {
             TcpDeactiveKeepTimer(tcp);
         }
     }
 
     if ((tsqFlags & TCP_TSQ_KEEPALIVE_ON) != 0) {
-        // 只在Established状态下更改保活定时器状态
+        // 只在Established状态、close_wait状态下更改保活定时器状态
         if (TCP_SHOULD_ACTIVE_KEEP(tcp)) {
-            TcpActiveKeepTimer(tcp);
+            TcpAdjustKeepTimer(tcp);
         }
     }
+
+    return 0;
+}
+
+static void TcpTsqSetError(Sock_t* sk, uint32_t tsqFlags)
+{
+    if ((tsqFlags & TCP_TSQ_ABORT) != 0) {
+        sk->error = ETIMEDOUT;
+        DP_ADD_ABN_STAT(DP_TIMEOUT_ABORT);
+        return;
+    }
+
+    DP_INC_TCP_STAT(TcpSK(sk)->wid, DP_TCP_CLOSED);
+    switch (TcpState(TcpSK(sk))) {
+        case TCP_SYN_SENT:
+        case TCP_SYN_RECV:
+            sk->error = ECONNREFUSED;
+            DP_ADD_ABN_STAT(DP_SYN_STATE_RCV_RST);
+            break;
+        case TCP_CLOSE_WAIT:
+            // 在收到FIN之后收到RST，表示对端发送的FIN由调用close产生
+            // 对于recv等接口，如果断链会在SOCK_PopRcvBuf返回0，不会在SOCK_Recvmsg中处理sk->error
+            sk->error = EPIPE;
+            DP_ADD_ABN_STAT(DP_CLOSE_WAIT_RCV_RST);
+            break;
+        default:
+            sk->error = ECONNRESET;
+            DP_ADD_ABN_STAT(DP_ABNORMAL_RCV_RST);
+    }
+}
+
+static uint8_t TcpRemoveFromParentListInParentLock(TcpSk_t *tcp, TcpSk_t *parent)
+{
+    bool isNeedFreeParent = false;
+    SOCK_LockOptional(TcpSk2Sk(parent));
+    if (SOCK_Deref(TcpSk2Sk(parent)) == 0) {        // 主动close parent时，减少ref，此时已经子socket均被accpet
+        isNeedFreeParent = true;
+    }
+    /* DP_Accept处理时，可能将tcp->parent置为NULL, 且此时已经从建链完成列表中移除，仅需要设置状态，不需要继续处理 */
+    if (tcp->parent == NULL) {
+        SOCK_UnLockOptional(TcpSk2Sk(parent));
+        TcpSetState(tcp, TCP_CLOSED);
+        if (isNeedFreeParent) {
+            TcpFreeSk(TcpSk2Sk(parent));
+        }
+        return 1;
+    }
+    if (tcp->state >= TCP_ESTABLISHED) {
+        LIST_REMOVE(&parent->complete, tcp, childNode);
+    } else {
+        LIST_REMOVE(&parent->uncomplete, tcp, childNode);
+    }
+    TcpSK(parent)->childCnt--;
+    if (SOCK_Deref(TcpSk2Sk(parent)) == 0) {
+        SOCK_UnLockOptional(TcpSk2Sk(parent));
+        TcpFreeSk(TcpSk2Sk(parent));
+        return 0;
+    }
+    SOCK_UnLockOptional(TcpSk2Sk(parent));
+    return 0;
+}
+
+static void TcpTsqProcException(Sock_t* sk, uint32_t tsqFlags)
+{
+    TcpSk_t* tcp = TcpSK(sk);
+
+    TcpTsqSetError(sk, tsqFlags);
+
+    SOCK_CLR_RECV_MORE(sk);
+    SOCK_CLR_SEND_MORE(sk);
+    SOCK_SET_CONN_REFUSED(sk);
+
+    SOCK_WakeupRdSem(sk);
+    SOCK_WakeupWrSem(sk);
+    SOCK_SetState(sk,
+        SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_EXCEPTION | SOCK_STATE_CANTRCVMORE | SOCK_STATE_CANTSENDMORE |
+        SOCK_STATE_READ_ET | SOCK_STATE_WRITE_ET);
+
+    if (TcpState(tcp) >= TCP_ESTABLISHED && tcp->parent == NULL) {
+        if ((tsqFlags & TCP_TSQ_RECV_RST) != 0) {
+            TcpNotifyEvent(sk, SOCK_EVENT_RCVRST, tcp->tsqNested);
+        } else {
+            TcpNotifyEvent(sk, SOCK_EVENT_DISCONNECTED, tcp->tsqNested);
+        }
+    } else if (TcpState(tcp) == TCP_SYN_SENT) {
+        TcpNotifyEvent(sk, SOCK_EVENT_ACTIVE_CONNECTFAIL, tcp->tsqNested);
+    } else if (TcpState(tcp) == TCP_SYN_RECV) {
+        if (tcp->parent == NULL) {
+            // 同时建链异常，需要通知主动建链失败，调用 Close 关闭 fd
+            TcpNotifyEvent(sk, SOCK_EVENT_ACTIVE_CONNECTFAIL, tcp->tsqNested);
+        }
+    }
+    TCP_SET_TSQ_EXCEPT(tcp);
+    if (SOCK_IS_CLOSED(sk)) {
+        SOCK_UnLockOptional(sk);
+        TcpDone(tcp);
+        return;
+    } else if (tcp->parent != NULL) {
+        /* sk解锁之后这里parent可能为NULL，所以需要在加锁前先获取parent指针 */
+        TcpSk_t* parent = tcp->parent;
+        SOCK_Ref(TcpSk2Sk(parent));
+        SOCK_UnLockOptional(sk);       // DP_ACCEPT(锁内设置parent = NULL)
+        if (TcpRemoveFromParentListInParentLock(tcp, parent) != 0) {
+            return;
+        }
+        TcpSetState(tcp, TCP_CLOSED);
+        TcpFreeSk(TcpSk2Sk(tcp));
+        return;
+    }
+
+    SOCK_UnLockOptional(sk);
+    TcpSetState(tcp, TCP_CLOSED);
+}
+
+static void TcpTsqProcRecvFin(Sock_t* sk, uint32_t* tsqFlags)
+{
+    SOCK_CLR_RECV_MORE(sk);
+    SOCK_WakeupRdSem(sk);
+    SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_CANTRCVMORE | SOCK_STATE_READ_ET |
+        SOCK_STATE_WRITE_ET);
+
+    if (TcpSK(sk)->parent != NULL) {
+        return;
+    }
+
+    // 如果 FIN 报文带数据，需要先处理 TCP_TSQ_RECV_DATA 事件
+    if ((*tsqFlags & TCP_TSQ_RECV_DATA) != 0) {
+        TcpNotifyEvent(sk, SOCK_EVENT_READ, TcpSK(sk)->tsqNested);
+
+        // 收到 FIN 会通知可读，唤醒读阻塞，后续不需要再处理 TCP_TSQ_RECV_DATA 事件
+        *tsqFlags &= (~TCP_TSQ_RECV_DATA);
+    }
+
+    if (TcpState(TcpSK(sk)) == TCP_CLOSE_WAIT) {
+        TcpNotifyEvent(sk, SOCK_EVENT_RCVFIN, TcpSK(sk)->tsqNested);
+    }
+}
+
+static void TcpTsqProcCCMod(Sock_t* sk)
+{
+    TcpSk_t* tcp = TcpSK(sk);
+
+    // 拥塞算法未初始化时可以直接修改拥塞算法
+    if (tcp->caIsInited == 0) {
+        tcp->caMeth = TcpCaGet(tcp->nextCaMethId);
+        tcp->nextCaMethId = -1;
+        return;
+    }
+    /* 清理旧的拥塞控制算法 */
+    if (tcp->caMeth != NULL) {
+        TcpCaDeinit(tcp);
+    }
+
+    tcp->caMeth = TcpCaGet(tcp->nextCaMethId);
+    tcp->nextCaMethId = -1;
+
+    /* 部分拥塞控制算法不需要Init方法，此处仅当其存在时则调用 */
+    TcpCaInit(tcp);
 }
 
 static int TcpTsqProcSkEv(Sock_t* sk, uint32_t tsqFlags)
 {
-    if ((tsqFlags & TCP_TSQ_RECV_FIN) != 0) {
-        SOCK_CLR_RECV_MORE(sk);
-        SOCK_WakeupRdSem(sk);
-        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_CANTRCVMORE);
-    }
+    uint32_t tempFlags = tsqFlags;
 
-    if ((tsqFlags & TCP_TSQ_ABORT) != 0) {
-        TcpXmitRstAckPkt(TcpSK(sk));
-    }
-
-    if ((tsqFlags & TCP_TSQ_RECV_UNEXPECT) != 0) {
-        SOCK_CLR_RECV_MORE(sk);
-        SOCK_CLR_SEND_MORE(sk);
-        SOCK_SET_CONN_REFUSED(sk);
-
-        SOCK_WakeupRdSem(sk);
-        SOCK_WakeupWrSem(sk);
-        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_EXCEPTION |
-                      SOCK_STATE_CANTRCVMORE | SOCK_STATE_CANTSENDMORE);
-        TcpSk_t *tcp = TcpSK(sk);
-        TcpCleanUp(tcp);
-        // 用户调用close同时也接收了RST报文，这时可以直接释放
-        if (SOCK_IS_CLOSED(sk) || tcp->parent != NULL) {
-            if (tcp->parent != NULL) {
-                TcpRemoveFromParentList(tcp);
-            }
-            SOCK_Unlock(sk);
-            TcpFreeSk(sk);
-            return -1;
-        }
-        TcpSetState(tcp, TCP_CLOSED);
-        // 无论是收到RST报文或者是定时器超时这两种情况下都无需继续去处理剩下的事件
-        SOCK_Unlock(sk);
+    if ((tempFlags & TCP_TSQ_EXCEPTION) != 0) {
+        // 处理异常事件后不需要再处理其它事件
+        TcpTsqProcException(sk, tsqFlags);
         return -1;
     }
 
-    if ((tsqFlags & TCP_TSQ_CONNECTED) != 0) {
+    if ((tempFlags & TCP_TSQ_CC_MOD) != 0) {
+        TcpTsqProcCCMod(sk);
+    }
+
+    if ((tempFlags & TCP_TSQ_CONNECTED) != 0) {
         SOCK_SET_RECV_MORE(sk);
         SOCK_SET_SEND_MORE(sk);
         SOCK_SET_CONNECTED(sk);
 
         SOCK_WakeupWrSem(sk);
-        SOCK_SetState(sk, SOCK_STATE_WRITE);
+        SOCK_SetState(sk, SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET);
+        TcpNotifyEvent(sk, SOCK_EVENT_WRITE, TcpSK(sk)->tsqNested);
+    }
+
+    if ((tempFlags & TCP_TSQ_RECV_FIN) != 0) {
+        TcpTsqProcRecvFin(sk, &tempFlags);
+    }
+
+    if ((tempFlags & TCP_TSQ_RECV_DATA) != 0) {
+        if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
+            SOCK_WakeupRdSem(sk);
+            SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
+            if (TcpSK(sk)->parent == NULL) {
+                TcpNotifyEvent(sk, SOCK_EVENT_READ, TcpSK(sk)->tsqNested);
+            }
+        }
     }
 
     return 0;
@@ -198,8 +351,8 @@ static int TcpTsqProcSkEv(Sock_t* sk, uint32_t tsqFlags)
 
 static bool TcpIsSndQueNeedConcat(Sock_t* sk)
 {
-    if (sk->sndBuf.bufLen <= 0) {
-        return false;
+    if (TcpSK(sk)->force == 1) {
+        return true;
     }
 
     /* 当可发送窗口比tcp发送队列长度还小时，不迁移pbuf，等用户下一次发送数据或者收到对端确认数据后再迁移。
@@ -219,15 +372,17 @@ static bool TcpIsSndQueNeedConcat(Sock_t* sk)
 
 static int TcpProcSkEv(Sock_t* sk, uint32_t tsqFlags)
 {
-    if (TcpIsSndQueNeedConcat(sk)) {
-        PBUF_ChainConcat(&TcpSK(sk)->sndQue, &sk->sndBuf);
-
+    if (sk->sndBuf.bufLen > 0) {
+        // 如果sndBuf有数据，则代表可能会把水位填满，需要去除SOCK_STATE_WRITE
         if (TcpGetSndSpace(TcpSK(sk)) < sk->sndLowat) {
             SOCK_UnsetState(sk, SOCK_STATE_WRITE);
         }
+        if (TcpIsSndQueNeedConcat(sk)) {
+            PBUF_ChainConcat(&TcpSK(sk)->sndQue, &sk->sndBuf);
+        }
     }
 
-    if (TcpSK(sk)->rcvQue.bufLen > 0 && SOCK_CAN_RECV_MORE(sk)) {
+    if (TcpSK(sk)->rcvQue.bufLen > 0) {
         DP_ADD_PKT_STAT(TcpSK(sk)->wid, DP_PKT_RECV_BUF_IN, TcpSK(sk)->rcvQue.pktCnt);
         PBUF_ChainConcat(&sk->rcvBuf, &TcpSK(sk)->rcvQue);
     }
@@ -238,21 +393,18 @@ static int TcpProcSkEv(Sock_t* sk, uint32_t tsqFlags)
         }
     }
 
-    if ((tsqFlags & TCP_TSQ_RECV) != 0) {
-        SOCK_UpdateRcvState(sk);
-    }
-
     if ((tsqFlags & TCP_TSQ_SET_WRITABLE) != 0) {
         if ((sk->state & SOCK_STATE_WRITE) == 0) {
-            SOCK_SetState(sk, SOCK_STATE_WRITE);
+            SOCK_SetState(sk, SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET);
             SOCK_WakeupWrSem(sk);    // 通知用户可写
+            TcpNotifyEvent(sk, SOCK_EVENT_WRITE, TcpSK(sk)->tsqNested);
         }
     }
 
     return 0;
 }
 
-static void TcpProcTsqLockQue(TcpTsq_t* tsq)
+void TcpTsqProcLockQue(TcpTsq_t* tsq)
 {
     TcpSk_t*      tcp;
     TcpSk_t*      next;
@@ -265,18 +417,18 @@ static void TcpProcTsqLockQue(TcpTsq_t* tsq)
 
     LIST_INIT_HEAD(&tempHead);
 
-    if (SPINLOCK_TryLock(&tsq->lock) != 0) {
+    if (TcpTsqTryLock(&tsq->lock) != 0) {
         return;
     }
 
     LIST_CONCAT(&tempHead, &tsq->tsqLockQue, txEvNode);
-    SPINLOCK_Unlock(&tsq->lock);
+    TcpTsqUnLock(&tsq->lock);
 
     for (tcp = LIST_FIRST(&tempHead); tcp != NULL; tcp = next) {
         Sock_t*  sk = TcpSk2Sk(tcp);
         uint32_t tsqFlags;
 
-        SOCK_Lock(sk);
+        SOCK_LockOptional(sk);
 
         ASSERT(SOCK_IS_CLOSED(sk) || SOCK_IS_CONN_REFUSED(sk) ||
             SOCK_IS_CONNECTING(sk) || SOCK_IS_CONNECTED(sk));
@@ -289,6 +441,7 @@ static void TcpProcTsqLockQue(TcpTsq_t* tsq)
             LIST_REMOVE(&tsq->tsqQue, tcp, rxEvNode);
         }
 
+        tcp->tsqNested++;
         tsqFlags |= tcp->tsqFlagsLock; // 这个字段必须在锁内访问
         tcp->tsqFlagsLock = 0;
 
@@ -299,9 +452,14 @@ static void TcpProcTsqLockQue(TcpTsq_t* tsq)
             }
         }
 
-        SOCK_Unlock(sk);
+        SOCK_UnLockOptional(sk);
 
-        TcpTsqProcNolockEv(sk, tcp, tsqFlags);
+        if (TcpTsqProcNolockEv(sk, tcp, tsqFlags) != 0) {
+            continue;
+        }
+
+        // 此标识仅在共线程调度模式下被访问，无需加锁
+        tcp->tsqNested--;
     }
 }
 
@@ -317,28 +475,33 @@ static void TcpProcTsqQue(TcpTsq_t* tsq)
         tsqFlags      = tcp->tsqFlags;
         tcp->tsqFlags = 0;
 
+        // 此标识仅在共线程调度模式下被访问，无需加锁
+        tcp->tsqNested++;
         if ((tsqFlags & TCP_TSQ_IN_SKLOCK) != 0) {
-            SOCK_Lock(TcpSk2Sk(tcp));
+            SOCK_LockOptional(TcpSk2Sk(tcp));
             if (TcpProcSkEv(TcpSk2Sk(tcp), tsqFlags) != 0) {
                 // 该场景下在内部完成解锁，释放sk，此处接着处理下个事件
                 continue;
             }
-            SOCK_Unlock(TcpSk2Sk(tcp));
+            SOCK_UnLockOptional(TcpSk2Sk(tcp));
         }
 
-        TcpTsqProcNolockEv(TcpSk2Sk(tcp), tcp, tsqFlags);
+        if (TcpTsqProcNolockEv(TcpSk2Sk(tcp), tcp, tsqFlags) != 0) {
+            continue;
+        }
+
+        tcp->tsqNested--;
     }
 
     LIST_INIT_HEAD(&tsq->tsqQue);
 }
 
-void TcpTsqInetInsertBacklog(int wid, Pbuf_t *pbuf)
+void TcpTsqInsertBacklog(int wid, Pbuf_t *pbuf)
 {
     TcpTsq_t* tsq = g_tsq[wid];
-    SPINLOCK_Lock(&tsq->backLogLock);
-    PBUF_REF(pbuf);
+    TcpTsqLock(&tsq->backLogLock);
     PBUF_ChainPush(&tsq->backlog, pbuf);
-    SPINLOCK_Unlock(&tsq->backLogLock);
+    TcpTsqUnLock(&tsq->backLogLock);
 }
 
 static void TcpProcBackLog(TcpTsq_t *tsq, int wid)
@@ -348,27 +511,39 @@ static void TcpProcBackLog(TcpTsq_t *tsq, int wid)
     }
     PBUF_Chain_t temp;
     PBUF_ChainInit(&temp);
-    SPINLOCK_Lock(&tsq->backLogLock);
+    TcpTsqLock(&tsq->backLogLock);
     PBUF_ChainConcat(&temp, &tsq->backlog);
-    SPINLOCK_Unlock(&tsq->backLogLock);
+    TcpTsqUnLock(&tsq->backLogLock);
 
     while (!PBUF_CHAIN_IS_EMPTY(&temp)) {
         Pbuf_t *pbuf = PBUF_CHAIN_POP(&temp);
-        PBUF_SET_WID(pbuf, (uint8_t)wid);
+        DP_PBUF_SET_WID(pbuf, (uint8_t)wid);
         PBUF_SET_QUE_ID(pbuf, 0);
         PMGR_Dispatch(pbuf);
     }
 }
 
-static void TcpProcTsq(int wid)
+static inline void TcpProcTsqPassive(TcpTsq_t* tsq, int wid)
+{
+    DP_CLEAR_TCP_STATE(wid, DP_TCP_ONCE_DRIVE_PASSIVE_TSQ);
+    while (tsq->tsqLockQue.first != NULL || tsq->tsqQue.first != NULL) {
+        TcpTsqProcLockQue(tsq);
+        TcpProcTsqQue(tsq);
+        DP_INC_TCP_STAT(wid, DP_TCP_ONCE_DRIVE_PASSIVE_TSQ);
+    }
+}
+
+void TcpProcTsq(int wid)
 {
     TcpTsq_t* tsq = g_tsq[wid];
 
-    TcpProcBackLog(tsq, wid);
-
-    TcpProcTsqLockQue(tsq);
-
-    TcpProcTsqQue(tsq);
+    if (CFG_GET_TCP_VAL(CFG_TCP_TSQ_PASSIVE) == DP_ENABLE) {
+        TcpProcTsqPassive(tsq, wid);
+    } else {
+        TcpProcBackLog(tsq, wid);
+        TcpTsqProcLockQue(tsq);
+        TcpProcTsqQue(tsq);
+    }
 }
 
 static WORKER_Work_t g_tsqEntry = {
@@ -450,13 +625,13 @@ void TcpTsqTryRemoveLockQue(TcpSk_t* tcp)
         return;
     }
     TcpTsq_t* tsq = g_tsq[tcp->wid];
-    SPINLOCK_Lock(&tsq->lock);
+    TcpTsqLock(&tsq->lock);
     if (LIST_REMOVE_CHECK(&tsq->tsqLockQue, tcp, txEvNode) != 0) {
-        SPINLOCK_Unlock(&tsq->lock);
+        TcpTsqUnLock(&tsq->lock);
         return;
     }
     LIST_REMOVE(&tsq->tsqLockQue, tcp, txEvNode);
-    SPINLOCK_Unlock(&tsq->lock);
+    TcpTsqUnLock(&tsq->lock);
 }
 
 void TcpTsqTryRemoveNoLockQue(TcpSk_t* tcp)

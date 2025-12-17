@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #include "ip.h"
 
 #include <securec.h>
@@ -26,12 +25,16 @@
 #include "utils_statistic.h"
 #include "utils_log.h"
 
+#include "shm.h"
 #include "pbuf.h"
 #include "tbm.h"
 #include "netdev.h"
 #include "pmgr.h"
+#ifdef DPFWK_NF
+#include "nf.h"
+#endif
 
-#define IP_RSV_HEADROOM (64)
+IpId_t* g_ipIdTbl;
 
 static inline uint8_t GetDstEntry(uint8_t hdrType)
 {
@@ -62,6 +65,14 @@ static inline uint16_t IpVerifyCksum(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr, uint8_t hd
     return UTILS_CksumSwap(cksum);
 }
 
+// icmp报文校验和不需要伪首部（icmpv6需要伪首部）
+static int IpIcmpVerifyCksum(Pbuf_t* pbuf)
+{
+    uint32_t cksum = PBUF_CalcCksumAcc(pbuf);
+
+    return UTILS_CksumSwap(cksum);
+}
+
 static inline int IsMcAddr(DP_InAddr_t addr)
 {
     return (addr & UTILS_HTONL(0xf0000000)) == UTILS_HTONL(0xe0000000);
@@ -88,8 +99,6 @@ static int IpPreCheckProc(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
 {
     uint16_t        firstLen = PBUF_GET_SEG_LEN(pbuf);
     uint16_t        pktLen   = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
-    uint16_t        dataLen;
-    uint16_t        hdrLen;
 
     // 不支持首部分片
     if (firstLen < sizeof(DP_IpHdr_t)) {
@@ -102,13 +111,13 @@ static int IpPreCheckProc(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
         return -1;
     }
 
-    hdrLen = DP_GET_IP_HDR_LEN(ipHdr);
+    uint16_t hdrLen = DP_GET_IP_HDR_LEN(ipHdr);
     if (hdrLen > firstLen || hdrLen < sizeof(DP_IpHdr_t) || pktLen == hdrLen) {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_BAD_HEAD_LEN);
         return -1;
     }
 
-    dataLen = UTILS_NTOHS(ipHdr->totlen);
+    uint16_t dataLen = UTILS_NTOHS(ipHdr->totlen);
     // 不支持处理纯IP报文
     if (dataLen <= hdrLen || dataLen > pktLen) {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_BAD_LEN);
@@ -123,10 +132,22 @@ static int IpPreCheckProc(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
     }
 
     if (dataLen < pktLen) {
-        PBUF_CutTailData(pbuf, pktLen - dataLen);
+        PBUF_CutTailData(pbuf, (uint16_t)(pktLen - dataLen));
     }
 
     if (CheckPeerAddr(ipHdr->src) != 0) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_CHECK_ADDR_FAIL);
+        return -1;
+    }
+
+    /* 如果偏移量为全1,即:0x1fff,则应为最后一个分片,即MF标志位不应被设置,如果MF被设置,为错误报文 */
+    /* 注意:
+     *  1. 偏移量为0x1fff肯定是最后一个分片,因为这是最大的偏移量
+     *  2. 最后一个分片的偏移量不一定是0x1fff
+     */
+    uint16_t curOffset = UTILS_NTOHS(ipHdr->off);
+    if (!DP_IS_LAST_FRAG(curOffset) && ((uint16_t)(curOffset << 0x3) == 0xfff8)) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_IP_BAD_OFFSET);
         return -1;
     }
 
@@ -139,9 +160,9 @@ static int IpPreCheckProc(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
      *   1. DF = 0, 而 offset + 报文长度 > 65535
      * 即，主机可以接收 DF = 1 的分片报文
      */
-    uint16_t curOffset = UTILS_NTOHS(ipHdr->off);
     curOffset          = DP_IP_FRAG_OFFSET(curOffset);
     if ((uint32_t)curOffset + (uint32_t)dataLen > 65535) { // offset + 报文长度 > 65535 则认为是非法报文，需要丢弃
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_IP_LEN_OVER_LIMIT);
         return -1;
     }
 
@@ -165,8 +186,12 @@ void IpFillHdr(Pbuf_t* pbuf, const INET_FlowInfo_t* flow)
     ipHdr->version = DP_IP_VERSION_IPV4;
     ipHdr->tos     = flow->tos;
     ipHdr->totlen  = UTILS_HTONS(len);
-    ipHdr->ipid    = IpGetId();
-    ipHdr->off     = UTILS_HTONS(DP_IP_FRAG_DF);
+    if (flow->protocol == DP_IPPROTO_TCP) {
+        ipHdr->ipid = IpGetId(DP_PBUF_GET_WID(pbuf));
+    } else {
+        ipHdr->ipid = IpGetGlobalId();
+    }
+    ipHdr->off     = 0;
     ipHdr->ttl     = flow->ttl;
     ipHdr->type    = flow->protocol;
     ipHdr->chksum  = 0;
@@ -184,13 +209,13 @@ static Pbuf_t* TryReplyIcmpEcho(Pbuf_t* pbuf, DP_IpHdr_t* ip)
 
     PBUF_CUT_HEAD(pbuf, sizeof(DP_IcmpHdr_t));
 
-    ret = PBUF_Alloc(IP_RSV_HEADROOM + sizeof(DP_IcmpHdr_t), (uint16_t)PBUF_GET_PKT_LEN(pbuf));
+    ret = PBUF_BuildFromPbuf(pbuf, (uint16_t)PBUF_GET_PKT_LEN(pbuf), IP_RSV_HEADROOM + sizeof(DP_IcmpHdr_t));
     if (ret == NULL) {
+        PBUF_Free(pbuf);
         return ret;
     }
 
-    PBUF_Append(ret, PBUF_MTOD(pbuf, uint8_t*), (uint16_t)PBUF_GET_PKT_LEN(pbuf));
-    cksum = PBUF_CalcCksum(pbuf);
+    cksum = PBUF_CalcCksumAcc(pbuf);
 
     PBUF_PUT_HEAD(ret, sizeof(DP_IcmpHdr_t));
     dst = PBUF_MTOD(ret, DP_IcmpHdr_t*);
@@ -205,12 +230,15 @@ static Pbuf_t* TryReplyIcmpEcho(Pbuf_t* pbuf, DP_IpHdr_t* ip)
     dst->cksum = UTILS_CksumSwap(cksum);
 
     PBUF_SET_QUE_ID(ret, NETDEV_GetTxQueid(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf)));
-    PBUF_SET_WID(ret, PBUF_GET_WID(pbuf));
+    DP_PBUF_SET_WID(ret, DP_PBUF_GET_WID(pbuf));
     PBUF_SET_PKT_FLAGS(ret, 0);
     PBUF_SET_ENTRY(ret, PMGR_ENTRY_ROUTE_OUT);
+    PBUF_SET_FLOW(ret, NULL);
     PBUF_SET_L4_TYPE(ret, DP_IPPROTO_ICMP);
     PBUF_SET_DEV(ret, PBUF_GET_DEV(pbuf));
-    PBUF_SET_DST_ADDR(ret, ip->src);
+    DP_PBUF_SET_VPNID(ret, DP_PBUF_GET_VPNID(pbuf));
+    PBUF_SET_DST_ADDR4(ret, ip->src);
+    INET_TX_CB(ret)->src = ip->dst;
 
     PBUF_Free(pbuf);
     return ret;
@@ -221,39 +249,68 @@ static Pbuf_t* IpProcIcmpUnreach(Pbuf_t* pbuf, DP_IcmpHdr_t* icmp)
     DP_IpHdr_t* srcIpHdr;
 
     if (icmp->code != DP_ICMP_PORT_UNREACH) { // 仅处理端口不可达消息
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_NOT_PORT_UNREACH);
         PBUF_Free(pbuf);
         return NULL;
     }
 
     if (PBUF_GET_SEG_LEN(pbuf) <= sizeof(DP_IcmpHdr_t) + sizeof(DP_IpHdr_t)) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_UNREACH_TOO_SHORT);
         PBUF_Free(pbuf);
         return NULL;
     }
 
     PBUF_CUT_HEAD(pbuf, sizeof(DP_IcmpHdr_t));
+    /* 设置三层偏移，方便udp处理中获取信息
+     * | IP首部 | ICMP首部 | IP首部 | UDP首部 | 数据... |
+     *                   | 原始报文开始
+     */
+    PBUF_SET_L3_OFF(pbuf);
     srcIpHdr = PBUF_MTOD(pbuf, DP_IpHdr_t*);
 
     if (srcIpHdr->type != DP_IPPROTO_UDP) { // 仅支持UDP的端口不可达消息
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_UNREACH_TYPE_ERR);
         PBUF_Free(pbuf);
         return NULL;
     }
 
-    PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_UDP_ERR_IN);
+    if (PBUF_GET_SEG_LEN(pbuf) <= DP_GET_IP_HDR_LEN(srcIpHdr)) {    // 补充IP携带选项场景的长度判断
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_UNREACH_TOO_SHORT);
+        PBUF_Free(pbuf);
+        return NULL;
+    }
 
-    return pbuf;
+    PBUF_CUT_HEAD(pbuf, DP_GET_IP_HDR_LEN(srcIpHdr));
+
+    int ret = g_icmpErrMsg.icmpUnreach(pbuf);
+    if (ret != 0) {
+        DP_LOG_DBG("IP icmpUnreach failed.");
+    }
+
+    PBUF_Free(pbuf);
+    return NULL;
 }
 
 static Pbuf_t* IpTryProcIcmp(Pbuf_t* pbuf, DP_IpHdr_t* ip)
 {
+    NetdevQue_t* rxQue = NETDEV_GetRxQue(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf));
     // 长度不满足条件直接丢弃
-    if (PBUF_GET_SEG_LEN(pbuf) < sizeof(DP_IcmpHdr_t*)) {
+    if (PBUF_GET_SEG_LEN(pbuf) < sizeof(DP_IcmpHdr_t)) {
+        NET_DEV_ADD_RX_ERRS(rxQue, 1);
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_PKT_LEN_SHORT);
         PBUF_Free(pbuf);
         return NULL;
     }
 
-    DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_ERR_IN);
-    DP_IcmpHdr_t* icmp = PBUF_MTOD(pbuf, DP_IcmpHdr_t*);
+    if (IpIcmpVerifyCksum(pbuf) != 0) {
+        NET_DEV_ADD_RX_ERRS(rxQue, 1);
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_PKT_BAD_SUM);
+        PBUF_Free(pbuf);
+        return NULL;
+    }
 
+    DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_IN);
+    DP_IcmpHdr_t* icmp = PBUF_MTOD(pbuf, DP_IcmpHdr_t*);
     if (icmp->type == DP_ICMP_TYPE_ECHO) {
         return TryReplyIcmpEcho(pbuf, ip);
     }
@@ -263,31 +320,36 @@ static Pbuf_t* IpTryProcIcmp(Pbuf_t* pbuf, DP_IpHdr_t* ip)
     }
 
     PBUF_PUT_HEAD(pbuf, DP_GET_IP_HDR_LEN(ip));
-    DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_OUT);
+    DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_FORWARD);
     PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_ICMP_IN);
     return pbuf;
 }
 
-#define IP_POLICY_DROP (-1)
-#define IP_POLICY_HOST (0)
-#define IP_POLICY_FWD  (1)
-
 static int PreProcIpAddr(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
 {
-    const Netdev_t*     dev = PBUF_GET_DEV(pbuf);
-    NETDEV_IfAddr_t*    ifaddr;
+    NETDEV_IfAddr_t* ifaddr;
+    const Netdev_t*  dev = PBUF_GET_DEV(pbuf);
+    NetdevQue_t*     rxQue = NETDEV_GetRxQue(dev, PBUF_GET_QUE_ID(pbuf));
 
     if (IpPreCheckProc(pbuf, ipHdr) != 0) {
+        NET_DEV_ADD_RX_ERRS(rxQue, 1);
         return IP_POLICY_DROP;
     }
-
+#ifdef DPFWK_NF
+    if (NF_PreRouting(pbuf, DP_PF_INET) != NF_ACCEPT) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NF_PREROUTING_DROP);
+        return IP_POLICY_DROP;
+    }
+#endif
     if (PBUF_GET_PKT_TYPE(pbuf) == PBUF_PKTTYPE_BROADCAST) { // 二层广播报文
         if (ipHdr->dst == DP_INADDR_BROADCAST) {
             DP_INC_PKT_STAT(pbuf->wid, DP_PKT_IP_BCAST_DELIVER);
+            NET_DEV_ADD_RX_MULT(rxQue, 1);
             return IP_POLICY_HOST;
         }
         ifaddr = NETDEV_GetBroadcastIfaddr(dev, ipHdr->dst);
         if (ifaddr != NULL) {
+            NET_DEV_ADD_RX_MULT(rxQue, 1);
             return IP_POLICY_HOST;
         }
     } else {
@@ -297,8 +359,24 @@ static int PreProcIpAddr(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
         }
     }
 
+    if (dev->devType == DP_NETDEV_TYPE_VI) {
+        return IP_POLICY_HOST;
+    }
+
+    DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_DEV_TYPE_NOT_MATCH);
     // 不支持转发，直接 DROP
     return IP_POLICY_DROP;
+}
+
+static int IsBroadcastAddress(uint32_t ipAddr, NETDEV_IfAddr_t* broadIfAddr)
+{
+    // 有限广播地址(255.255.255.255)
+    if (ipAddr == DP_INADDR_BROADCAST) {
+        return 1;
+    }
+
+    // netdev设置子网掩码后，也能丢弃子网定向广播地址(子网号.全1)
+    return (broadIfAddr != NULL);
 }
 
 static Pbuf_t* IpInput(Pbuf_t* pbuf)
@@ -313,7 +391,7 @@ static Pbuf_t* IpInput(Pbuf_t* pbuf)
     uint8_t hdrLen = DP_GET_IP_HDR_LEN(ipHdr);
 
     PBUF_SET_ENTRY(pbuf, GetDstEntry(ipHdr->type));
-    PBUF_SET_DST_ADDR(pbuf, ipHdr->src);
+    PBUF_SET_DST_ADDR4(pbuf, ipHdr->src);
     PBUF_SET_L3_TYPE(pbuf, DP_ETH_P_IP);
     PBUF_SET_L3_OFF(pbuf);
 
@@ -330,10 +408,24 @@ static Pbuf_t* IpInput(Pbuf_t* pbuf)
     } else {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NON_FRAG_DELIVER);
     }
+#ifdef DPFWK_NF
+    if (NF_LocalIn(pbuf, DP_PF_INET) != NF_ACCEPT) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NF_LOCALIN_DROP);
+        goto drop;
+    }
+#endif
+
+    CallRawInput(pbuf, ipHdr);
 
     PBUF_CUT_HEAD(pbuf, hdrLen);
 
-    if (ipHdr->type == DP_IPPROTO_ICMP) {
+    if (ipHdr->type == DP_IPHDR_TYPE_ICMP) {
+        /* 目的地址广播ICMP或子网广播ICMP会被丢弃 */
+        NETDEV_IfAddr_t* broadIfAddr = NETDEV_GetBroadcastIfaddr((Netdev_t*)PBUF_GET_DEV(pbuf), ipHdr->dst);
+        if (IsBroadcastAddress(ipHdr->dst, broadIfAddr)) {
+            DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ICMP_ADDR_NOT_MATCH);
+            goto drop;
+        }
         return IpTryProcIcmp(pbuf, ipHdr);
     }
 
@@ -343,6 +435,17 @@ drop:
     PBUF_Free(pbuf);
 
     return NULL;
+}
+
+static void IpFragSetPbuf(Pbuf_t *cur, Pbuf_t *pbuf, uint8_t hdrLen)
+{
+    PBUF_PUT_HEAD(cur, hdrLen);
+    PBUF_SET_DST_ADDR4(cur, PBUF_GET_DST_ADDR4(pbuf));
+    PBUF_SET_FLOW(cur, PBUF_GET_FLOW(pbuf));
+    PBUF_SET_DEV(cur, PBUF_GET_DEV(pbuf));
+    PBUF_SET_ND(cur, PBUF_GET_ND(pbuf));
+    PBUF_SET_L3_TYPE(cur, DP_ETH_P_IP);
+    PBUF_SET_L3_OFF(cur);
 }
 
 static void IpFragOutput(Pbuf_t* pbuf, uint16_t mtu)
@@ -390,16 +493,17 @@ static void IpFragOutput(Pbuf_t* pbuf, uint16_t mtu)
         fragHdr->chksum = 0;
         fragHdr->chksum = IpCalcCksum(pbuf, PBUF_GET_DEV(pbuf), fragHdr, hdrLen);
 
-        PBUF_PUT_HEAD(cur, hdrLen);
-        PBUF_SET_DST_ADDR(cur, PBUF_GET_DST_ADDR(pbuf));
-        PBUF_SET_ENTRY(cur, PMGR_ENTRY_ND_OUT);
-        PBUF_SET_FLOW(cur, PBUF_GET_FLOW(pbuf));
-        PBUF_SET_DEV(cur, PBUF_GET_DEV(pbuf));
-        PBUF_SET_L3_TYPE(cur, UTILS_HTONS(DP_ETH_P_IP));
-        PBUF_SET_L3_OFF(cur);
+        IpFragSetPbuf(cur, pbuf, hdrLen);
 
         DP_INC_PKT_STAT(cur->wid, DP_PKT_FRAG_OUT);
-        PMGR_Dispatch(cur);
+
+        Netdev_t *dev = (Netdev_t *)PBUF_GET_DEV(pbuf);
+        if (dev->dstEntry == PMGR_ENTRY_BUTT) { // 三层设备
+            NETDEV_XmitPbuf(cur);
+        } else {
+            PBUF_SET_ENTRY(cur, PMGR_ENTRY_ND_OUT);
+            PMGR_Dispatch(cur);
+        }
 
         offset += dataLen;
         cur = nxt;
@@ -415,8 +519,14 @@ static Pbuf_t* IpOutput(Pbuf_t* pbuf)
     DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_OUT);
     Netdev_t* dev = (Netdev_t*)PBUF_GET_DEV(pbuf);
 
-    PBUF_SET_L3_TYPE(pbuf, UTILS_HTONS(DP_ETH_P_IP));
-
+    PBUF_SET_L3_TYPE(pbuf, DP_ETH_P_IP);
+#ifdef DPFWK_NF
+    if (NF_PostRouting(pbuf, DP_PF_INET) != NF_ACCEPT) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NF_POSTROUTING_DROP);
+        PBUF_Free(pbuf);
+        return NULL;
+    }
+#endif
     if (PBUF_GET_PKT_TYPE(pbuf) == PBUF_PKTTYPE_LOCAL) { // 本机报文
         return pbuf;
     }
@@ -428,12 +538,13 @@ static Pbuf_t* IpOutput(Pbuf_t* pbuf)
         return NULL;
     }
 
+    PBUF_SET_L3_OFF(pbuf);
+
     if (dev->dstEntry == PMGR_ENTRY_BUTT) { // 三层设备
         NETDEV_XmitPbuf(pbuf);
         return NULL;
     }
 
-    PBUF_SET_L3_OFF(pbuf);
     PBUF_SET_ENTRY(pbuf, dev->in.ndEntry);
 
     return pbuf;
@@ -447,9 +558,9 @@ static void IpRouteSetPbuf(Pbuf_t* pbuf, const INET_FlowInfo_t* flow)
 
     if (flow->nd == NULL) {
         if (flow->rt != NULL && TBM_IsDirectRt(flow->rt) == 0) {
-            PBUF_SET_DST_ADDR(pbuf, flow->rt->nxtHop);
+            PBUF_SET_DST_ADDR4(pbuf, flow->rt->nxtHop);
         } else {
-            PBUF_SET_DST_ADDR(pbuf, flow->dst);
+            PBUF_SET_DST_ADDR4(pbuf, flow->dst);
         }
     }
 
@@ -458,7 +569,7 @@ static void IpRouteSetPbuf(Pbuf_t* pbuf, const INET_FlowInfo_t* flow)
 
 static Pbuf_t* IpRouteOutputSlow(Pbuf_t* pbuf)
 {
-    INET_FlowInfo_t  tempFlow;
+    INET_FlowInfo_t  tempFlow = {0};
     Netdev_t*        dev  = PBUF_GET_DEV(pbuf);
     INET_FlowInfo_t* flow = &tempFlow;
 
@@ -468,7 +579,8 @@ static Pbuf_t* IpRouteOutputSlow(Pbuf_t* pbuf)
         return NULL;
     }
 
-    flow->dst = PBUF_GET_DST_ADDR(pbuf);
+    flow->src = INET_TX_CB(pbuf)->src;
+    flow->dst = PBUF_GET_DST_ADDR4(pbuf);
     if (INET_InitFlowByDev(dev, flow, PBUF_GET_L4_TYPE(pbuf)) != 0) {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_NET_NO_ROUTE);
         PBUF_Free(pbuf);
@@ -486,16 +598,29 @@ static Pbuf_t* IpRouteOutputSlow(Pbuf_t* pbuf)
 // 查找路由，如果设置flowinfo，则通过flowinfo信息填写源目的地址
 static Pbuf_t* IpRouteOutput(Pbuf_t* pbuf)
 {
+    Pbuf_t* ret = NULL;
     const INET_FlowInfo_t* flow = PBUF_GET_FLOW(pbuf);
 
     if (flow != NULL && flow->rt != NULL) {
         IpRouteSetPbuf(pbuf, flow);
         IpFillHdr(pbuf, flow);
-        return pbuf;
+        ret = pbuf;
+    } else {
+        // 内部转发流程会走这个流程
+        ret = IpRouteOutputSlow(pbuf);
     }
 
-    // 内部转发流程会走这个流程
-    return IpRouteOutputSlow(pbuf);
+    if (ret == NULL) {
+        return ret;
+    }
+#ifdef DPFWK_NF
+    if (NF_LocalOut(ret, DP_PF_INET) != NF_ACCEPT) {
+        DP_INC_PKT_STAT(ret->wid, DP_PKT_NF_LOCALOUT_DROP);
+        PBUF_Free(ret);
+        return NULL;
+    }
+#endif
+    return ret;
 }
 
 int IP_Init(int slave)
@@ -508,7 +633,20 @@ int IP_Init(int slave)
         return 0;
     }
 
+    int tblCnt = CFG_GET_VAL(DP_CFG_WORKER_MAX);
+    g_ipIdTbl = MEM_MALLOC_ALIGN(sizeof(IpId_t) * tblCnt, CACHE_LINE, MOD_IP, DP_MEM_FIX);
+    if (g_ipIdTbl == NULL) {
+        DP_LOG_ERR("Malloc IpId tbl failed\n");
+        return -1;
+    }
+
+    for (int i = 0; i < tblCnt; i++) {
+        g_ipIdTbl[i].ipid = RAND_GEN();
+    }
+
     if (IpReassInit() != 0) {
+        SHM_FREE(g_ipIdTbl, DP_MEM_FIX);
+        g_ipIdTbl = NULL;
         DP_LOG_ERR("Ip init ipReass failed.");
         return -1;
     }
@@ -523,4 +661,9 @@ void IP_Deinit(int slave)
     }
 
     IpReassDeinit();
+
+    if (g_ipIdTbl != NULL) {
+        SHM_FREE(g_ipIdTbl, DP_MEM_FIX);
+        g_ipIdTbl = NULL;
+    }
 }

@@ -8,7 +8,10 @@
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
- * Description: 数据面维测统计相关对外接口
+ */
+/**
+ * @file dp_show_api.h
+ * @brief 数据面维测统计相关对外接口
  */
 
 #ifndef DP_SHOW_API_H
@@ -49,7 +52,7 @@ typedef uint32_t (*DP_DebugShowHook)(uint32_t flag, char *output, uint32_t len);
  *
  * @par 描述: 维测信息打印接口注册函数，供show接口打印信息使用。
  * @attention
- * 必须在DP协议栈初始化前进行注册
+ * 必须在DP协议栈初始化前进行注册，不允许重复注册
  *
  * @param hook [IN]  维测信息输出接口钩子<非空指针>
  *

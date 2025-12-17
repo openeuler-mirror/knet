@@ -9,7 +9,6 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-
 #ifndef SOCK_USER_H
 #define SOCK_USER_H
 
@@ -19,7 +18,9 @@
 extern "C" {
 #endif
 
-int SOCK_AddrEventNotify(DP_AddrEventType_t type, int protocol, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen);
+int SOCK_AddrEventNotify(DP_AddrEventType_t type, DP_AddrEvent_t* event);
+
+int SOCK_AddrPreBind(void* userData, const struct DP_Sockaddr* addr, DP_Socklen_t addrlen);
 
 void SOCK_AddrHooksUnreg(void);
 #ifdef __cplusplus
