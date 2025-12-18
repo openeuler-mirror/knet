@@ -212,10 +212,12 @@ void PdumpCopy(struct PdumpCopyArgs* args)
             continue;
         }
         /* pcap就简单复制 */
+        uint32_t mbufLen = rte_pktmbuf_pkt_len((struct rte_mbuf*)(args->pkts)[idx]);
         mbuf = rte_pktmbuf_copy((args->pkts)[idx], mp, 0, GetHeaderLen((args->pkts)[idx]));
         if (unlikely(mbuf == NULL)) {
             continue;
         }
+        ((uint32_t*)(mbuf->buf_addr))[0] = mbufLen;
         g_dupBufs[dPkts++] = mbuf;
     }
     ringEnq = rte_ring_enqueue_burst(ring, (void *)&g_dupBufs[0], dPkts, NULL);
@@ -460,7 +462,7 @@ KNET_STATIC struct rte_mempool *CreateMempool(void)
 
     mp = rte_pktmbuf_pool_create_by_ops(MEMPOOL_NAME,
         numMbufs,
-        MBUF_POOL_CACHE_SIZE,
+        0,
         0,
         PcapMbufSize(DEFAULT_SNAPLEN),
         rte_socket_id(),
