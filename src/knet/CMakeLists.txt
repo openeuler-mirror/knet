@@ -12,25 +12,15 @@ set(TARGET_FRAME knet_frame)
 set(TARGET_DAEMON knet_mp_daemon)
 set(DPDK_DIR ${KET_SRC_DIR}/opensource/dpdk/output/lib64)
 
-# 检查securec和boundscheck库
-find_library(SECUREC_LIB 
-    NAMES securec
-    PATHS ${KET_SRC_DIR}/opensource/secure_c/lib
-    NO_DEFAULT_PATH
-)
-
+# 检查boundscheck库
 find_library(BOUNDSCHECK_LIB
     NAMES boundscheck
     PATHS ${KET_SRC_DIR}/opensource/secure_c/lib
     NO_DEFAULT_PATH
 )
 
-# 优先使用securec，如果找不到则使用boundscheck
-if(SECUREC_LIB)
-    message(STATUS "Found securec library: ${SECUREC_LIB}")
-    set(SECURE_LIB_NAME securec)
-    set(SECURE_LIB_PATH ${KET_SRC_DIR}/opensource/secure_c/lib)
-elseif(BOUNDSCHECK_LIB)
+# 使用boundscheck
+if(BOUNDSCHECK_LIB)
     message(STATUS "Found boundscheck library: ${BOUNDSCHECK_LIB}")
     set(SECURE_LIB_NAME boundscheck)
     set(SECURE_LIB_PATH ${KET_SRC_DIR}/opensource/secure_c/lib)
@@ -118,7 +108,7 @@ target_link_libraries(${TARGET_CORE}
 
     # 下面都是外部opensource的动态库
     libcjson.a
-    -Wl,--whole-archive securec -Wl,--no-whole-archive
+    -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
     ${DPDK_LIBS}
     dl
     pthread
@@ -166,7 +156,7 @@ target_link_libraries(${TARGET_DAEMON}
     telemetry
     rte_telemetry
     libcjson.a
-    securec
+    ${SECURE_LIB_NAME}
     dl
     pthread
     cap
