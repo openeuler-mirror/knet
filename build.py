@@ -219,7 +219,7 @@ def build_dpstack():
 
     return 0
 
-def build_knet(debug, test, sdv, fuzz):
+def build_knet(debug, test, sdv, fuzz, stackType):
     os.chdir(f"{KNET_SOURCE_DIR}")
     # build
 
@@ -245,6 +245,7 @@ def build_knet(debug, test, sdv, fuzz):
         cmd[-1] += "Fuzz"
     else:
         cmd[-1] += "Release"
+    cmd.append(f"-DKNET_STACK_TYPE={stackType}")
 
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
@@ -337,6 +338,13 @@ if __name__ == "__main__":
             cleanMode = True
         elif sys.argv[1] == 'fuzz':
             fuzzMode = True
+    
+    # stackType可选dtoe
+    # 编译dp：python build.py Release dp
+    # 编译dtoe：python build.py Release dtoe
+    stackType = 'dp'
+    if (arg_nums > 2):
+        stackType = sys.argv[2]
 
     ret = clean_build(cleanMode)
     if ret != 0:
@@ -346,19 +354,21 @@ if __name__ == "__main__":
     if ret != 0:
         sys.exit(1)
 
-    ret = build_dpdk()
-    if ret != 0:
-        sys.exit(1)
+    if stackType == 'dp':
+        ret = build_dpdk()
+        if ret != 0:
+            sys.exit(1)
 
     ret = build_securec()
     if ret != 0:
         sys.exit(1)
 
-    ret = build_dpstack()
-    if ret != 0:
-        sys.exit(1)
+    if stackType == 'dp':
+        ret = build_dpstack()
+        if ret != 0:
+            sys.exit(1)
 
-    ret = build_knet(debugMode, testMode, sdvMode, fuzzMode)
+    ret = build_knet(debugMode, testMode, sdvMode, fuzzMode, stackType)
     if ret != 0:
         sys.exit(1)
 

@@ -84,37 +84,64 @@ string(REGEX REPLACE ${VERSION_REGEX} "\\1" VERSION_NUM ${VERSION_STRING})
 # 使用正则表达式提取主版本号
 string(REGEX MATCH "^[0-9]" VERSION_MAJOR ${VERSION_NUM})
 
-add_library(${TARGET_CORE} SHARED)
-# 每次更新无需手动更新VERSION和RELEASE，自动在knet.spec文件中获取
-set_target_properties(${TARGET_CORE} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
-add_definitions(-DKNET_STATIC=static)
+if (${KNET_STACK_TYPE} STREQUAL "dp")
+    add_library(${TARGET_CORE} SHARED)
+    # 每次更新无需手动更新VERSION和RELEASE，自动在knet.spec文件中获取
+    set_target_properties(${TARGET_CORE} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
+    add_definitions(-DKNET_STATIC=static)
 
-if(${KNET_BUILD_TYPE} STREQUAL "Release")
-    add_custom_command(
-        TARGET "${TARGET_CORE}" POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_CORE}> "${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug"
-        COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_CORE}>
-        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug $<TARGET_FILE:${TARGET_CORE}>
-        COMMENT "Stripping debug symbols and generating .debug file"
-        VERBATIM
+    if(${KNET_BUILD_TYPE} STREQUAL "Release")
+        add_custom_command(
+            TARGET "${TARGET_CORE}" POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_CORE}> "${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug"
+            COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_CORE}>
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug $<TARGET_FILE:${TARGET_CORE}>
+            COMMENT "Stripping debug symbols and generating .debug file"
+            VERBATIM
+        )
+    endif()
+
+    # 根据找到的库设置链接选项
+    target_link_libraries(${TARGET_CORE}
+        base config dpdk_init log tun mem thread rand dpdk_utils osapi 
+        mbuf transmission fmm sal_tcp hash knet_init rpc capability telemetry offload pktdump tcp_fd tcp_socket tcp_os
+        signal_tcp tcp_event tcp_api_init bond stk_mp
+
+        # 下面都是外部opensource的动态库
+        libcjson.a
+        -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
+        ${DPDK_LIBS}
+        dl
+        pthread
+        cap
+        ${FUZZ_LIBS}
     )
 endif()
 
-# 根据找到的库设置链接选项
-target_link_libraries(${TARGET_CORE}
-    base config dpdk_init log tun mem thread rand dpdk_utils osapi 
-    mbuf transmission fmm sal_tcp hash knet_init rpc capability telemetry offload pktdump tcp_fd tcp_socket tcp_os
-    signal_tcp tcp_event tcp_api_init bond stk_mp
+if (${KNET_STACK_TYPE} STREQUAL "dtoe")
+    add_library(${TARGET_CORE} SHARED)
+    # 每次更新无需手动更新VERSION和RELEASE，自动在knet.spec文件中获取
+    set_target_properties(${TARGET_CORE} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
+    add_definitions(-DKNET_STATIC=static)
 
-    # 下面都是外部opensource的动态库
-    libcjson.a
-    -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
-    ${DPDK_LIBS}
-    dl
-    pthread
-    cap
-    ${FUZZ_LIBS}
-)
+    if(${KNET_BUILD_TYPE} STREQUAL "Release")
+        add_custom_command(
+            TARGET "${TARGET_CORE}" POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_CORE}> "${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug"
+            COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_CORE}>
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug $<TARGET_FILE:${TARGET_CORE}>
+            COMMENT "Stripping debug symbols and generating .debug file"
+            VERBATIM
+        )
+    endif()
+
+    # 根据找到的库设置链接选项
+    target_link_libraries(${TARGET_CORE}
+        base log
+        # 下面都是外部opensource的动态库
+        -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
+    )
+endif()
 
 add_library(${TARGET_FRAME} SHARED)
 # 每次更新无需手动更新VERSION和RELEASE，自动在knet.spec文件中获取
@@ -130,42 +157,54 @@ if(${KNET_BUILD_TYPE} STREQUAL "Release")
     )
 endif()
 
-target_link_libraries(${TARGET_FRAME}
-    posix_api socket_bridge log zcopy cothread extern_api
-    ${TARGET_CORE}
-    # 下面都是外部opensource的动态库
-)
-
-add_compile_definitions(KNET_VERSION="${VERSION_NUM}")
-add_executable(${TARGET_DAEMON} daemon/knet_mp_daemon.c)
-if(${KNET_BUILD_TYPE} STREQUAL "Release")
-    add_custom_command(
-        TARGET "${TARGET_DAEMON}" POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_DAEMON}> "$<TARGET_FILE_NAME:${TARGET_DAEMON}>.debug"
-        COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_DAEMON}>
-        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE_NAME:${TARGET_DAEMON}>.debug $<TARGET_FILE:${TARGET_DAEMON}>
-        COMMENT "Stripping debug symbols and generating .debug file"
-        VERBATIM
+if (${KNET_STACK_TYPE} STREQUAL "dp")
+    target_link_libraries(${TARGET_FRAME}
+        posix_api socket_bridge log zcopy cothread extern_api
+        ${TARGET_CORE}
+        # 下面都是外部opensource的动态库
     )
 endif()
-# 根据找到的库设置daemon的链接选项
-target_link_libraries(${TARGET_DAEMON}
-    base config log mbuf fmm transmission rpc dpdk_init thread hash capability offload dpdk_utils pktdump tcp_fd
-    bond
-    tcp_fd
-    telemetry
-    rte_telemetry
-    libcjson.a
-    ${SECURE_LIB_NAME}
-    dl
-    pthread
-    cap
-    ${DPDK_LIBS}
-    ${FUZZ_LIBS}
-)
+
+if (${KNET_STACK_TYPE} STREQUAL "dtoe")
+    target_link_libraries(${TARGET_FRAME}
+        dtoe_api
+    )
+endif()
+
+add_compile_definitions(KNET_VERSION="${VERSION_NUM}")
+if (${KNET_STACK_TYPE} STREQUAL "dp")
+    add_executable(${TARGET_DAEMON} daemon/knet_mp_daemon.c)
+    if(${KNET_BUILD_TYPE} STREQUAL "Release")
+        add_custom_command(
+            TARGET "${TARGET_DAEMON}" POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_DAEMON}> "$<TARGET_FILE_NAME:${TARGET_DAEMON}>.debug"
+            COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_DAEMON}>
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE_NAME:${TARGET_DAEMON}>.debug $<TARGET_FILE:${TARGET_DAEMON}>
+            COMMENT "Stripping debug symbols and generating .debug file"
+            VERBATIM
+        )
+    endif()
+    # 根据找到的库设置daemon的链接选项
+    target_link_libraries(${TARGET_DAEMON}
+        base config log mbuf fmm transmission rpc dpdk_init thread hash capability offload dpdk_utils pktdump tcp_fd
+        bond
+        tcp_fd
+        telemetry
+        rte_telemetry
+        libcjson.a
+        ${SECURE_LIB_NAME}
+        dl
+        pthread
+        cap
+        ${DPDK_LIBS}
+        ${FUZZ_LIBS}
+    )
+endif()
 
 add_subdirectory(api)
 add_subdirectory(framework)
-add_subdirectory(hal)
-add_subdirectory(sal)
-add_subdirectory(signal)
+if (${KNET_STACK_TYPE} STREQUAL "dp")
+    add_subdirectory(hal)
+    add_subdirectory(sal)
+    add_subdirectory(signal)
+endif()
