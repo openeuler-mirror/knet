@@ -1,2 +1,4 @@
 add_subdirectory(knet)
-add_subdirectory(stack)
+if (${KNET_STACK_TYPE} STREQUAL "dp")
+    add_subdirectory(stack)
+endif()
