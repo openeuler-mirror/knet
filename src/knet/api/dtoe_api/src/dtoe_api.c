@@ -11,12 +11,16 @@
  */
 
 #include <stdarg.h>
+#include <sys/queue.h>
 
 #include "dtoe_interface.h"
-
 #include "knet_log.h"
+#include "knet_lock.h"
 #include "knet_dtoe_fd.h"
+#include "knet_dtoe_events.h"
 
+
+#define likely(x) __builtin_expect(!!(x), 1)
 #define IP_STR_MAX_LEN 64
 #define KNET_DTOE_MAX_CHANL_CONFIG 16
 
@@ -121,30 +125,16 @@ void knet_reg_conn_async_offload_done(void *dtoe_conn, uint8_t rsp_status)
     g_knet_dtoe_ops.conn_async_offload_done(fd, rsp_status);
 }
 
-void knet_ulp_ops_register(struct knet_ulp_ops *ops)
-{
-    if (ops == NULL) {
-        KNET_ERR("KNET ulp ops is NULL");
-        return;
-    }
 
-    g_knet_dtoe_ops.close_done = ops->close_done;
-    g_knet_dtoe_ops.prepare_close_done = ops->prepare_close_done;
-    g_knet_dtoe_ops.conn_async_offload_done = ops->conn_async_offload_done;
-
-    g_dtoe_ops.close_done = knet_reg_close_done,
-    g_dtoe_ops.prepare_close_done = knet_reg_prepare_close_down,
-    g_dtoe_ops.conn_async_offload_done = knet_reg_conn_async_offload_done,
-
-    dtoe_ulp_ops_register(DTOE_ULP_DTOE_TCP, &g_dtoe_ops);
-}
 
 KNET_API int knet_init(const char * local_ip)
 {
     KNET_LogInit();
+
     KNET_FdInit();
 
     int ret = dtoe_ulp_config_set(KNET_DTOE_MAX_CHANL_CONFIG, 0);
+
     if (ret != 0) {
         KNET_ERR("Dtoe init failed, ret %d", ret);
         goto free;
@@ -221,7 +211,7 @@ int knet_create_send_channel(enum knet_schd_type schd_mod, uint32_t depth, struc
         KNET_ERR("Channel is null in knet_create_send_channel");
         return -1;
     }
-    struct KnetSendChannel *knetSendChannel = (struct KnetSendChannel *)malloc(sizeof(struct KnetSendChannel));
+    struct knet_send_channel_events *knetSendChannel = (struct knet_send_channel_events *)malloc(sizeof(struct knet_send_channel_events));
     if (knetSendChannel == NULL) {
         KNET_ERR("Knet malloc send channel failed");
         return -1;
@@ -245,7 +235,7 @@ int knet_destroy_send_channel(struct knet_send_channel *channel)
         return ret;
     }
 
-    free((struct KnetSendChannel *)channel); // channel的地址即为knetSendChannel的地址
+    free((struct knet_send_channel_events *)channel); // channel的地址即为knetSendChannel的地址
     KNET_INFO("Knet destroy send channel success");
     return ret;
 }
@@ -256,7 +246,7 @@ int knet_create_recv_channel(enum knet_schd_type schd_mod, uint32_t depth, struc
         KNET_ERR("Channel is null in knet_create_recv_channel");
         return -1;
     }
-    struct KnetRecvChannel *knetRecvChannel = (struct KnetRecvChannel *)malloc(sizeof(struct KnetRecvChannel));
+    struct knet_recv_channel_events *knetRecvChannel = (struct knet_recv_channel_events *)malloc(sizeof(struct knet_recv_channel_events));
     if (knetRecvChannel == NULL) {
         KNET_ERR("Knet malloc recv channel failed");
         return -1;
@@ -280,7 +270,7 @@ int knet_destroy_recv_channel(struct knet_recv_channel *channel)
         return ret;
     }
 
-    free((struct KnetRecvChannel *)channel); // channel的地址即为knetRecvChannel的地址
+    free((struct knet_recv_channel_events *)channel); // channel的地址即为knet_recv_channel_t的地址
     KNET_INFO("Knet destroy recv channel success");
     return ret;
 }
@@ -313,11 +303,17 @@ int knet_start_chimney_general(int sockfd, struct knet_offload_in *in)
     }
 
     KNET_SetFdState(sockfd, in, &out);
+
+    ret = KNET_InitFreeReq(sockfd);
+    if (ret != 0) {
+        KNET_ERR("Knet start chimney general failed in init free request nodes, ret %d", ret);
+        return ret;
+    }
     KNET_INFO("Knet start chimney general success, sockfd %d", sockfd);
     return ret;
 }
 
-void knet_recv_mem_loopback(struct knet_dtoe_iovec *iov, int iov_cnt)
+void knet_recv_mem_loopback(struct knet_iovec *iov, int iov_cnt)
 {
     dtoe_recv_mem_loopback((struct dtoe_iovec *)iov, iov_cnt);
 }
@@ -338,6 +334,8 @@ void knet_close(int sockfd)
         return;
     }
     KNET_ResetFdState(sockfd);
+    // 置0后释放req队列
+    KNET_UninitFreeReq(sockfd);
     dtoe_close(sockfd, KNET_GetConnBySock(sockfd));
 }
 
@@ -361,4 +359,189 @@ void *knet_get_ulp_user_data(int sockfd)
         return NULL;
     }
     return KNET_GetFdConnUserData(sockfd)->user_data;
+}
+
+static bool is_send_complete(struct KNET_Fd* conn, KnetReqNode* rnode)
+{
+    if (conn == NULL || rnode == NULL) {
+        return false;
+    }
+    bool complete = false;
+    if (conn->send.last_sn < conn->send.comp_sn) {
+        if (rnode->send_sn > conn->send.last_sn && rnode->send_sn <= conn->send.comp_sn) {
+            complete = true;
+        }
+    } else {
+        if (rnode->send_sn <= conn->send.comp_sn || rnode->send_sn > conn->send.last_sn) {
+            complete = true;
+        }
+    }
+    return complete;
+}   
+
+static void knet_dtoe_send_complete(void* dtoe_conn, struct dtoe_tx_event* event)
+{
+    struct KNET_Fd* sock = (struct KNET_Fd*) dtoe_get_ulp_user_data(dtoe_conn);
+    if (sock == NULL || event == NULL) {
+        KNET_ERR("sock: %s, event: %s, null is illeagal", sock == NULL ? "Null" : "not Null", event == NULL ? "Null" : "not Null");
+        return;
+    }
+    
+    KnetReqNode* req = (KnetReqNode*)TAILQ_FIRST(&sock->send.unack_req);
+    bool is_complete = false;
+    while (req != NULL) {
+        // hivbs 是这样使用event的
+        sock->send.comp_sn = event->finish_msn;
+        // last_sn 在收到ack时更新
+        sock->send.last_sn = req->send_sn;
+        is_complete = is_send_complete(sock, req);
+        if (!is_complete) {
+            break;
+        }
+        // req 序号满足send complete时记录事件
+        sock->send_channel->events[sock->send_channel->next_event_idx].wr_id = req->wr_id;
+        sock->send_channel->events[sock->send_channel->next_event_idx].sockfd = sock->sockfd;
+        ++sock->send_channel->next_event_idx;
+        KNET_SpinlockLock(&sock->send_lock);
+        TAILQ_REMOVE(&sock->send.unack_req, req, node);
+        TAILQ_INSERT_TAIL(&sock->send.free_req, req, node);
+        KNET_SpinlockUnlock(&sock->send_lock);
+        // 下一次req处理，直到没有req或者req非complete
+        req = (KnetReqNode*)TAILQ_FIRST(&sock->send.unack_req);
+    }
+}
+
+/**
+ * @brief 引擎收到包后调用该回调，记录事件
+ * @param [IN] dtoe_conn
+ * @param [IN] iov_cnt
+ * @return void
+ */
+static void knet_dtoe_receive_notify(void* dtoe_conn, int iov_cnt)
+{
+    struct KNET_Fd* sock = (struct KNET_Fd*) dtoe_get_ulp_user_data(dtoe_conn);
+    if (sock == NULL) {
+        KNET_ERR("sock null is illeagal");
+        return;
+    }
+    if (likely(iov_cnt > 0)) {
+        sock->recv_channel->events[sock->recv_channel->next_event_idx].sockfd = sock->sockfd;
+        sock->recv_channel->events[sock->recv_channel->next_event_idx].desc_cnt = iov_cnt;
+        ++sock->recv_channel->next_event_idx;
+    } else {
+        KNET_ERR("iov_cnt: %d, dtoe_conn prepare to close!", iov_cnt);
+        dtoe_prepare_close(dtoe_conn);
+    }
+}
+
+void knet_ulp_ops_register(struct knet_ulp_ops *ops)
+{
+    if (ops == NULL) {
+        KNET_ERR("KNET ulp ops is NULL");
+        return;
+    }
+
+    g_knet_dtoe_ops.close_done = ops->close_done;
+    g_knet_dtoe_ops.prepare_close_done = ops->prepare_close_done;
+    g_knet_dtoe_ops.conn_async_offload_done = ops->conn_async_offload_done;
+
+    g_dtoe_ops.close_done = knet_reg_close_done;
+    g_dtoe_ops.prepare_close_done = knet_reg_prepare_close_down;
+    g_dtoe_ops.conn_async_offload_done = knet_reg_conn_async_offload_done;
+    g_dtoe_ops.send_complete = knet_dtoe_send_complete;
+    g_dtoe_ops.recv_notify = knet_dtoe_receive_notify;
+
+    dtoe_ulp_ops_register(DTOE_ULP_DTOE_TCP, &g_dtoe_ops);
+}
+
+/**
+ * @brief 检查 tx channel 完成事件，执行对应处理
+ * @param send_channel [IN/OUT] knet 对外tx channel
+ * @param events [IN/OUT] 关注事件
+ * @param maxevents [IN] 最大事件数
+ * @return 完成事件数
+ */
+int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_send_events* events, uint32_t maxevents)
+{
+    if (send_channel == NULL || events == NULL) {
+        KNET_ERR("send_channel: %s, events: %s, null is illeagal", send_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null");
+        return -EINVAL;
+    }
+    //
+    struct knet_send_channel_events* send_channel_events = (struct knet_send_channel_events*)send_channel;
+    send_channel_events->events = events;
+    send_channel_events->next_event_idx = 0;
+    send_channel_events->maxevents = maxevents;
+
+    dtoe_poll_send_channel((send_channel_s*)send_channel, maxevents);   // send_channel地址即是send_channel_events地址
+    KNET_INFO("poll send event: %d", send_channel_events->next_event_idx);
+    return send_channel_events->next_event_idx;
+}
+
+/**
+ * @brief knet for dtoe send 
+ * @param sockfd [IN] knet返回的sockfd
+ * @param tx_req [IN] 构造卸载发包的tx_req请求
+ * @return 成功返回发包字节数，失败返回负数
+ */
+int knet_dtoe_send(int sockfd, struct knet_tx_req* tx_req)
+{
+    if (tx_req == NULL) {
+        KNET_ERR("tx_req null is illeagal");
+        return -EINVAL;
+    }
+    struct dtoe_tx_desc descs[tx_req->descs_num];
+    for (int i = 0; i < tx_req->descs_num; i++) {
+        descs[i].type = tx_req->descs[i].type;
+        descs[i].lkey = tx_req->descs[i].lkey;
+        descs[i].iov.iov_base = tx_req->descs[i].iov.iov_base;
+        descs[i].iov.iov_len = tx_req->descs[i].iov.iov_len;
+    }
+    struct dtoe_tx_info info = {
+        .tx_in.ulp_flag = 0
+    };
+    KnetReqNode* req = (KnetReqNode*)TAILQ_FIRST(&KNET_GetFdConnUserData(sockfd)->send.free_req);
+    if (req == NULL) {
+        KNET_ERR("req is Null, out of memory");
+        return -ENOMEM;
+    }
+    int ret = dtoe_send(KNET_GetFdConnUserData(sockfd)->dtoe_conn, descs, tx_req->descs_num, 0, &info);
+    if (ret < 0) {
+        KNET_ERR("dtoe send failed");
+        return -EINVAL;
+    }
+    KNET_INFO("dtoe send bytes: %d, dtoe fd: %d, send descs number: %d", ret, sockfd, tx_req->descs_num);
+
+    KNET_SpinlockLock(&KNET_GetFdConnUserData(sockfd)->send_lock);
+    TAILQ_REMOVE(&KNET_GetFdConnUserData(sockfd)->send.free_req, req, node);
+    req->wr_id = tx_req->wr_id;
+    req->send_sn = info.tx_out.curr_msn;
+    TAILQ_INSERT_TAIL(&KNET_GetFdConnUserData(sockfd)->send.unack_req, req, node);
+    KNET_SpinlockUnlock(&KNET_GetFdConnUserData(sockfd)->send_lock);
+    return ret;
+}
+
+/**
+ * @brief 检查 rx channel 完成事件，执行对应处理
+ * @param receive_channel [IN/OUT] knet 对外rx channel
+ * @param events [IN/OUT] 关注事件
+ * @param maxevents [IN] 最大事件数
+ * @return 完成事件数
+ */
+int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_recv_events* events, uint32_t maxevents)
+{
+    if (recv_channel == NULL || events == NULL) {
+        KNET_ERR("recv_channel: %s, events: %s, null is illeagal", 
+        recv_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null");
+        return -1;
+    }
+    struct knet_recv_channel_events* recv_channel_events = (struct knet_recv_channel_events*)recv_channel;
+
+    recv_channel_events->events = events;
+    recv_channel_events->maxevents = maxevents;
+    recv_channel_events->next_event_idx = 0;
+
+    dtoe_poll_receive_channel((recv_channel_s*) recv_channel, maxevents);  // recv_channel地址即是recv_channel_events地址
+    KNET_INFO("poll receive event: %d", recv_channel_events->next_event_idx);
+    return recv_channel_events->next_event_idx;
 }
