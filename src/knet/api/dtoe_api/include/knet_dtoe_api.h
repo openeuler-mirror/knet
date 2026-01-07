@@ -33,25 +33,26 @@ enum knet_schd_type {
     KNET_POLL_SCHD,
     KNET_SCHD_MOD_BUTT
 };
-struct knet_send_channel {
-    int epoll_fd;           /* epoll句柄。poll模式下无效 */
-    void *tx_queue;         /* tx channel操作句柄，后续poll时使用 */
-};
-
-struct knet_send_events {
-    uint64_t wr_id; // knet_send透传下来的，标记用户下发的请求的
+struct knet_send_events{
+    uint64_t wr_id;
     int sockfd;
 };
 
-struct knet_recv_channel {
-    int epoll_fd;           /* epoll句柄。poll模式下无效 */
-    void *rx_queue;         /* rx channel操作句柄，后续poll时使用 */
-    uint32_t oqid;          /* VBS场景，用于IO abort保序 */
-    uint32_t rsv[4];
+struct knet_send_channel {
+    int epoll_fd;   /* epoll 句柄, poll 模式无效 */
+    void* tx_queue; /* tx channel 句柄, 后续 poll 使用 */
 };
 
 struct knet_recv_events {
     int sockfd;
+    uint32_t desc_cnt; // 表示dtoe_recv上传的desc个数，建议dtoe_recv入参desc_num赋值到这里
+};
+
+struct knet_recv_channel {
+    int epoll_fd;   /* epoll 句柄, poll 模式无效 */
+    void* rx_queue; /* rx channel 句柄, 后续 poll 使用 */
+    uint32_t oqid;  /*  VBS场景,用于 IO abort保序 */
+    uint32_t rsv[4];
 };
 
 struct knet_offload_in {
@@ -60,9 +61,21 @@ struct knet_offload_in {
     struct knet_send_channel *send_channel;
 };
 
-struct knet_dtoe_iovec {
-    void *iov_base;
+struct knet_iovec {
+    void* iov_base;
     size_t iov_len;
+};
+
+struct knet_tx_desc {
+    dtoe_send_type_e type;
+    struct knet_iovec iov;
+    uint32_t lkey;
+};
+
+struct knet_tx_req {
+    struct knet_tx_desc* descs;
+    uint16_t descs_num;
+    uint64_t wr_id;
 };
 
 /**
@@ -145,7 +158,7 @@ int knet_start_chimney_general(int sockfd, struct knet_offload_in *in);
  * @param iov [IN] 待归还的iov列表
  * @param iov_cnt [IN] iov个数
  */
-void knet_recv_mem_loopback(struct knet_dtoe_iovec *iov, int iov_cnt);
+void knet_recv_mem_loopback(struct knet_iovec *iov, int iov_cnt);
 
 /**
  * @brief 启动预断链
@@ -172,4 +185,31 @@ int knet_fd_is_offloaded(int sockfd);
  * @retval void* sockfd对应的user_data
  */
 void *knet_get_ulp_user_data(int sockfd);
+
+/**
+ * @brief 检查 tx channel 完成事件，执行对应处理
+ * @param send_channel [IN/OUT] knet 对外tx channel
+ * @param events [IN/OUT] 关注事件
+ * @param maxevents [IN] 最大事件数
+ * @return 完成事件数
+ */
+int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_send_events* events, uint32_t maxevents);
+
+/**
+ * @brief knet for dtoe send 
+ * @param sockfd [IN] knet返回的sockfd
+ * @param tx_req [IN] 构造卸载发包的tx_req请求
+ * @return 成功返回发包字节数，失败返回负数
+ */
+int knet_dtoe_send(int sockfd, struct knet_tx_req* tx_req);
+
+/**
+ * @brief 检查 rx channel 完成事件，执行对应处理
+ * @param receive_channel [IN/OUT] knet 对外rx channel
+ * @param events [IN/OUT] 关注事件
+ * @param maxevents [IN] 最大事件数
+ * @return 完成事件数
+ */
+int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct knet_recv_events* events, uint32_t maxevents);
+
 #endif

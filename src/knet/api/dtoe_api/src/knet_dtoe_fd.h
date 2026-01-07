@@ -14,40 +14,28 @@
 #define __KNET_DTOE_FD_H__
 
 #include <stdbool.h>
-
 #include "dtoe_interface.h"
+#include "knet_dtoe_events.h"
 #include "knet_dtoe_api.h"
+#include "knet_lock.h"
 
 #define KNET_INVALID_FD (-1)
 
-struct KnetRecvChannel {
-    struct knet_recv_channel channel;
-    struct knet_recv_events *events;
-    uint32_t maxevents;
-    uint32_t curEventIndex;
-};
-
-struct KnetSendChannel {
-    struct knet_send_channel channel;
-    struct knet_send_events *events;
-    uint32_t maxevents;
-    uint32_t curEventIndex;
-};
-
 struct KNET_Fd {
-    void *dtoeConn;
+    void *dtoe_conn;
     int sockfd;
-    uint32_t recvSn;
-    struct KnetSendChannel *sendChannel;
-    struct KnetRecvChannel *recvChannel;
+    uint32_t recv_sn;
+    struct knet_send_channel_events *send_channel;
+    struct knet_recv_channel_events *recv_channel;
     struct {
-        uint16_t lastSn;
-        uint16_t compSn;
-        // struct list_xx unackReq;
-        // struct list_xx freeReq;
+        uint16_t last_sn;
+        uint16_t comp_sn;
+        struct KnetReqListHead unack_req;
+        struct KnetReqListHead free_req;
     } send;
 
     void *user_data;
+    KNET_SpinLock send_lock;
 };
 
 /**
@@ -78,6 +66,20 @@ bool KNET_IsOsFdValid(int osFd);
 void KNET_SetFdState(int sockfd, struct knet_offload_in *in, dtoe_offload_out_s *out);
 
 /**
+ * @brief 初始化freereq链表
+ * @param sockfd [IN] 连接的fd
+ * @retval 0成功，-1失败
+ */
+int KNET_InitFreeReq(int sockfd);
+
+/**
+ * @brief 去初始化freereq链表
+ * @param sockfd [IN] 连接的fd
+ * @retval void
+ */
+void KNET_UninitFreeReq(int sockfd);
+
+/**
  * @brief 获取fd的userdata属性
  * @param sockfd [IN] 连接的fd
  * @retval knet user_data地址, 即fd map中的地址
@@ -94,7 +96,7 @@ void *KNET_GetConnBySock(int sockfd);
 /**
  * @brief 重置文件描述符的状态
  *
- * @param [IN] int。osFd 操作系统文件描述符
+ * @param sockfd [IN] int。osFd 操作系统文件描述符
  */
 void KNET_ResetFdState(int sockfd);
 #endif
