@@ -97,7 +97,9 @@ int KnetDestroyHashTblMultiple(void)
 }
 
 // 从进程对hash表的请求处理
-static int HashRequestHandler(int id, struct KNET_RpcMessage *knetRpcRequest, struct KNET_RpcMessage *knetRpcResponse)
+KNET_STATIC int HashRequestHandler(int id,
+    struct KNET_RpcMessage *knetRpcRequest,
+    struct KNET_RpcMessage *knetRpcResponse)
 {
     knetRpcResponse->dataType = RPC_MSG_DATA_TYPE_FIXED_LEN;
     knetRpcResponse->dataLen = 0;

@@ -82,7 +82,7 @@ struct ConfKeyHandle g_hwConfHandler[CONF_HW_MAX - CONF_HW_MIN] = {
 };
 
 struct ConfKeyHandle g_tcpConfHandler[CONF_TCP_MAX - CONF_TCP_MIN] = {
-    {CONF_TCP_MAX_MBUF, "max_mbuf", {20480}, IntSetter, {.intValue = {.min = 8192, .max = INT32_MAX}}},
+    {CONF_TCP_MAX_MBUF, "max_mbuf", {20480}, IntSetter, {.intValue = {.min = 8192, .max = (INT32_MAX/2)}}},
     {CONF_TCP_MAX_WORKER_NUM, "max_worker_num", {1}, IntSetter, {.intValue = {.min = 1, .max = 32}}},
     {CONF_TCP_MAX_ROUTE, "max_route", {1024}, IntSetter, {.intValue = {.min = 1, .max = 100000}}},
     // max_arp最小值8受限于DPDK的最小值RTE_HASH_BUCKET_ENTRIES
@@ -104,7 +104,7 @@ struct ConfKeyHandle g_tcpConfHandler[CONF_TCP_MAX - CONF_TCP_MIN] = {
     {CONF_TCP_REASS_TIMEOUT, "reass_timeout", {30}, IntSetter, {.intValue = {.min = 1, .max = 30}}},
     {CONF_TCP_SYNACK_RETRIES, "synack_retries", {5}, IntSetter, {.intValue = {.min = 1, .max = 255}}},
     {CONF_TCP_SGE_LEN, "zcopy_sge_len", {65535}, IntSetter, {.intValue = {.min = 0, .max = 524288}}},
-    {CONF_TCP_SGE_NUM, "zcopy_sge_num", {8192}, IntSetter, {.intValue = {.min = 8192, .max = INT32_MAX}}},
+    {CONF_TCP_SGE_NUM, "zcopy_sge_num", {8192}, IntSetter, {.intValue = {.min = 8192, .max = (INT32_MAX/2)}}},
     {CONF_TCP_EPOLL_DATA, "epoll_data", {.strValue = "0"}, Uint64Setter, {}},
 };
 

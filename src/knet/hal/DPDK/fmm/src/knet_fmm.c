@@ -126,7 +126,7 @@ static uint32_t FmmCheckPoolName(const char *name)
     return KNET_OK;
 }
 
-static uint32_t FmmAllocPoolId(uint32_t *poolId)
+KNET_STATIC uint32_t FmmAllocPoolId(uint32_t *poolId)
 {
     FmmModCtrl *modCtrl = &g_knetFmmPoolModCtrl;
 
@@ -144,7 +144,7 @@ static uint32_t FmmAllocPoolId(uint32_t *poolId)
     return KNET_FMM_ERROR;
 }
 
-static void FmmFreePoolId(uint32_t poolId)
+KNET_STATIC void FmmFreePoolId(uint32_t poolId)
 {
     FmmModCtrl *ctrl = &g_knetFmmPoolModCtrl;
     ctrl->poolCtrl[poolId].used = 0;
@@ -450,7 +450,9 @@ static int FmmFreeRequestHandler(int clientId, uint32_t poolId)
 }
 
 // FMM请求回调函数
-int FmmRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, struct KNET_RpcMessage *knetRpcResponse)
+KNET_STATIC int FmmRequestHandler(int clientId,
+    struct KNET_RpcMessage *knetRpcRequest,
+    struct KNET_RpcMessage *knetRpcResponse)
 {
     knetRpcResponse->dataType = RPC_MSG_DATA_TYPE_FIXED_LEN;
     knetRpcResponse->dataLen = 0;
