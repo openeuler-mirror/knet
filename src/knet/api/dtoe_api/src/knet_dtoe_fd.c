@@ -76,8 +76,9 @@ void KNET_SetFdState(int sockfd, struct knet_offload_in *in, dtoe_offload_out_s 
     g_knetDtoeFdMap[sockfd].user_data = in->user_data;
     g_knetDtoeFdMap[sockfd].dtoe_conn = out->dtoe_conn;
     g_knetDtoeFdMap[sockfd].recv_sn = out->recv_sn;
-    g_knetDtoeFdMap[sockfd].send.comp_sn = out->send_sn;
-    g_knetDtoeFdMap[sockfd].send.last_sn = out->send_sn;
+    /* send_sn - 1是需要设置comp_sn和last_sn为上一次处理的值，要比send_sn小，所以-1，否则后续complete判断无法通过 */
+    g_knetDtoeFdMap[sockfd].send.comp_sn = out->send_sn - 1;
+    g_knetDtoeFdMap[sockfd].send.last_sn = out->send_sn - 1;
 }
 
 int KNET_InitFreeReq(int sockfd)

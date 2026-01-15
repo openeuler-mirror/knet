@@ -13,6 +13,12 @@
 #ifndef __KNET_DTOE_API_H__
 #define __KNET_DTOE_API_H__
 
+/* conn_async_offload_done钩子函数入参 */
+enum knet_async_rsp_type {
+    KNET_ASYNC_OFFLOAD_SUCCESS = 0,
+    KNET_ASYNC_OFFLOAD_FAIL,
+};
+
 struct knet_ulp_ops {
         void (*close_done)(int sockfd);
         /* 通知ulp预断链已完成 */
@@ -45,7 +51,7 @@ struct knet_send_channel {
 
 struct knet_recv_events {
     int sockfd;
-    uint32_t desc_cnt; // 表示dtoe_recv上传的desc个数，建议dtoe_recv入参desc_num赋值到这里
+    uint32_t desc_cnt; // 表示dtoe_recv上传的desc个数，建议dtoe_recv入参desc_num赋值到这里。 个数为0时表示连接已断开
 };
 
 struct knet_recv_channel {
@@ -67,7 +73,6 @@ struct knet_iovec {
 };
 
 struct knet_tx_desc {
-    dtoe_send_type_e type;
     struct knet_iovec iov;
     uint32_t lkey;
 };
@@ -76,6 +81,19 @@ struct knet_tx_req {
     struct knet_tx_desc* descs;
     uint16_t descs_num;
     uint64_t wr_id;
+};
+
+enum knet_recv_type {
+    KNET_RX_NORM_TYPE = 0,
+    KNET_RX_IO_FINISH,
+    KNET_RX_IO_ABORT,
+    KNET_RX_IO_EXCEPTION,
+    KNET_RX_TYPE_MAX,
+};
+
+struct knet_rx_desc {
+    enum knet_recv_type type;
+    struct knet_iovec iov;
 };
 
 /**
@@ -92,12 +110,12 @@ void knet_ulp_ops_register(struct knet_ulp_ops *ops);
  * @param local_ip 绑定的业务ip
  * @return int 0 成功，-1 失败
  */
-KNET_API int knet_init(const char *local_ip);
+int knet_init(const char *local_ip);
 
 /**
  * @brief K-NET DTOE解初始化
  */
-KNET_API void knet_uninit(void);
+void knet_uninit(void);
 
 /**
 * @param addr [IN] 目标buf基址，虚拟地址
@@ -196,12 +214,12 @@ void *knet_get_ulp_user_data(int sockfd);
 int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_send_events* events, uint32_t maxevents);
 
 /**
- * @brief knet for dtoe send 
+ * @brief knet send
  * @param sockfd [IN] knet返回的sockfd
  * @param tx_req [IN] 构造卸载发包的tx_req请求
  * @return 成功返回发包字节数，失败返回负数
  */
-int knet_dtoe_send(int sockfd, struct knet_tx_req* tx_req);
+int knet_send(int sockfd, struct knet_tx_req* tx_req);
 
 /**
  * @brief 检查 rx channel 完成事件，执行对应处理
@@ -211,5 +229,16 @@ int knet_dtoe_send(int sockfd, struct knet_tx_req* tx_req);
  * @return 完成事件数
  */
 int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct knet_recv_events* events, uint32_t maxevents);
+
+/**
+ * @brief knet接收接口
+ * @param sockfd [IN] 标准socket的fd句柄
+ * @param desc [IN] 接收buf信息
+ * @param desc_num [IN] desc个数
+ * @param flags [IN] 预留（与标准socket保持一致）。暂不支持，填全0
+ * @return 非负数-成功接收的长度，负数-接收失败
+ * @attention 建议desc_num赋值为struct knet_recv_event的iovcnt
+ */
+int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags);
 
 #endif

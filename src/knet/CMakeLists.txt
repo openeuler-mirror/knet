@@ -168,6 +168,9 @@ endif()
 if (${KNET_STACK_TYPE} STREQUAL "dtoe")
     target_link_libraries(${TARGET_FRAME}
         dtoe_api
+        ${TARGET_CORE}
+        # 下面都是外部opensource的动态库
+        dtoe
     )
 endif()
 
