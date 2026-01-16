@@ -31,7 +31,7 @@ struct knet_recv_channel_events {
     uint32_t next_event_idx;
 };
 
-typedef struct knet_req_node{
+typedef struct knet_req_node {
     TAILQ_ENTRY(knet_req_node) node;
     uint64_t wr_id;     // 用户透传id
     uint16_t send_sn;

@@ -38,6 +38,9 @@ enum MAC_PARM {
 
 #define KNET_API __attribute__((visibility("default")))
 
+#define likely(x) __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+
 #define MAX_QUEUE_NUM 128
 
 #define M_SEC_2_N_SEC 1000000
