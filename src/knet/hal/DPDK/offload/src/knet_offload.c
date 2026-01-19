@@ -85,7 +85,7 @@ static int32_t GetActionRss(struct rte_flow_action_rss *flowActionRss, struct KN
     return 0;
 }
 
-static void GetPatternIpv4(struct rte_flow_item *flowPattern, size_t flowPatternLen, struct KNET_FlowCfg *flowCfg,
+KNET_STATIC void GetPatternIpv4(struct rte_flow_item *flowPattern, size_t flowPatternLen, struct KNET_FlowCfg *flowCfg,
     struct rte_flow_item_ipv4 *ipSpec, struct rte_flow_item_ipv4 *ipMask)
 {
     ipSpec->hdr.dst_addr = htonl(flowCfg->dstIp);
@@ -97,7 +97,7 @@ static void GetPatternIpv4(struct rte_flow_item *flowPattern, size_t flowPattern
     flowPattern[IPV4_PATTERN_INDEX].mask = ipMask;
 }
 
-static int32_t GetPattern(struct rte_flow_item *flowPattern, size_t flowPatternLen, struct KNET_FlowCfg *flowCfg,
+KNET_STATIC int32_t GetPattern(struct rte_flow_item *flowPattern, size_t flowPatternLen, struct KNET_FlowCfg *flowCfg,
     struct rte_flow_item_tcp *tcpSpec, struct rte_flow_item_tcp *tcpMask)
 {
     tcpSpec->hdr.src_port = htons(flowCfg->srcPort);
@@ -120,7 +120,7 @@ static int32_t GetPattern(struct rte_flow_item *flowPattern, size_t flowPatternL
     return 0;
 }
 
-static void TcpFlowCreationSuccessLog(uint16_t portId, struct KNET_FlowCfg *flowCfg)
+KNET_STATIC void TcpFlowCreationSuccessLog(uint16_t portId, struct KNET_FlowCfg *flowCfg)
 {
     KNET_DEBUG("Create tcp flow rule success, port %hu, dstIp %u, dstPort %hu, dstPortMask %hu",
         portId, flowCfg->dstIp, flowCfg->dstPort, flowCfg->dstPortMask);
