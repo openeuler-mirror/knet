@@ -13,6 +13,8 @@
 #ifndef __KNET_DTOE_API_H__
 #define __KNET_DTOE_API_H__
 
+#include <stdint.h>
+
 /* conn_async_offload_done钩子函数入参 */
 enum knet_async_rsp_type {
     KNET_ASYNC_OFFLOAD_SUCCESS = 0,
@@ -240,5 +242,11 @@ int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct kne
  * @attention 建议desc_num赋值为struct knet_recv_event的iovcnt
  */
 int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags);
+
+/**
+ * @brief 日志输出钩子函数
+ * @param format 日志信息
+ */
+void knet_log_fixlen_output(const char* format, ...);
 
 #endif

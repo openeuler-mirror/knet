@@ -598,5 +598,12 @@ int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags)
         return ret;
     }
 
+    KNET_DEBUG("dtoe recv bytes: %d, dtoe fd: %d", ret, sockfd);
+
     return ret;
+}
+
+void knet_log_fixlen_output(const char* format, ...)
+{
+    KNET_LogFixLenOutputHook(format);
 }
