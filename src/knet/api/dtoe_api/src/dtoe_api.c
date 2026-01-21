@@ -19,6 +19,7 @@
 #include "knet_lock.h"
 #include "knet_dtoe_fd.h"
 #include "knet_dtoe_events.h"
+#include "knet_dtoe_config.h"
 
 #define IP_STR_MAX_LEN 64
 #define KNET_DTOE_MAX_CHANL_CONFIG 16
@@ -138,15 +139,25 @@ void knet_reg_conn_async_offload_done(void *dtoe_conn, uint8_t rsp_status)
     g_knet_dtoe_ops.conn_async_offload_done(fd, rsp_status);
 }
 
-
-
 KNET_API int knet_init(const char * local_ip)
 {
     KNET_LogInit();
 
-    KNET_FdInit();
+    int ret = KNET_InitCfg();
+    if (ret != 0) {
+        KNET_ERR("Knet init cfg failed, ret %d", ret);
+        goto init_cfg_failed;
+    }
 
-    int ret = dtoe_ulp_config_set(KNET_DTOE_MAX_CHANL_CONFIG, 0);
+    KNET_LogLevelSetByStr(KNET_GetCfg(CONF_DTOE_LOG_LEVEL)->strValue);
+
+    ret = KNET_FdInit();
+    if (ret != 0) {
+        KNET_ERR("Knet fd init failed, ret %d", ret);
+        goto fd_init_failed;
+    }
+
+    ret = dtoe_ulp_config_set(KNET_GetCfg(CONF_DTOE_CHANNEL_NUM)->intValue, 0);
     if (ret != 0) {
         KNET_ERR("Dtoe init failed, ret %d", ret);
         goto free;
@@ -188,6 +199,8 @@ dtoe_free:
     dtoe_uninit();
 free:
     KNET_FdDeinit();
+fd_init_failed:
+init_cfg_failed:
     KNET_LogUninit();
     return ret;
 }
