@@ -1,4 +1,4 @@
 {
-    "depends" : "securec, dtoe, base, log",
+    "depends" : "securec, cJSON, dtoe, base, log",
     "description" : "knet dtoe_api module"
 }

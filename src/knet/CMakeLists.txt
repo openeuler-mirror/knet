@@ -139,6 +139,7 @@ if (${KNET_STACK_TYPE} STREQUAL "dtoe")
     target_link_libraries(${TARGET_CORE}
         base log
         # 下面都是外部opensource的动态库
+        libcjson.a
         -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
     )
 endif()
