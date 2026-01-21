@@ -283,7 +283,7 @@ def build_test():
 
     return 0
 
-def build_rpm():
+def build_rpm(stackType):
     os.chdir(f"{KNET_SOURCE_DIR}")
     KNET_RPM_DIR = f"{KNET_SOURCE_DIR}/build/rpmbuild"
     shutil.rmtree(f"{KNET_RPM_DIR}", ignore_errors=True)
@@ -292,6 +292,7 @@ def build_rpm():
     os.makedirs(f"{KNET_RPM_DIR}/SPECS")
     os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr")
     os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr/bin")
+    os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr/include")
     os.makedirs(f"{KNET_RPM_DIR}/SRPMS")
     os.makedirs(f"{KNET_RPM_DIR}/RPMS")
 
@@ -299,9 +300,12 @@ def build_rpm():
     shutil.copytree(f"{KNET_SOURCE_DIR}/build/lib", f"{KNET_RPM_DIR}/BUILD/usr/lib64", symlinks=True)
     shutil.copytree(f"{KNET_SOURCE_DIR}/conf", f"{KNET_RPM_DIR}/SOURCES")
     shutil.copy2(f"{KNET_SOURCE_DIR}/package/knet.spec", f"{KNET_RPM_DIR}/SPECS")
-    shutil.copy2(f"{KNET_SOURCE_DIR}/build/src/knet/knet_mp_daemon", f"{KNET_RPM_DIR}/BUILD/usr/bin")
-
-    cmd = ["rpmbuild", f"-ba", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
+    if stackType == 'dp':
+        shutil.copy2(f"{KNET_SOURCE_DIR}/build/src/knet/knet_mp_daemon", f"{KNET_RPM_DIR}/BUILD/usr/bin")
+        cmd = ["rpmbuild", f"-ba", f"--define", f"stack_type dp", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
+    elif stackType == 'dtoe':
+        shutil.copy2(f"{KNET_SOURCE_DIR}/src/knet/api/dtoe_api/include/knet_dtoe_api.h", f"{KNET_RPM_DIR}/BUILD/usr/include")
+        cmd = ["rpmbuild", f"-ba", f"--define", f"stack_type dtoe", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
         logging.error(f"exec cmd fail. [{cmd}]")
@@ -379,5 +383,5 @@ if __name__ == "__main__":
 
     if arg_nums > 1:
         if sys.argv[-1] == "rpm":
-            if build_rpm() != 0:
+            if build_rpm(stackType) != 0:
                 sys.exit(1)
