@@ -291,6 +291,8 @@ def build_rpm():
     os.makedirs(f"{KNET_RPM_DIR}/SPECS")
     os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr")
     os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr/bin")
+    os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr/include")
+    os.makedirs(f"{KNET_RPM_DIR}/BUILD/usr/include/knet")
     os.makedirs(f"{KNET_RPM_DIR}/SRPMS")
     os.makedirs(f"{KNET_RPM_DIR}/RPMS")
 
@@ -299,6 +301,8 @@ def build_rpm():
     shutil.copytree(f"{KNET_SOURCE_DIR}/conf", f"{KNET_RPM_DIR}/SOURCES")
     shutil.copy2(f"{KNET_SOURCE_DIR}/package/knet.spec", f"{KNET_RPM_DIR}/SPECS")
     shutil.copy2(f"{KNET_SOURCE_DIR}/build/src/knet/knet_mp_daemon", f"{KNET_RPM_DIR}/BUILD/usr/bin")
+    shutil.copy2(f"{KNET_SOURCE_DIR}/build/include/extern_api/h/knet_socket_api.h",
+        f"{KNET_RPM_DIR}/BUILD/usr/include/knet")
 
     cmd = ["rpmbuild", f"-ba", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
     output = subprocess.run(cmd, shell=False)

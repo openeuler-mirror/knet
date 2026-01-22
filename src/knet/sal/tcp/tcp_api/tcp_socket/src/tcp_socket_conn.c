@@ -259,9 +259,10 @@ int KNET_DpBind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     int ret = DP_PosixBind(KNET_OsFdToDpFd(sockfd), addr, addrlen);
     AFTER_DPFUNC();
     if (ret < 0) {
-        KNET_ERR("DP_PosixBind ret %d, osFd %d, dpFd %d, ip 0x%x, port 0x%x, errno %d, %s",
-            ret, sockfd, KNET_OsFdToDpFd(sockfd), ((struct sockaddr_in *)addr)->sin_addr.s_addr,
-            ((struct sockaddr_in *)addr)->sin_port, errno, strerror(errno));
+        KNET_ERR("DP_PosixBind ret %d, osFd %d, dpFd %d, ip %s, 0x%x, port 0x%x, errno %d, %s",
+            ret, sockfd, KNET_OsFdToDpFd(sockfd), (addr != NULL) ? "not null" : "is null",
+            (addr != NULL) ? ((struct sockaddr_in *)addr)->sin_addr.s_addr : 0,
+            (addr != NULL) ? ((struct sockaddr_in *)addr)->sin_port : 0, errno, strerror(errno));
         return ret;
     }
     KNET_DEBUG("Bind success, osFd %d, dpFd %d, ip 0x%x, port 0x%x",

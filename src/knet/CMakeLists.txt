@@ -72,7 +72,7 @@ set(DPDK_LIBS
 )
 
 # 生成RPM包时，不包含RPATH
-if (${KNET_BUILD_TYPE} STREQUAL "Release")
+if (${KNET_BUILD_TYPE} STREQUAL "Release" OR ${KNET_BUILD_TYPE} STREQUAL "Debug")
     set(CMAKE_SKIP_RPATH TRUE)
 endif ()
 
