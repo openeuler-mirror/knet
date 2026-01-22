@@ -474,15 +474,26 @@ static void knet_dtoe_receive_notify(void* dtoe_conn, int iov_cnt)
         KNET_ERR("sock null is illeagal");
         return;
     }
-    if (likely(iov_cnt >= 0)) {
-        sock->recv_channel->events[sock->recv_channel->next_event_idx].sockfd = sock->sockfd;
-        sock->recv_channel->events[sock->recv_channel->next_event_idx].desc_cnt = iov_cnt;
-        ++sock->recv_channel->next_event_idx;
-        KNET_DEBUG("recv notify, sockfd %d, iov_cnt %d, next_event_idx %d",
-                sock->sockfd, iov_cnt, sock->recv_channel->next_event_idx);
+
+    struct knet_recv_channel_events *recvChannel = sock->recv_channel;
+    if (likely(iov_cnt > 0)) {
+        if (sock->recvEventIndex == KNET_INVALID_EVENT_INDEX) { // sockfd第一次触发recv notify，记录event index位置
+            recvChannel->events[recvChannel->next_event_idx].sockfd = sock->sockfd;
+            recvChannel->events[recvChannel->next_event_idx].desc_cnt = iov_cnt;
+            sock->recvEventIndex = recvChannel->next_event_idx;
+            ++recvChannel->next_event_idx;
+        } else { // 后续第2 3 ... N 次触发recv_notify，聚合desc_cnt
+            recvChannel->events[sock->recvEventIndex].desc_cnt += iov_cnt;
+        }
+    } else if (iov_cnt == 0) { // iov_cnt为0的事件不能聚合，要返回给用户，告知对端连接已断开
+        recvChannel->events[recvChannel->next_event_idx].sockfd = sock->sockfd;
+        recvChannel->events[recvChannel->next_event_idx].desc_cnt = iov_cnt;
+        ++recvChannel->next_event_idx;
     } else {
         KNET_ERR("sockfd %d, iov_cnt: %d, unknown reason", sock->sockfd, iov_cnt);
     }
+    KNET_DEBUG("recv notify, sockfd %d, iov_cnt %d, next_event_idx %d, recvEventIndex %d",
+                    sock->sockfd, iov_cnt, recvChannel->next_event_idx, sock->recvEventIndex);
 }
 
 void knet_ulp_ops_register(struct knet_ulp_ops *ops)
@@ -600,6 +611,11 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
     recv_channel_events->next_event_idx = 0;
 
     dtoe_poll_receive_channel((recv_channel_s*) recv_channel, maxevents);  // recv_channel地址即是recv_channel_events地址
+
+    for (uint32_t i = 0; i < recv_channel_events->next_event_idx; ++i) {
+        KNET_GetFdConnUserData(events[i].sockfd)->recvEventIndex = KNET_INVALID_EVENT_INDEX;
+    }
+
     return recv_channel_events->next_event_idx;
 }
 
