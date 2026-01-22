@@ -20,22 +20,26 @@
 #include "knet_lock.h"
 
 #define KNET_INVALID_FD (-1)
+#define KNET_INVALID_EVENT_INDEX (-1)
 
+/* 涉及多线程，成员变更考虑伪共享 */
 struct KNET_Fd {
     void *dtoe_conn;
     int sockfd;
-    uint32_t recv_sn;
     struct knet_send_channel_events *send_channel;
-    struct knet_recv_channel_events *recv_channel;
     struct {
         uint16_t last_sn;
         uint16_t comp_sn;
         struct KnetReqListHead unack_req;
         struct KnetReqListHead free_req;
     } send;
+    KNET_SpinLock send_lock;
+
+    struct knet_recv_channel_events *recv_channel;
+    int recvEventIndex; // 一次knet_poll_recv_channel调用中，该sockfd第一次事件触发对应结果数组的下标
 
     void *user_data;
-    KNET_SpinLock send_lock;
+    uint32_t recv_sn;
 };
 
 /**

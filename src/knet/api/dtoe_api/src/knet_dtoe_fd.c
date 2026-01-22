@@ -73,6 +73,7 @@ void KNET_SetFdState(int sockfd, struct knet_offload_in *in, dtoe_offload_out_s 
     // 此处直接强转为struct knet_send_channel_events *是因为knet_dtoe_create_send_channel返回的也是struct knet_send_channel地址，recv同理
     g_knetDtoeFdMap[sockfd].send_channel = (struct knet_send_channel_events *)(in->send_channel);
     g_knetDtoeFdMap[sockfd].recv_channel = (struct knet_recv_channel_events *)(in->recv_channel);
+    g_knetDtoeFdMap[sockfd].recvEventIndex = KNET_INVALID_EVENT_INDEX;
     g_knetDtoeFdMap[sockfd].user_data = in->user_data;
     g_knetDtoeFdMap[sockfd].dtoe_conn = out->dtoe_conn;
     g_knetDtoeFdMap[sockfd].recv_sn = out->recv_sn;
@@ -142,6 +143,7 @@ void KNET_ResetFdState(int sockfd)
     g_knetDtoeFdMap[sockfd].recv_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send_channel = NULL;
     g_knetDtoeFdMap[sockfd].recv_channel = NULL;
+    g_knetDtoeFdMap[sockfd].recvEventIndex = KNET_INVALID_EVENT_INDEX;
     g_knetDtoeFdMap[sockfd].send.comp_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send.last_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].user_data = NULL;
