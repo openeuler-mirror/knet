@@ -403,23 +403,29 @@ void *knet_get_ulp_user_data(int sockfd)
     return KNET_GetFdConnUserData(sockfd)->user_data;
 }
 
-static bool is_send_complete(struct KNET_Fd* conn, KnetReqNode* rnode)
+/**
+ * @note req发送完成需要满足如下条件
+ * 都不翻转               last_sn < send_sn <= comp_sn
+ * comp_sn翻转            comp_sn < last_sn < send_sn
+ * comp_sn, send_sn都翻转 send_sn <= comp_sn < last_sn
+*/
+static inline bool is_send_complete(struct KNET_Fd* conn, KnetReqNode* rnode)
 {
-    if (conn == NULL || rnode == NULL) {
-        return false;
-    }
     bool complete = false;
-    if (conn->send.last_sn < conn->send.comp_sn) {
+    if (likely(conn->send.last_sn < conn->send.comp_sn)) {
         if (rnode->send_sn > conn->send.last_sn && rnode->send_sn <= conn->send.comp_sn) {
             complete = true;
         }
-    } else {
+    } else if (conn->send.last_sn > conn->send.comp_sn) {
         if (rnode->send_sn <= conn->send.comp_sn || rnode->send_sn > conn->send.last_sn) {
             complete = true;
         }
+    } else {
+        KNET_ERR("last_sn %u is abnormal and equal to comp_sn %u, send_sn %u",
+            conn->send.last_sn, conn->send.comp_sn, rnode->send_sn);
     }
     return complete;
-}   
+}
 
 static void knet_dtoe_send_complete(void* dtoe_conn, struct dtoe_tx_event* event)
 {

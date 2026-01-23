@@ -28,8 +28,8 @@ struct KNET_Fd {
     int sockfd;
     struct knet_send_channel_events *send_channel;
     struct {
-        uint16_t last_sn;
-        uint16_t comp_sn;
+        uint16_t last_sn; // 上一个已完成的req的send_sn
+        uint16_t comp_sn; // send_complete对应的finish_msn
         struct KnetReqListHead unack_req;
         struct KnetReqListHead free_req;
     } send;
