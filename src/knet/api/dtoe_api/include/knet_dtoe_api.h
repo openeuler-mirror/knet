@@ -244,9 +244,12 @@ int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct kne
 int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags);
 
 /**
- * @brief 日志输出钩子函数
+ * @brief 日志输出函数
+ * @param function 调用处函数名
+ * @param line 调用处行数
+ * @param level 日志级别
  * @param format 日志信息
  */
-void knet_log_fixlen_output(const char* format, ...);
+void knet_log(const char *function, int line, int level, const char *format, ...);
 
 #endif
