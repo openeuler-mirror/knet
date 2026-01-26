@@ -568,23 +568,41 @@ ssize_t PBUF_ChainWrite(PBUF_Chain_t* chain, uint8_t* data, size_t len, uint16_t
     return (ssize_t)ret;
 }
 
-ssize_t PBUF_ChainWriteFromPbuf(PBUF_Chain_t* chain, Pbuf_t* src, uint16_t fragSize, uint16_t headroom)
+ssize_t PBUF_ChainBuildFromPbuf(PBUF_Chain_t* chain, Pbuf_t* src, uint16_t fragSize, uint16_t headroom)
 {
     ASSERT(chain != NULL);
 
     ssize_t ret = 0;
     Pbuf_t* cur = src;
-
+    Pbuf_t* dst = NULL;
+     
+    uint32_t remain = src->totLen;
+    uint16_t curOffset = 0;
+        
     while (cur != NULL) {
-        ssize_t written;
-
-        written = PBUF_ChainWrite(chain, PBUF_MTOD(cur, uint8_t*), PBUF_GET_SEG_LEN(cur), fragSize, headroom);
-        if (written <= 0) { // 内存申请失败
-            return ret;
+        uint16_t written;
+            
+        if (dst == NULL) {
+            uint32_t allocLen = (remain > fragSize) ? fragSize : (uint16_t)remain;
+            dst = PBUF_Alloc(headroom, allocLen);
+            if (dst == NULL) {
+                return ret;
+            }
         }
-
-        ret += written;
-        cur = PBUF_NEXT_SEG(cur);
+        written = PBUF_Fill(dst, PBUF_MTOD(cur, uint8_t*) + curOffset, PBUF_GET_SEG_LEN(cur) - curOffset, fragSize);
+        ret += (ssize_t)written;
+        curOffset += written;
+        remain -= written;
+        
+        if (PBUF_GET_SEG_LEN(cur) == curOffset) {
+            cur = PBUF_NEXT_SEG(cur);
+            curOffset = 0;
+        }
+            
+        if (PBUF_GET_PKT_LEN(dst) == fragSize || cur == NULL) {
+            PBUF_ChainPush(chain, dst);
+            dst = NULL;
+        }
     }
 
     return ret;
