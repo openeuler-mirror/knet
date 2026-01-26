@@ -61,6 +61,7 @@ target_link_libraries(${TARGET_DP}
     dpl2_eth
     dpl3_ip
     dpl4_tcp
+    dpl4_udp
 )
 
 add_subdirectory(src)

@@ -1482,7 +1482,7 @@ TcpSk_t* TcpReuse(TcpSk_t* tcp, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
     TcpSk_t *ret = tcp;
 
     if (pi->thFlags == DP_TH_SYN) {
-        TcpSynOpts_t synOpts;
+        TcpSynOpts_t synOpts = {0};
         // 如果选项失败则不使用，且不影响已查找到的socket
         (void)TcpParseSynOpts((uint8_t*)(tcpHdr + 1), pi->hdrLen - sizeof(DP_TcpHdr_t), &synOpts);
 

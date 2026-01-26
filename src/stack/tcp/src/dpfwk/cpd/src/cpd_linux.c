@@ -224,7 +224,7 @@ static void CpdCreateIcmpPkt(uint8_t *data, uint32_t dataLen, const uint32_t src
     ipHdr->hdrlen  = sizeof(DP_IpHdr_t) >> 2;    // 2： 首部长度记录为 4字节 数
     ipHdr->tos    = 0;
     ipHdr->totlen = (uint16_t)UTILS_NTOHS(dataLen);
-    ipHdr->ipid   = (uint16_t)(RAND_GEN() & 0xFFFF);
+    ipHdr->ipid   = (uint16_t)UTILS_NTOHS((RAND_GEN() & 0xFFFF));
     ipHdr->off    = UTILS_HTONS(DP_IP_FRAG_DF);
     ipHdr->ttl    = DP_ICMP_TTL;
     ipHdr->type   = DP_IPPROTO_ICMP;

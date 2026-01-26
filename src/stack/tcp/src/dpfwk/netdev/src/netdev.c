@@ -102,7 +102,7 @@ static Netdev_t* AllocNetdev(DP_NetdevCfg_t* cfg, size_t privateLen)
     uint8_t*  buf;
 
     allocSize += privateLen;
-    allocSize += GetDevQueSize(cfg->rxCachedDeep + cfg->rxFlashSize) * cfg->rxQueCnt;
+    allocSize += (GetDevQueSize(cfg->rxCachedDeep) + cfg->rxFlashSize * sizeof(void*)) * cfg->rxQueCnt;
     allocSize += GetDevQueSize(cfg->txCachedDeep) * cfg->txQueCnt;
 
     dev = SHM_MALLOC(allocSize, MOD_NETDEV, DP_MEM_FREE);

@@ -118,7 +118,7 @@ void DevTask(int wid)
     txQue = LIST_FIRST(&task->txQues);
 
     while (txQue != NULL) {
-        if ((txQue->dev->ifflags & DP_IFF_RUNNING) == 0) {
+        if (UTILS_UNLIKELY((txQue->dev->ifflags & DP_IFF_RUNNING) == 0)) {
             NetdevQue_t* txRemove = txQue;
 
             txQue = LIST_NEXT(txRemove, node);

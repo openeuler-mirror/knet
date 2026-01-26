@@ -57,16 +57,6 @@ int DP_Socket(int domain, int type, int protocol)
     Sock_t* sk = NULL;
     Fd_t*   file;
     int     ret;
-    int32_t wid = -1;
-
-    if ((CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) || (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE))  {
-        wid = WORKER_GetSelfId();
-        if (wid < 0) {
-            DP_LOG_DBG("Create socket failed, get wid error");
-            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
-            return -1;
-        }
-    }
 
     file = FD_Alloc();
     if (file == NULL) {
@@ -96,10 +86,7 @@ int DP_Socket(int domain, int type, int protocol)
 
     sk->sockType = (uint16_t)tempType; // 新增，注意初始化时该字段为0
     sk->file = file;
-    sk->wid = wid;
     sk->nonblock = nonblock;
-    /* 无锁场景下，worker之间没有共享资源，分流由产品完成，只检查worker内是否存在重复连接 */
-    sk->glbHashTblIdx = (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE) ? (uint8_t)wid : 0;
 
     return FD_GetUserFd(file);
 }

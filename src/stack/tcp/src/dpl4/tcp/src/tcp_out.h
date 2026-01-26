@@ -60,7 +60,7 @@ void TcpRexmitAll(TcpSk_t* tcp);
 // RTO时调用
 void TcpRexmitPkt(TcpSk_t* tcp);
 // 重传报文
-void TcpRexmitQue(TcpSk_t* tcp);
+void TcpRexmitQue(TcpSk_t* tcp, int isNeedRst);
 
 #define TCP_IS_FAST_REXMIT(tcp) ((tcp)->dupAckCnt == (tcp)->reorderCnt)
 #define TCP_IS_FAST_RECOVERY(tcp) ((tcp)->dupAckCnt > (tcp)->reorderCnt)

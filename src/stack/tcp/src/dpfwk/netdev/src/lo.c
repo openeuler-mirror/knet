@@ -40,6 +40,9 @@ static void LoDoRcv(NetdevQue_t* que)
         DP_PBUF_SET_WID(pbufs[i], (uint8_t)rxQue->wid); // wid不会超过255，强转无风险
         PBUF_SET_DEV(pbufs[i], rxQue->dev);
 
+        DP_PBUF_SET_OLFLAGS_BIT(pbufs[i], DP_PBUF_OLFLAGS_RX_IP_CKSUM_GOOD);
+        DP_PBUF_SET_OLFLAGS_BIT(pbufs[i], DP_PBUF_OLFLAGS_RX_L4_CKSUM_GOOD);
+
         NET_DEV_ADD_RX_PKTS(rxQue, 1);
         NET_DEV_ADD_RX_BYTES(rxQue, PBUF_GET_SEG_LEN(pbufs[i]));
 
@@ -100,6 +103,15 @@ static int LoInit(Netdev_t* dev, DP_NetdevCfg_t* devCfg)
     dev->mtu     = UINT16_MAX;
     dev->ifflags = DP_IFF_LOOPBACK;
     dev->dstEntry = PMGR_ENTRY_BUTT;
+    dev->offloads = (DP_NETDEV_OFFLOAD_TX_IPV4_CKSUM |
+                     DP_NETDEV_OFFLOAD_RX_IPV4_CKSUM |
+                     DP_NETDEV_OFFLOAD_TX_TCP_CKSUM |
+                     DP_NETDEV_OFFLOAD_RX_TCP_CKSUM |
+                     DP_NETDEV_OFFLOAD_TX_UDP_CKSUM |
+                     DP_NETDEV_OFFLOAD_RX_UDP_CKSUM |
+                     DP_NETDEV_OFFLOAD_TSO |
+                     DP_NETDEV_OFFLOAD_LRO);
+    dev->enabledOffloads = dev->offloads;
 
     return 0;
 }

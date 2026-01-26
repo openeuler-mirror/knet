@@ -76,7 +76,7 @@ int (*g_dPCfg)(DP_CfgKv_t* kv, int cnt);
 int (*g_dpCpdQueHooksReg)(void* queOps);
 int (*g_dpGetNetdevQueMap)(int32_t wid, int32_t ifIndex, uint32_t* queMap, int32_t mapCnt);
 
-// hisackdp.so
+// dpstack.so
 static struct KnetSymbolsInfo g_tcp[] = {
     KNET_ADD_SYMBOL(DP_ShowStatistics, dPShowStatistics),
     KNET_ADD_SYMBOL(DP_SocketCountGet, dPSocketCountGet),
