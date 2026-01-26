@@ -420,10 +420,8 @@ static inline bool is_send_complete(struct KNET_Fd* conn, KnetReqNode* rnode)
         if (rnode->send_sn <= conn->send.comp_sn || rnode->send_sn > conn->send.last_sn) {
             complete = true;
         }
-    } else {
-        KNET_ERR("last_sn %u is abnormal and equal to comp_sn %u, send_sn %u",
-            conn->send.last_sn, conn->send.comp_sn, rnode->send_sn);
     }
+    
     return complete;
 }
 
@@ -638,7 +636,7 @@ int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags)
     return ret;
 }
 
-void knet_log_fixlen_output(const char* format, ...)
+void knet_log(const char *function, int line, int level, const char *format, ...)
 {
-    KNET_LogFixLenOutputHook(format);
+    KNET_Log(function, line, level, format);
 }
