@@ -253,9 +253,6 @@ static const CONFIG_InitFns_t g_cfgInitFns[] = {
 #ifdef DPITF_NETLINK
     {.init = SOCK_InitNetlink, .deinit = NULL, .name = "netlink"},
 #endif
-#ifdef DPL2_PACKET
-    {.init = PACKET_Init, .deinit = NULL, .name = "packet"},
-#endif
     {.init = PMGR_Init, .deinit = PMGR_Deinit, .name = "pmgr"},
     {.init = ProtoInit, .deinit = ProtoDeinit, .name = "proto"},
     {.init = NS_Init, .deinit = NS_Deinit, .name = "ns"},

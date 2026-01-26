@@ -58,12 +58,12 @@ static inline int TcpInetDevIsUp(Sock_t* sk)
 
 static inline uint16_t TcpGetTsoSize(Netdev_t* dev, uint16_t mss)
 {
-    if (dev == NULL || !NETDEV_TSO_ENABLED(dev)) {
+    if (dev == NULL || !NETDEV_TSO_ENABLED(dev) || dev->tsoSize <= (sizeof(DP_IpHdr_t) + sizeof(DP_TcpHdr_t))) {
         return mss;
     }
 
     // TSO 开启，返回 tsoSize
-    return (uint16_t)UTILS_MAX(mss, dev->tsoSize);
+    return (uint16_t)UTILS_MAX(mss, dev->tsoSize - sizeof(DP_IpHdr_t) - sizeof(DP_TcpHdr_t));
 }
 
 static inline void TcpCheckBacklog(Sock_t* sk, int backlog)
@@ -95,18 +95,18 @@ static inline void TcpFillCookieSk(TcpSk_t* newTcp, TcpPktInfo_t* pi, uint16_t m
 
 #define TCP_OPTLEN_SACKBLOCK_MAX (DP_TCPOLEN_MAX - TCP_OPTLEN_SACK_APPA) // 按tcp选项长度计算的最大sack块数量
 
-static inline uint16_t TcpGetEffectiveMss(TcpSk_t* tcp)
+static inline uint16_t TcpGetEffectiveMss(TcpSk_t* tcp, uint16_t rawMss)
 {
     if (TCP_SACK_AVAILABLE(tcp) && tcp->sackInfo->sackBlockNum != 0) {
         if (TcpNegTs(tcp)) { // 有时间戳时的对齐
-            return tcp->mss - (uint16_t)(TCP_OPTLEN_SACK_PERBLOCK * UTILS_MIN(tcp->sackInfo->sackBlockNum,
+            return rawMss - (uint16_t)(TCP_OPTLEN_SACK_PERBLOCK * UTILS_MIN(tcp->sackInfo->sackBlockNum,
                 (TCP_OPTLEN_SACKBLOCK_MAX - DP_TCPOLEN_TSTAMP_APPA) / TCP_OPTLEN_SACK_PERBLOCK)) - TCP_OPTLEN_SACK_APPA;
         } else {             // 无时间戳时的对齐
-            return tcp->mss - (uint16_t)(TCP_OPTLEN_SACK_PERBLOCK * UTILS_MIN(tcp->sackInfo->sackBlockNum,
+            return rawMss - (uint16_t)(TCP_OPTLEN_SACK_PERBLOCK * UTILS_MIN(tcp->sackInfo->sackBlockNum,
                 TCP_OPTLEN_SACKBLOCK_MAX / TCP_OPTLEN_SACK_PERBLOCK)) - TCP_OPTLEN_SACK_APPA;
         }
     }
-    return tcp->mss;
+    return rawMss;
 }
 
 uint32_t TcpInetGenIsn(Sock_t* sk);

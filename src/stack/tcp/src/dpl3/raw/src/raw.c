@@ -253,6 +253,11 @@ static int RawCheckAddr(Sock_t* sk, const struct DP_Msghdr* msg, size_t msgDataL
 
 static void RawRouteSetPbuf(Pbuf_t* pbuf, InetSk_t* inetSk)
 {
+    PBUF_SET_DEV(pbuf, INET_GetDevByFlow(&inetSk->flow));
+    PBUF_SET_QUE_ID(pbuf, 0);
+    DP_PBUF_SET_WID(pbuf, (uint8_t)NETDEV_GetTxWid(PBUF_GET_DEV(pbuf), 0));
+    PBUF_SET_FLOW(pbuf, &inetSk->flow);
+    
     if (inetSk->options.incHdr == 0) {
         PBUF_SET_ENTRY(pbuf, PMGR_ENTRY_ROUTE_OUT);
         return;
@@ -270,9 +275,9 @@ static void RawRouteSetPbuf(Pbuf_t* pbuf, InetSk_t* inetSk)
     }
     if (ipHdr->ipid == 0) {
         if (PBUF_GET_L4_TYPE(pbuf) == DP_IPPROTO_TCP) {
-            ipHdr->ipid = IpGetId(DP_PBUF_GET_WID(pbuf));
+            ipHdr->ipid = UTILS_HTONS(IpGetId(DP_PBUF_GET_WID(pbuf)));
         } else {
-            ipHdr->ipid = IpGetGlobalId();
+            ipHdr->ipid = UTILS_HTONS(IpGetGlobalId());
         }
     }
     ipHdr->totlen  = UTILS_HTONS((uint16_t)PBUF_GET_PKT_LEN(pbuf));
@@ -331,15 +336,16 @@ ssize_t RawSendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags, size_t ms
         return -ENETUNREACH;
     }
 
+    if ((INET_GetDevByFlow(&inetSk->flow)->ifflags & DP_IFF_UP) == 0) {
+        PBUF_Free(pbuf);
+        return -ENETDOWN;
+    }
+
     if (msgDataLen > (size_t)(inetSk->flow.mtu - SOCK_INET_HEADROOM)) {
         PBUF_Free(pbuf);
         return -EMSGSIZE;
     }
 
-    PBUF_SET_DEV(pbuf, INET_GetDevByFlow(&inetSk->flow));
-    PBUF_SET_QUE_ID(pbuf, 0);
-    DP_PBUF_SET_WID(pbuf, (uint8_t)NETDEV_GetTxWid(PBUF_GET_DEV(pbuf), 0));
-    PBUF_SET_FLOW(pbuf, &inetSk->flow);
     RawRouteSetPbuf(pbuf, inetSk);
 
     PMGR_Dispatch(pbuf);

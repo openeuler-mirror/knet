@@ -109,6 +109,9 @@ enum {
 
 static inline uint16_t TcpGetRsvPort(uint16_t minPort, uint16_t range)
 {
+    if (range == 0) {
+        return minPort;
+    }
     return minPort + RAND_GEN() % range;
 }
 extern TcpFamilyOps_t* g_tcpInetOps;

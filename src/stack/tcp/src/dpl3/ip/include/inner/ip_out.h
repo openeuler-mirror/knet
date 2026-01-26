@@ -48,15 +48,13 @@ static inline uint16_t IpGetId(uint8_t wid)
 
 static inline uint16_t IpCalcCksum(Pbuf_t* pbuf, Netdev_t* dev, DP_IpHdr_t* ipHdr, uint8_t hdrLen)
 {
-    if (NETDEV_TX_IPV4_CKSUM_ENABLED(dev) &&
+    if ((NETDEV_TX_IPV4_CKSUM_ENABLED(dev)) &&
         (PBUF_GET_PKT_FLAGS(pbuf) & PBUF_PKTFLAGS_FRAGMENTED) == 0 && ipHdr->type != DP_IPPROTO_ICMP) {
         DP_PBUF_SET_OLFLAGS_BIT(pbuf, DP_PBUF_OLFLAGS_TX_IP_CKSUM);
         return 0;
     }
 
-    uint32_t cksum = UTILS_Cksum(0, (uint8_t*)ipHdr, hdrLen);
-
-    return UTILS_CksumSwap(cksum);
+    return UTILS_CksumSwap(UTILS_Cksum(0, (uint8_t*)ipHdr, hdrLen));
 }
 
 void IpFillHdr(Pbuf_t* pbuf, const INET_FlowInfo_t* flow);

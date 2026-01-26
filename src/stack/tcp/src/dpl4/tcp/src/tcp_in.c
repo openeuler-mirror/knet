@@ -87,34 +87,34 @@ int TcpInitPktInfo(Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
 {
     uint8_t thflags;
 
-    if (PBUF_GET_SEG_LEN(pbuf) < sizeof(DP_TcpHdr_t)) {
+    if (UTILS_UNLIKELY(PBUF_GET_SEG_LEN(pbuf) < sizeof(DP_TcpHdr_t))) {
         DP_INC_TCP_STAT(pbuf->wid, DP_TCP_RCV_SHORT);
         return -1;
     }
 
     pi->hdrLen = tcpHdr->off << 2; // 2: hdrLen占高位的4bit，需要乘以4
-    if (pi->hdrLen > PBUF_GET_SEG_LEN(pbuf) || pi->hdrLen < sizeof(DP_TcpHdr_t)) {
+    if (UTILS_UNLIKELY(pi->hdrLen > PBUF_GET_SEG_LEN(pbuf) || pi->hdrLen < sizeof(DP_TcpHdr_t))) {
         DP_INC_TCP_STAT(pbuf->wid, DP_TCP_RCV_BAD_OFF);
         return -1;
     }
 
     pi->dataLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
 
-    
     DP_IpHdr_t* ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
-    if ((ipHdr->src == ipHdr->dst) && (tcpHdr->sport == tcpHdr->dport)) {
+    if (UTILS_UNLIKELY((ipHdr->src == ipHdr->dst) && (tcpHdr->sport == tcpHdr->dport))) {
         DP_INC_TCP_STAT(pbuf->wid, DP_TCP_RCV_LOCAL_ADDR);
         return -1;
     }
 
     thflags = tcpHdr->flags & 0x3F;
-    if (thflags == 0x3F || thflags == 0 || (thflags & (DP_TH_FIN | DP_TH_SYN)) == (DP_TH_FIN | DP_TH_SYN) ||
-        (thflags & (DP_TH_FIN | DP_TH_RST)) == (DP_TH_FIN | DP_TH_RST)) {
+    if (UTILS_UNLIKELY(thflags == 0x3F || thflags == 0 ||
+        (thflags & (DP_TH_FIN | DP_TH_SYN)) == (DP_TH_FIN | DP_TH_SYN) ||
+        (thflags & (DP_TH_FIN | DP_TH_RST)) == (DP_TH_FIN | DP_TH_RST))) {
         DP_INC_TCP_STAT(pbuf->wid, DP_TCP_DROP_CONTROL_PKTS);
         return -1;
     }
 
-    if (TcpVerifyCksum(pbuf) != 0) {
+    if (UTILS_UNLIKELY(TcpVerifyCksum(pbuf) != 0)) {
         DP_INC_TCP_STAT(pbuf->wid, DP_TCP_RCV_BAD_SUM);
         return -1;
     }
@@ -1379,7 +1379,7 @@ Pbuf_t* TcpInput(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* 
     PBUF_SET_L4_OFF(pbuf);
     PBUF_CUT_HEAD(pbuf, pi->hdrLen);
 
-    if (TcpProcThFlags(tcp, pbuf, tcpHdr, pi, &ret) != 0) {
+    if (UTILS_UNLIKELY(TcpProcThFlags(tcp, pbuf, tcpHdr, pi, &ret) != 0)) {
         return ret;
     }
 
@@ -1392,7 +1392,7 @@ Pbuf_t* TcpInput(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* 
 
     pi->sndWnd <<= tcp->sndWs;
 
-    if (TcpPreProcPkt(tcp, pbuf, pi, &ret) != 0) {
+    if (UTILS_UNLIKELY(TcpPreProcPkt(tcp, pbuf, pi, &ret) != 0)) {
         goto drop;
     }
 
@@ -1402,7 +1402,7 @@ Pbuf_t* TcpInput(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* 
         TcpUpdateKeepTimer(tcp);
     }
 
-    if (TcpProcAck(tcp, pi, &isFree) < 0) {
+    if (UTILS_UNLIKELY(TcpProcAck(tcp, pi, &isFree) < 0)) {
         goto drop;
     }
 

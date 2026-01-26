@@ -21,6 +21,7 @@
 #include "utils_cfg.h"
 #include "utils_log.h"
 #include "utils_statistic.h"
+#include "worker.h"
 
 #include "sock_notify.h"
 
@@ -494,11 +495,21 @@ int SOCK_Create(NS_Net_t* net, int domain, int type, int protocol, Sock_t** sk)
     const SOCK_FamilyOps_t* ops = GetFamilyOps(domain);
     SOCK_CreateSkFn_t       createFn;
     int                     ret;
+    int32_t                 wid = -1;
 
     if (ops == NULL) {
         DP_LOG_DBG("Sock create failed, ops null");
         DP_ADD_ABN_STAT(DP_SOCKET_DOMAIN_ERR);
         return -EAFNOSUPPORT;
+    }
+
+    if ((CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD) || (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE))  {
+        wid = WORKER_GetSelfId();
+        if (wid < 0) {
+            DP_LOG_DBG("Create socket failed, get wid error");
+            DP_ADD_ABN_STAT(DP_WORKER_MISS_MATCH);
+            return -EINVAL;
+        }
     }
 
     ret = ops->lookup(type, protocol, &createFn);
@@ -510,7 +521,16 @@ int SOCK_Create(NS_Net_t* net, int domain, int type, int protocol, Sock_t** sk)
 
     ASSERT(createFn != NULL);
 
-    return createFn(net, type, protocol, sk);
+    ret = createFn(net, type, protocol, sk);
+    if ((ret != 0) || (*sk == NULL)) {
+        return ret;
+    }
+
+    (*sk)->wid = wid;
+    /* 无锁场景下，worker之间没有共享资源，分流由产品完成，只检查worker内是否存在重复连接 */
+    (*sk)->glbHashTblIdx = (CFG_GET_VAL(CFG_NOLOCK) == DP_ENABLE) ? (uint8_t)wid : 0;
+
+    return 0;
 }
 
 int SOCK_Close(Sock_t* sk)
@@ -1459,8 +1479,8 @@ int SOCK_Setsockopt(Sock_t* sk, int level, int optname, const void* optval, DP_S
         case DP_SOL_SOCKET:
             ret = SockSetsockopt(sk, level, optname, optval, optlen);
             break;
+        case DP_SOL_PACKET:
         case DP_IPPROTO_IP:
-        case DP_IPPROTO_IPV6:
         case DP_IPPROTO_TCP:
         case DP_IPPROTO_UDP:
             ret = -ENOPROTOOPT;

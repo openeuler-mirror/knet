@@ -901,16 +901,34 @@ static inline void TcpUpdateFlags(TcpSk_t *tcp, uint8_t *flags, int isNeedRst)
     *flags = tempFlags;
 }
 
+static inline bool IsAllowFinRexmit(TcpSk_t* tcp)
+{
+    /* 如果已经发送了FIN，重传完所有数据之后再重传FIN */
+    if ((TcpState(tcp) == TCP_FIN_WAIT1) || (TcpState(tcp) == TCP_CLOSING) || (TcpState(tcp) == TCP_LAST_ACK)) {
+        if ((tcp->rtxHead == NULL) && (tcp->sndNxt == tcp->sndMax - 1)) {
+            /* 如果rtxHead为空，表示重传队列数据已经全部发送，如果之前发送过FIN，sndMax必然等于sndNxt+1 */
+            return true;
+        }
+    }
+    return false;
+}
+
 int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
 {
     /* 这个时候代表上次重传数据未重传全部数据，需要重传剩下的数据 */
-    if (tcp->sndNxt != tcp->sndMax) {
-        TcpRexmitQue(tcp);
+    if (UTILS_UNLIKELY(tcp->sndNxt != tcp->sndMax)) {
+        TcpRexmitQue(tcp, isNeedRst);
     }
 
-    // 数据还没有完全重传完，但已经没有窗口了
-    if (TcpSeqLt(tcp->sndNxt, tcp->sndMax)) {
-        return 0;
+    /* 数据还没有完全重传完，但已经没有窗口了 */
+    if (UTILS_UNLIKELY(TcpSeqLt(tcp->sndNxt, tcp->sndMax))) {
+        if ((isNeedRst == 0) || !IsAllowFinRexmit(tcp)) {
+            /* 没有RST事件，直接返回，必须重传完unack的数据再发新数据
+               有RST事件
+                1、没有发送过FIN的状态，直接返回，必须重传完unack的数据再发RST
+                2、发送过FIN的状态，如果没有重传完unack的数据，直接返回 */
+            return 0;
+        }
     }
 
     uint8_t wndUpdateForce = force;
@@ -922,7 +940,7 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
     Pbuf_t*  pbuf = NULL;
     TcpXmitInfo_t xmitInfo;
 
-    if (TcpGetXmitInfo(tcp, &xmitInfo) != 0) {
+    if (UTILS_UNLIKELY(TcpGetXmitInfo(tcp, &xmitInfo) != 0)) {
         return 0;
     }
 
@@ -932,20 +950,20 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
     while (totalSndLen > 0 && tcp->sndQue.pktCnt > 0) {
         uint32_t pktLen = UTILS_MIN(xmitInfo.tsoSize, totalSndLen);
         // 判断能否发送，不能发送就没必要聚合。tcp发送缓冲区高水位类型为uint32_t，这里转换后不会截断
-        if (!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, wndUpdateForce) || !TcpPacingProc(tcp, pktLen)) {
+        if (UTILS_UNLIKELY(!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, wndUpdateForce) || !TcpPacingProc(tcp, pktLen))) {
             break;
         }
 
         // 从发送队列中尝试聚合一个 pbuf
         pbuf = TcpTryMergePbuf(tcp, pktLen);
-        if (pbuf == NULL) {
+        if (UTILS_UNLIKELY(pbuf == NULL)) {
             return 0;
         }
 
         TcpUpdateFlags(tcp, &thflags, isNeedRst);
 
         if ((pbuf->flags & DP_PBUF_FLAGS_EXTERNAL) == DP_PBUF_FLAGS_EXTERNAL) {
-            if (Pbuf_Zcopy_Alloc(&pbuf) != 0) {
+            if (UTILS_UNLIKELY(Pbuf_Zcopy_Alloc(&pbuf) != 0)) {
                 return 0;
             }
         }
@@ -975,12 +993,12 @@ void TcpXmitCtrlPkt(TcpSk_t* tcp, uint8_t thflags)
     Pbuf_t* pbuf;
 
     // 启动坚持定时器代表对端窗口为0，此时不能发送FIN报文
-    if (TCP_IS_IN_PERSIST(tcp) && (thflags & DP_TH_FIN) != 0) {
+    if (UTILS_UNLIKELY(TCP_IS_IN_PERSIST(tcp) && (thflags & DP_TH_FIN) != 0)) {
         return;
     }
 
     pbuf = TcpGenCtrlPkt(tcp, thflags, 1);
-    if (pbuf == NULL) {
+    if (UTILS_UNLIKELY(pbuf == NULL)) {
         return;
     }
 
@@ -1083,6 +1101,7 @@ static Pbuf_t* TcpRexmitQueSplit(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t len)
     PBUF_ChainInsertBefore(&tcp->rexmitQue, pbuf, ret);
 
     ret->l4Off = pbuf->l4Off;
+    ret->vpnid = pbuf->vpnid;
     ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(ret))->flags = ((DP_TcpHdr_t *)PBUF_GET_L4_HDR(pbuf))->flags;
 
     if (DP_PBUF_GET_TOTAL_LEN(pbuf) == 0) {
@@ -1093,7 +1112,7 @@ static Pbuf_t* TcpRexmitQueSplit(TcpSk_t* tcp, Pbuf_t* pbuf, uint16_t len)
     return ret;
 }
 
-void TcpRexmitQue(TcpSk_t* tcp)
+void TcpRexmitQue(TcpSk_t* tcp, int isNeedRst)
 {
     uint16_t     pktLen;
     uint32_t     sndWin;
@@ -1102,7 +1121,7 @@ void TcpRexmitQue(TcpSk_t* tcp)
     TcpXmitInfo_t xmitInfo;
     uint8_t      isFirstPkt = 1;
 
-    if (TcpGetXmitInfo(tcp, &xmitInfo) != 0) {
+    if (UTILS_UNLIKELY(TcpGetXmitInfo(tcp, &xmitInfo) != 0)) {
         return;
     }
 
@@ -1148,6 +1167,9 @@ void TcpRexmitQue(TcpSk_t* tcp)
     }
 
     tcp->rtxHead = pbuf;
+    if ((IsAllowFinRexmit(tcp) == true) && (isNeedRst == 0)) {
+        TcpXmitCtrlPkt(tcp, DP_TH_FIN | DP_TH_ACK);
+    }
 }
 
 void TcpRexmitAll(TcpSk_t* tcp)
@@ -1163,7 +1185,7 @@ void TcpRexmitAll(TcpSk_t* tcp)
     TcpActiveRexmitTimer(tcp);
     Pbuf_t* tempPbuf = tcp->rtxHead;
     while (tcp->rtxHead != NULL) {
-        TcpRexmitQue(tcp);
+        TcpRexmitQue(tcp, 0);
         if (tempPbuf == tcp->rtxHead) {
             break;          // 避免TcpRexmitQue内部发送失败，导致死循环
         }
@@ -1183,7 +1205,7 @@ void TcpRexmitPkt(TcpSk_t* tcp)
         if (TCP_SACK_AVAILABLE(tcp)) {
             TcpClearSackInfo(tcp->sackInfo, tcp->sndUna);
         }
-        TcpRexmitQue(tcp);
+        TcpRexmitQue(tcp, 0);
     } else {
         DP_INC_TCP_STAT(tcp->wid, DP_TCP_SND_REXMT_PACKET);
         TcpRexmitCtrlPkt(tcp);
@@ -1204,7 +1226,7 @@ void TcpFastRexmitPkt(TcpSk_t* tcp)
     tcp->sndNxt = tcp->sndUna;
     /* 快恢复阶段一次最多只能重传一个MSS的报文 */
     tcp->cwnd = tcp->mss;
-    TcpRexmitQue(tcp);
+    TcpRexmitQue(tcp, 0);
     tcp->cwnd = oldCwnd;
     tcp->sndNxt = temp;
     tcp->rtxHead = oldHead;

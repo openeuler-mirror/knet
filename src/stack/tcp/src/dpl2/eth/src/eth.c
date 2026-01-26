@@ -30,7 +30,7 @@ static Pbuf_t* EthInput(Pbuf_t* pbuf)
     uint16_t       pktLen = PBUF_GET_SEG_LEN(pbuf);
     uint16_t       hdrLen = sizeof(DP_EthHdr_t);
 
-    if (pktLen <= sizeof(*ethHdr)) {
+    if (UTILS_UNLIKELY(pktLen <= sizeof(*ethHdr))) {
         goto drop;
     }
 
@@ -43,11 +43,11 @@ static Pbuf_t* EthInput(Pbuf_t* pbuf)
     Netdev_t* dev = PBUF_GET_DEV(pbuf);
     PBUF_SET_PKT_TYPE(pbuf, PBUF_PKTTYPE_HOST);
     // 排除源mac是本接口的报文
-    if (DP_MAC_IS_EQUAL(&ethHdr->src, &dev->hwAddr.mac)) {
+    if (UTILS_UNLIKELY(DP_MAC_IS_EQUAL(&ethHdr->src, &dev->hwAddr.mac))) {
         goto drop;
     }
     // 非arp报文需要校验dmac，如果是vlan的话，则需要在此校验前判断
-    if (!(DP_MAC_IS_EQUAL(&ethHdr->dst, &dev->hwAddr.mac))) {
+    if (UTILS_UNLIKELY(!(DP_MAC_IS_EQUAL(&ethHdr->dst, &dev->hwAddr.mac)))) {
         NetdevQue_t* rxQue = NETDEV_GetRxQue(dev, PBUF_GET_QUE_ID(pbuf));
         if (DP_MAC_IS_BROADCAST(&ethHdr->dst)) {
             NET_DEV_ADD_RX_MULT(rxQue, 1);
@@ -90,12 +90,19 @@ static Pbuf_t* EthOutput(Pbuf_t* pbuf)
     return NULL;
 }
 
+static void PbufGetDst(Pbuf_t* pbuf, TBM_IpAddr_t* dst)
+{
+    if (PBUF_GET_L3_TYPE(pbuf) == DP_ETH_P_IP) {
+        dst->ipv4 = PBUF_GET_DST_ADDR4(pbuf);
+    }
+}
+
 static Pbuf_t* NdOutput(Pbuf_t* pbuf)
 {
     Netdev_t*             dev = PBUF_GET_DEV(pbuf);
     TBM_NdItem_t*         nd  = PBUF_GET_ND(pbuf);
     DP_EthHdr_t* hdr;
-    if (PBUF_GET_HEADROOM(pbuf) < sizeof(DP_EthHdr_t)) {
+    if (UTILS_UNLIKELY(PBUF_GET_HEADROOM(pbuf) < sizeof(DP_EthHdr_t))) {
         PBUF_Free(pbuf);
         return NULL;
     }
@@ -105,18 +112,19 @@ static Pbuf_t* NdOutput(Pbuf_t* pbuf)
 
     hdr->type = DP_Htons(PBUF_GET_L3_TYPE(pbuf));
     DP_MAC_COPY(&hdr->src, &dev->hwAddr.mac);
-    if (nd != NULL) {
+    if (UTILS_LIKELY(nd != NULL)) {
         DP_MAC_COPY(&hdr->dst, (DP_EthAddr_t*)&nd->mac);
-    } else if (PBUF_GET_PKT_TYPE(pbuf) == PBUF_PKTTYPE_BROADCAST) {
+    } else if (UTILS_UNLIKELY(PBUF_GET_PKT_TYPE(pbuf) == PBUF_PKTTYPE_BROADCAST)) {
         DP_MAC_SET_BROADCAST(&hdr->dst);
     } else {
         DP_INC_PKT_STAT(pbuf->wid, DP_PKT_ARP_SEARCH_IN);
-        TBM_IpAddr_t* dst = (TBM_IpAddr_t*)PBUF_GET_DST_ADDR(pbuf);
-        nd = TBM_GetNdItem(dev->net, dev->vrfId, *dst);
+        TBM_IpAddr_t dst = {0};
+        PbufGetDst(pbuf, &dst);
+        nd = TBM_GetNdItem(dev->net, dev->vrfId, dst);
         // 真表中不存在表项或表项不可用时，查找假表
         if (nd == NULL || (nd->state != DP_ND_STATE_REACHABLE && nd->state != DP_ND_STATE_PERMANENT)) {
             PBUF_CUT_HEAD(pbuf, sizeof(DP_EthHdr_t));
-            TBM_UpdateFakeNdItem(dev, pbuf, *dst);
+            TBM_UpdateFakeNdItem(dev, pbuf, dst);
             PBUF_Free(pbuf);
 
             if (nd != NULL) {

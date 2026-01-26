@@ -785,8 +785,8 @@ out:
 
 static Pbuf_t* TcpInetProcChild(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
 {
-    TcpSk_t*  child;
-    TcpSynOpts_t synOpts;
+    TcpSk_t*  child = NULL;
+    TcpSynOpts_t synOpts = {0};
     Pbuf_t *ret = NULL;
     uint8_t isNeedRst = 0;
     uint32_t reason = 0;
@@ -922,8 +922,8 @@ static Pbuf_t* TcpInetGenRstPkt(Pbuf_t* pbuf, DP_TcpHdr_t* origTcpHdr, TcpPktInf
 
 static TcpSk_t* TcpTryCreateCookieSk(TcpSk_t* tcp, Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
 {
-    TcpSk_t* newTcp;
-    TcpSynOpts_t opts;
+    TcpSk_t* newTcp = NULL;
+    TcpSynOpts_t opts = {0};
     uint16_t mss;
     DP_IpHdr_t* ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
     uint8_t isNeedRst = 0;
@@ -974,7 +974,8 @@ static Pbuf_t* TcpProcWithoutTcp(Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t
     Pbuf_t* ret = NULL;
     int wid = NETDEV_GetRxQueWid(PBUF_GET_DEV(pbuf), 0);
     // wid不同且没查找到，可能是主动建链场景，syn|ack报文被分流到其他worker
-    if (DP_PBUF_GET_WID(pbuf) != wid) {
+    if ((CFG_GET_VAL(DP_CFG_DEPLOYMENT) != DP_DEPLOYMENT_CO_THREAD) && (CFG_GET_VAL(CFG_NOLOCK) != DP_ENABLE) &&
+        (DP_PBUF_GET_WID(pbuf) != wid)) {
         TcpTsqInsertBacklog(wid, pbuf);
         return NULL;
     }
@@ -1007,7 +1008,7 @@ static Pbuf_t* TcpInetInput(Pbuf_t* pbuf)
 
     DP_INC_PKT_STAT(DP_PBUF_GET_WID(pbuf), DP_PKT_TCP_IN);
     tcpHdr = PBUF_MTOD(pbuf, DP_TcpHdr_t*);
-    if (TcpInitPktInfo(pbuf, tcpHdr, &pi) != 0) {
+    if (UTILS_UNLIKELY(TcpInitPktInfo(pbuf, tcpHdr, &pi) != 0)) {
         NET_DEV_ADD_RX_ERRS(NETDEV_GetRxQue(PBUF_GET_DEV(pbuf), PBUF_GET_QUE_ID(pbuf)), 1);
         PBUF_Free(pbuf);
         return NULL;
@@ -1024,7 +1025,7 @@ static Pbuf_t* TcpInetInput(Pbuf_t* pbuf)
     }
 
     // 状态为CLOSED之后，不处理
-    if (TcpState(tcp) == TCP_CLOSED) {
+    if (UTILS_UNLIKELY(TcpState(tcp) == TCP_CLOSED)) {
         DP_INC_TCP_STAT(tcp->wid, DP_TCP_RCV_AFTER_CLOSED);
         PBUF_Free(pbuf);
         return NULL;
@@ -1056,6 +1057,7 @@ static int TcpInetGetXmitInfo(Sock_t* sk, TcpXmitInfo_t* info)
     TcpSk_t* tcp = TcpSK(sk);
     INET_FlowInfo_t* flow = &TcpInetSk(sk)->flow;
     Netdev_t* dev = NULL;
+    uint16_t rawMss = tcp->mss;
 
     if (INET_UpdateFlow(flow) != 0) {
         return -1;
@@ -1074,8 +1076,12 @@ static int TcpInetGetXmitInfo(Sock_t* sk, TcpXmitInfo_t* info)
     }
 
     info->pentry = PMGR_ENTRY_ROUTE_OUT;
-    info->mss = TcpGetEffectiveMss(tcp);
-    info->tsoSize = TcpGetTsoSize(dev, info->mss);
+    info->mss = TcpGetEffectiveMss(tcp, rawMss);
+
+    if (NETDEV_TSO_ENABLED(dev) && (dev->tsoSize > (sizeof(DP_IpHdr_t) + sizeof(DP_TcpHdr_t)))) {
+        rawMss = (uint16_t)UTILS_MAX(rawMss, dev->tsoSize - sizeof(DP_IpHdr_t) - sizeof(DP_TcpHdr_t));
+    }
+    info->tsoSize = TcpGetEffectiveMss(tcp, rawMss);
     info->flow = flow;
     info->dev = dev;
     return 0;
