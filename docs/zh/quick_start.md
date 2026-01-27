@@ -1,5 +1,26 @@
 # 安装K-NET
 
+## 编译前请确保Glibc版本及ASLR是否开启
+
+#### 检查Glibc版本
+```shell
+$ ldd --version
+```
+Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。这里以2.28版本为例
+```shell
+$ yum update glibc-2.28
+```
+
+#### 检查ASLR是否开启
+ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度
+```shell
+$ cat /proc/sys/kernel/randomize_va_space
+```
+若结果不为2，请执行以下命令开启ASLR
+```shell
+$ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
+```
+
 ## 安装依赖
 K-NET编译依赖用户态协议栈的实现,当前以一个示例用户态协议栈为依赖编译K-NET。
 
