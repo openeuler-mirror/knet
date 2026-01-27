@@ -5,7 +5,6 @@ Release:        1
 License:        Proprietary
 Group:          Development/Libraries
 Vendor:         Huawei Technologies Co., Ltd.
-Requires:       dpstack >= 1.0.0
 Autoreq:        no
 
 %define _rpmfilename %%{NAME}-%%{VERSION}.%%{ARCH}.rpm
@@ -25,6 +24,8 @@ knet
 rm -rf %{buildroot}
 install -d %{buildroot}"/usr/lib64"
 install -d %{buildroot}"/usr/bin"
+install -d %{buildroot}"/usr/include"
+install -d %{buildroot}"/usr/include/knet"
 install -d %buildroot%{knetsysdir}/knet/
 install -d %buildroot%{knetsysdir}/knet/run
 install -d %buildroot%{knetsysdir}/rsyslog.d/
@@ -34,6 +35,7 @@ cp -ar %{_topdir}/BUILD/usr/lib64/libknet_core.so* %{buildroot}"/usr/lib64"
 cp -ar %{_topdir}/BUILD/usr/lib64/libknet_frame.so* %{buildroot}"/usr/lib64"
 cp -ar %{_topdir}/BUILD/usr/lib64/libdpstack.so* %{buildroot}"/usr/lib64"
 cp -rf %{_topdir}/BUILD/usr/bin/knet_mp_daemon %{buildroot}"/usr/bin"
+cp -rf %{_topdir}/BUILD/usr/include/knet/knet_socket_api.h %{buildroot}"/usr/include/knet"
 cp -rf %{_topdir}/SOURCES/knet_comm.conf %buildroot%{knetsysdir}/knet/
 cp -rf %{_topdir}/SOURCES/knet_rsyslog.conf %buildroot%{knetsysdir}/rsyslog.d/
 cp -rf %{_topdir}/SOURCES/logrotate/knet %buildroot%{knetsysdir}/logrotate.d/
@@ -76,6 +78,7 @@ fi
 %attr(550, root, root) /usr/lib64/libknet_frame.so*
 %attr(550, root, root) /usr/lib64/libdpstack.so*
 %attr(550, root, root) /usr/bin/knet_mp_daemon
+%attr(440, root, root) /usr/include/knet/knet_socket_api.h
 %attr(600, root, root) %{knetsysdir}/knet/knet_comm.conf
 %attr(640, root, root) %{knetsysdir}/rsyslog.d/knet_rsyslog.conf
 %attr(640, root, root) %{knetsysdir}/logrotate.d/knet
