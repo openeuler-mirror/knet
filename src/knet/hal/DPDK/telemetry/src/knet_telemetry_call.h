@@ -18,6 +18,12 @@
 int KnetTelemetryStatisticCallback(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryEthdevUsageCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetFdCountCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetFdCountCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetNetStatCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetNetStatCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetSockInfoCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryGetSockInfoCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryEpollDetailsCallback(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryEpollDetailsCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
 
