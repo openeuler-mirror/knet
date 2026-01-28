@@ -398,7 +398,7 @@ ssize_t PBUF_ChainWrite(PBUF_Chain_t* chain, uint8_t* data, size_t len, uint16_t
  * @param headroom
  * @return
  */
-ssize_t PBUF_ChainWriteFromPbuf(PBUF_Chain_t* chain, Pbuf_t* src, uint16_t fragSize, uint16_t headroom);
+ssize_t PBUF_ChainBuildFromPbuf(PBUF_Chain_t* chain, Pbuf_t* src, uint16_t fragSize, uint16_t headroom);
 
 /**
  * @brief buf chain读取数据

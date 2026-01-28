@@ -471,7 +471,7 @@ static void IpFragOutput(Pbuf_t* pbuf, uint16_t mtu)
 
     PBUF_ChainInit(&chain);
 
-    if (PBUF_ChainWriteFromPbuf(&chain, pbuf, fragSize, PBUF_GET_HEADROOM(pbuf)) != PBUF_GET_PKT_LEN(pbuf)) {
+    if (PBUF_ChainBuildFromPbuf(&chain, pbuf, fragSize, PBUF_GET_HEADROOM(pbuf)) != PBUF_GET_PKT_LEN(pbuf)) {
         PBUF_ChainClean(&chain);
         return;
     }
