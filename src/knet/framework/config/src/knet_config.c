@@ -125,7 +125,7 @@ struct ConfKeyHandle g_dpdkConfHandler[CONF_DPDK_MAX - CONF_DPDK_MIN] = {
         {.pattern = "^--socket-limit=[0-9]+(,[0-9]+)*$"}},
     {CONF_DPDK_EXTERNAL_DRIVER,
         "external_driver",
-        {.strValue = "-dlibrte_net_sp600.so"},
+        {.strValue = "-dlibrte_net_hinic3.so"},
         StringSetter,
         {.pattern = "^(-d[^/]+\\.so(\\.[0-9]+)*)?$"}},
     {CONF_DPDK_TELEMETRY, "telemetry", {1}, IntSetter, {.intValue = {.min = 0, .max = 1}}},
