@@ -17,5 +17,17 @@
 
 int KnetTelemetryStatisticCallback(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryEthdevUsageCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryEpollDetailsCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryEpollDetailsCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
+
+#define CHECK_ADD_VALUE_TO_DICT(func, ...)                                                                             \
+    do {                                                                                                               \
+        int __ret = -1;                                                                                                \
+        if ((__ret = func(__VA_ARGS__)) != 0) {                                                                        \
+            KNET_ERR("KNET telemetry failed to add %s ret %d", #func, __ret);                                          \
+            return -1;                                                                                                 \
+        }                                                                                                              \
+    } while (0)
 
 #endif  // __KNET_TELEMETRY_CALL_H__

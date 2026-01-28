@@ -15,10 +15,16 @@
  
 #include "knet_telemetry.h"
 
+#define MAX_JSON_KEY_NAME_LEN 100
+#define INVALID_WORKER_TID "-"
 void KnetUpdateSlaveProcessPidInfo(KNET_TelemetryInfo *telemetryInfo);
 int KnetHandleTimeout(KNET_TelemetryInfo *telemetryInfo, int i);
 int KnetWaitAllSlavePorcessHandle(KNET_TelemetryInfo *telemetryInfo);
 int KnetGetQueIdByPid(uint32_t pid, KNET_TelemetryInfo* telemetryInfo);
-
+int KnetGetTidByWorkerId(uint32_t workerId, uint32_t *tid);
+int CheckAddContainerToDict(struct rte_tel_data *data, const char *name, struct rte_tel_data *value);
+KNET_TelemetryInfo *KnetMultiSetTelemetrySHM();
+int ParseTelemetryParams(const char *params, uint32_t *paramsArr, int maxCount);
 extern KNET_DpTelemetryHooks g_dpTelemetryHooks;
+
 #endif  // __KNET_TELEMETRY_DEBUG_H__

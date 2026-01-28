@@ -1,6 +1,6 @@
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
- 
+
  * K-NET is licensed under the Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
@@ -13,19 +13,19 @@
 
 #include <dirent.h>
 #include <limits.h>
-#include <sys/un.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
-#include "cJSON.h"
 
+#include "cJSON.h"
 #include "rte_memzone.h"
 
 #include "knet_config.h"
-#include "knet_types.h"
 #include "knet_log.h"
-#include "knet_telemetry_debug.h"
 #include "knet_telemetry_call.h"
+#include "knet_telemetry_debug.h"
+#include "knet_types.h"
 
 #include "knet_telemetry.h"
 #ifdef __cplusplus
@@ -35,24 +35,37 @@ extern "C" {
 /**
  * @brief telemetry新增维测接口的枚举类型
  * @brief 新增维测接口需要新增枚举变量
-*/
+ */
 typedef enum {
+    ETHDEV_USAGE_CB,
+    EPOLL_DETAILS_CB,
     TCP_STATS_CB,
     MAX_CB_NUM
 } KnetTelemetryCbsEnum;
 
 typedef struct {
-    telemetry_cb cb_single;  // 单进程回调
-    telemetry_cb cb_multi;  // 多进程回调
-    const char* registeredCmd;  // telemetry命令
-    const char* helpCmd;
+    telemetry_cb cb_single;    // 单进程回调
+    telemetry_cb cb_multi;     // 多进程回调
+    const char *registeredCmd; // telemetry命令
+    const char *helpCmd;
 } TelemetryCmdInfo;
+
 static TelemetryCmdInfo g_telemetryCmdInfos[MAX_CB_NUM] = {
+    [ETHDEV_USAGE_CB] = {.cb_single = KnetTelemetryEthdevUsageCallback,
+                         .cb_multi = KnetTelemetryEthdevUsageCallback,
+                         .registeredCmd = "/knet/ethdev/usage",
+                         .helpCmd = "Return ethdev real-time bandwidth. "
+                                    "Usage: /knet/ethdev/usage,<port> <time>"},
+    [EPOLL_DETAILS_CB] = {.cb_single = KnetTelemetryEpollDetailsCallback,
+                          .cb_multi = KnetTelemetryEpollDetailsCallbackMp,
+                          .registeredCmd = "/knet/stack/epoll_stat",
+                          .helpCmd = "Return epoll detail statistics. "
+                                     "Usage: /knet/stack/epoll_stat, <pid> <start_epoll_fd> "
+                                     "<epoll_fd_cnt> <start_fd> <fd_cnt>"},
     [TCP_STATS_CB] = {.cb_single = KnetTelemetryStatisticCallback,
-                          .cb_multi = KnetTelemetryStatisticCallbackMp,
-                          .registeredCmd = "/knet/ethstats",
-                          .helpCmd = "Return tcp statistic"},
-                       };
+                      .cb_multi = KnetTelemetryStatisticCallbackMp,
+                      .registeredCmd = "/knet/ethstats",
+                      .helpCmd = "Return tcp statistic"}};
 
 #define KNET_DPDK_SOCKET_BUFFER_SIZE 1024
 
@@ -176,8 +189,8 @@ KNET_STATIC int32_t DpdkTelemetryLinkCreate(void)
     struct sockaddr_un addr = {0};
     (void)memset_s(&addr, sizeof(addr), 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    int32_t ret = strncpy_s(addr.sun_path, sizeof(addr.sun_path), g_knetTelemetrySocketNew,
-                            strlen(g_knetTelemetrySocketNew));
+    int32_t ret =
+        strncpy_s(addr.sun_path, sizeof(addr.sun_path), g_knetTelemetrySocketNew, strlen(g_knetTelemetrySocketNew));
     if (ret != 0) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET dpdk telemetry socket strncpy_s failed, ret %d", ret);
         close(sockfd);
@@ -215,7 +228,7 @@ KNET_STATIC int32_t DpdkTelemetryLinkCreate(void)
 
 KNET_STATIC int32_t DpdkTelemetryFindSocket(void)
 {
-    struct stat fileStat = { 0 };
+    struct stat fileStat = {0};
     if (lstat(g_knetTelemetrySocket, &fileStat) == -1 || S_ISSOCK(fileStat.st_mode) == 0) {
         KNET_ERR("K-NET dpdk telemetry file %s is not socket", g_knetTelemetrySocket);
         return -1;
@@ -249,11 +262,10 @@ KNET_STATIC int32_t RegTelemetryCmd(void)
         return KNET_ERROR; /* 内部已打印日志 */
     }
     for (int i = 0; i < MAX_CB_NUM; i++) {
-        telemetry_cb cb = (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE ?
-                               g_telemetryCmdInfos[i].cb_multi :
-                               g_telemetryCmdInfos[i].cb_single);
-        int ret =
-            rte_telemetry_register_cmd(g_telemetryCmdInfos[i].registeredCmd, cb, g_telemetryCmdInfos[i].helpCmd);
+        telemetry_cb cb =
+            (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE ? g_telemetryCmdInfos[i].cb_multi
+                                                                               : g_telemetryCmdInfos[i].cb_single);
+        int ret = rte_telemetry_register_cmd(g_telemetryCmdInfos[i].registeredCmd, cb, g_telemetryCmdInfos[i].helpCmd);
         if (ret < 0) {
             KNET_ERR("K-NET register telemetry cmd %s failed, ret %d", g_telemetryCmdInfos[i].registeredCmd, ret);
             return KNET_ERROR;
@@ -315,7 +327,7 @@ int32_t KNET_UninitDpdkTelemetry(void)
         KNET_ERR("Rte telemetry socket rte telemetry socket unlink failed, ret %d", ret);
         return KNET_ERROR;
     }
-    
+
     return KNET_OK;
 }
 

@@ -446,6 +446,7 @@ int KNET_DpdkLcoreMatchDpWorker(uint32_t lcoreId)
     g_dpWorkerIdTable.coreIdToWorkerId[lcoreId] = lcoreId;
     (void)KNET_SetQueIdMapPidTidLcoreInfo(lcoreId, getpid(), syscall(SYS_gettid),
                                           lcoreId, lcoreId);
+
     KNET_INFO("DpWorkerId %u match lcoreId %u", lcoreId, lcoreId);
 
     ++g_dpWorkerIdTable.maxWorkerId;

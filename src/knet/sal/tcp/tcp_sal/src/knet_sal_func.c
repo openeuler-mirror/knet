@@ -490,7 +490,8 @@ uint32_t KNET_ACC_Debug(uint32_t flag, char *output, uint32_t len)
 
 uint32_t KnetRegDebug(void)
 {
-    KNET_DpTelemetryHooks dpTelemetryhooks = {DP_ShowStatistics};
+    KNET_DpTelemetryHooks dpTelemetryhooks = {
+        DP_ShowStatistics, DP_SocketCountGet, DP_GetSocketState, DP_GetSocketDetails, DP_GetEpollDetails};
     if (KNET_DpTelemetryHookReg(dpTelemetryhooks) != KNET_OK) {
         KNET_ERR("K-NET register telemetry run dp show statistics failed");
         return KNET_ERROR;

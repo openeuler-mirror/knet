@@ -12,6 +12,8 @@
  */
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
+
 #include "cJSON.h"
 #include "rte_eal.h"
 #include "rte_memzone.h"
@@ -23,6 +25,7 @@
 #include "knet_transmission.h"
 #include "knet_config.h"
 #include "knet_utils.h"
+#include "knet_telemetry_debug.h"
 
 #define TELEMETRY_DEBUG_USLEEP 100000
 #define MAX_KEY_NUM 128
@@ -30,6 +33,7 @@
 #define TIMEOUT_TIMES 10
 #define DECIMAL_NUM 10
 #define PID_MAX_LEN 20
+
 
 typedef struct {
     const char *cmd;
@@ -45,15 +49,22 @@ static const StatMapping KNET_STAT_MAPPINGS[DP_STAT_MAX] = {{"tcp", DP_STAT_TCP}
 
 char g_knetDebugOutput[MAX_OUTPUT_LEN] = {0};
 
-KNET_DpTelemetryHooks g_dpTelemetryHooks = {NULL};
+KNET_DpTelemetryHooks g_dpTelemetryHooks = {NULL, NULL, NULL, NULL, NULL};
 int KNET_DpTelemetryHookReg(KNET_DpTelemetryHooks dpTelemetryHooks)
 {
-    if (dpTelemetryHooks.dpShowStatisticsHook == NULL) {
+    if (dpTelemetryHooks.dpShowStatisticsHook == NULL || dpTelemetryHooks.dpSocketCountGetHook == NULL||
+        dpTelemetryHooks.dpGetSocketStateHook == NULL || dpTelemetryHooks.dpGetSocketDetailsHook == NULL ||
+        dpTelemetryHooks.dpGetEpollDetailsHook == NULL) {
         KNET_ERR("K-NET register dp telemetry hook is null");
         return KNET_ERROR;
     }
  
     g_dpTelemetryHooks.dpShowStatisticsHook = dpTelemetryHooks.dpShowStatisticsHook;
+    g_dpTelemetryHooks.dpSocketCountGetHook = dpTelemetryHooks.dpSocketCountGetHook;
+    g_dpTelemetryHooks.dpGetSocketStateHook = dpTelemetryHooks.dpGetSocketStateHook;
+    g_dpTelemetryHooks.dpGetSocketDetailsHook = dpTelemetryHooks.dpGetSocketDetailsHook;
+    g_dpTelemetryHooks.dpGetEpollDetailsHook = dpTelemetryHooks.dpGetEpollDetailsHook;
+
     return KNET_OK;
 }
 
@@ -380,4 +391,76 @@ int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct
         }
     }
     return KNET_OK;
+}
+int KnetGetTidByWorkerId(uint32_t workerId, uint32_t *tid)
+{
+    for (int queueId = 0; queueId < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; queueId++) {
+        KNET_QueIdMapPidTid_t *queIdMapPidTid_t = KNET_GetQueIdMapPidTidLcoreInfo();
+        if (workerId == queIdMapPidTid_t[queueId].workerId) {
+            *tid = queIdMapPidTid_t[queueId].tid;
+            return 0;
+        }
+    }
+    KNET_ERR("Get tid by workerId %d failed", workerId);
+    return KNET_ERROR;
+}
+
+int CheckAddContainerToDict(struct rte_tel_data *data, const char *name, struct rte_tel_data *value)
+{
+    int ret = rte_tel_data_add_dict_container(data, name, value, 0);
+    if (ret != 0) {
+        rte_tel_data_free(value);
+        KNET_ERR("K-NET telemetry add_dict_container fail to add key %s, ret %d", name, ret);
+        return -1;
+    }
+    return 0;
+}
+
+
+KNET_TelemetryInfo *KnetMultiSetTelemetrySHM(void)
+{
+    const struct rte_memzone *mz = rte_memzone_lookup(KNET_TELEMETRY_MZ_NAME);
+    if (mz == NULL || mz->addr == NULL) {
+        KNET_ERR("Subprocess couldn't allocate memory for tcp debug info");
+        return NULL;
+    }
+    KNET_TelemetryInfo *telemetryInfo = (KNET_TelemetryInfo *)mz->addr;
+    KnetUpdateSlaveProcessPidInfo(telemetryInfo);
+    if (KnetWaitAllSlavePorcessHandle(telemetryInfo) != KNET_OK) {
+        return NULL;
+    }
+    return telemetryInfo;
+}
+
+int ParseTelemetryParams(const char *params, uint32_t *paramsArr, int maxCount)
+{
+    if (params == NULL || paramsArr == NULL || maxCount <= 0) {
+        return -1;
+    }
+    size_t paramsStrLen = strlen(params);
+    char *paramsStrCopy = (char *)malloc(paramsStrLen + 1);
+    if (paramsStrCopy == NULL) {
+        return -1;
+    }
+    if (strncpy_s(paramsStrCopy, paramsStrLen + 1, params, paramsStrLen) != 0) {
+        goto abnormal;
+    }
+    char *saveptr;
+    char *token = strtok_r(paramsStrCopy, " ", &saveptr);
+    int count = 0;
+    while (token != NULL && count < maxCount) {
+        if (KNET_TransStrToNum(token, &paramsArr[count]) != 0) {
+            goto abnormal;
+        }
+        count++;
+        token = strtok_r(NULL, " ", &saveptr);
+    }
+    if (token != NULL) {
+        goto abnormal;
+    }
+    free(paramsStrCopy);
+    return count;
+abnormal:
+    free(paramsStrCopy);
+    return -1;
 }
