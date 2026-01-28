@@ -33,8 +33,38 @@ typedef enum {
 typedef enum {
     KNET_TELEMETRY_STATISTIC = 0,
     KNET_TELEMETRY_UPDATE_QUE_INFO,
-    KNET_TELEMETRY_MAX,
+    KNET_TELEMETRY_GET_FD_COUNT,
+    KNET_TELEMETRY_GET_NET_STAT,
+    KNET_TELEMETRY_GET_SOCKET_INFO,
+    KNET_TELEMETRY_GET_EPOLL_STAT,
+    KNET_TELEMETRY_MAX
 } KNET_TelemetryType;
+
+/* 存储单个fd的socket详细信息 */
+typedef struct {
+    bool isLast;
+    uint32_t tid;
+    int osFd;
+    int dpFd;
+    DP_SocketState_t dpSocketState;
+} KNET_SocketState;
+
+typedef struct {
+    int osFd;
+    bool isReady;
+    DP_SockDetails_t dpSockDetails;
+} KNET_SocketDetails;
+
+typedef struct {
+    bool isLast;
+    bool isSecondary;
+    uint32_t pid;
+    uint32_t tid;
+    int osFd;
+    int dpFd;
+    DP_EpollDetails_t *details;
+    int maxSockFd;
+} EpollTelemetryContext;
 
 typedef struct {
     int msgReady[MAX_QUEUE_NUM];  // 从进程判断消息是否需要发送，1表示需要
@@ -44,6 +74,9 @@ typedef struct {
     uint32_t pid[MAX_QUEUE_NUM];  // 共享内存内记录pid
     uint32_t tid[MAX_QUEUE_NUM];  // 共享内存内记录tid
     uint32_t lcoreId[MAX_QUEUE_NUM];  // 共享内存内记录lcoreId
+    KNET_SocketState *socketStates;
+    KNET_SocketDetails socketDetails;
+    EpollTelemetryContext *epollDetailCtx;
 } KNET_TelemetryInfo;
 
 /**
@@ -68,10 +101,18 @@ int32_t KNET_UninitDpdkTelemetry(void);
 int KNET_DebugOutputToTelemetry(const char *output, uint32_t len);
 
 typedef void (*KNET_DpShowStatisticsHook)(DP_StatType_t type, int workerId, uint32_t flag);
+typedef int (*KNET_DpSocketCountGetHook)(int type);
+typedef int (*KNET_DpGetSocketStateHook)(int fd, DP_SocketState_t *state);
+typedef int (*KNET_DpGetSocketDetailsHook)(int fd, DP_SockDetails_t *details);
+typedef int (*KNET_DpGetEpollDetailsHook)(int fd, DP_EpollDetails_t *details, int len, int *wid);
+
 typedef struct {
     KNET_DpShowStatisticsHook dpShowStatisticsHook;
+    KNET_DpSocketCountGetHook dpSocketCountGetHook;
+    KNET_DpGetSocketStateHook dpGetSocketStateHook;
+    KNET_DpGetSocketDetailsHook dpGetSocketDetailsHook;
+    KNET_DpGetEpollDetailsHook dpGetEpollDetailsHook;
 } KNET_DpTelemetryHooks;
-
 /**
  * @brief 注册协议栈遥测功能钩子
  * @param dpTelemetryHooks 协议栈遥测钩子
@@ -88,4 +129,6 @@ int KNET_DpTelemetryHookReg(KNET_DpTelemetryHooks dpTelemetryHooks);
  */
 int KNET_MaintainQueue2TidPidMp(uint32_t queId);
 
+
+DP_EpollDetails_t *GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary);
 #endif  // __KNET_TELEMETRY_H__

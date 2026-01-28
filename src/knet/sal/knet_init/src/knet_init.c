@@ -256,7 +256,6 @@ KNET_STATIC int LcoreMainloop(void *arg)
     /* 多进程更新0队列的数据，单进程worker的queue和workerId暂时相等 */
     (void)KNET_SetQueIdMapPidTidLcoreInfo(workerInfo->workerId, getpid(), syscall(SYS_gettid),
                                           workerInfo->lcoreId, workerInfo->workerId);
-
     /* Main loop. 8< */
     while (1) {
         KNET_SpinlockLock(&workerInfo->lock);

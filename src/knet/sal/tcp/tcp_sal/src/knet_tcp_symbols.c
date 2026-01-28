@@ -18,6 +18,7 @@ void (*g_dPShowStatistics)(DP_StatType_t type, int workerId, uint32_t flag);
 int (*g_dPSocketCountGet)(int type);
 int (*g_dPGetSocketState)(int fd, DP_SocketState_t* state);
 int (*g_dPGetSocketDetails)(int fd, DP_SockDetails_t* info);
+int (*g_dPGetEpollDetails)(int epfd, DP_EpollDetails_t* details, int len, int* wid);
 int (*g_dPProcIfreq)(DP_Netdev_t* dev, int request, struct DP_Ifreq* ifreq);
 DP_Netdev_t* (*g_dPCreateNetdev)(DP_NetdevCfg_t* cfg);
 int (*g_dPRtCfg)(DP_RtOpt_t op, DP_RtInfo_t* msg, DP_TbmAttr_t* attrs[], int attrCnt);
@@ -80,6 +81,9 @@ int (*g_dpGetNetdevQueMap)(int32_t wid, int32_t ifIndex, uint32_t* queMap, int32
 static struct KnetSymbolsInfo g_tcp[] = {
     KNET_ADD_SYMBOL(DP_ShowStatistics, dPShowStatistics),
     KNET_ADD_SYMBOL(DP_SocketCountGet, dPSocketCountGet),
+    KNET_ADD_SYMBOL(DP_GetSocketState, dPGetSocketState),
+    KNET_ADD_SYMBOL(DP_GetSocketDetails, dPGetSocketDetails),
+    KNET_ADD_SYMBOL(DP_GetEpollDetails, dPGetEpollDetails),
     KNET_ADD_SYMBOL(DP_ProcIfreq, dPProcIfreq),
     KNET_ADD_SYMBOL(DP_CreateNetdev, dPCreateNetdev),
     KNET_ADD_SYMBOL(DP_RtCfg, dPRtCfg),
@@ -133,7 +137,7 @@ static struct KnetSymbolsInfo g_tcp[] = {
     KNET_ADD_SYMBOL(DP_SocketCountGet, dPSemHookGetSockCnt),
     KNET_ADD_SYMBOL(DP_Cfg, dPCfg),
     KNET_ADD_SYMBOL(DP_CpdQueHooksReg, dpCpdQueHooksReg),
-    KNET_ADD_SYMBOL(DP_GetNetdevQueMap, dpGetNetdevQueMap),
+    KNET_ADD_SYMBOL(DP_GetNetdevQueMap, dpGetNetdevQueMap)
 };
 
 void DP_ShowStatistics(DP_StatType_t type, int workerId, uint32_t flag)
@@ -397,6 +401,20 @@ int DP_SocketCountGet(int type)
     return g_dPSemHookGetSockCnt(type);
 }
 
+int DP_GetSocketState(int fd, DP_SocketState_t* state)
+{
+    return g_dPGetSocketState(fd, state);
+}
+
+int DP_GetSocketDetails(int fd, DP_SockDetails_t* details)
+{
+    return g_dPGetSocketDetails(fd, details);
+}
+
+int DP_GetEpollDetails(int epfd, DP_EpollDetails_t* details, int len, int* wid)
+{
+    return g_dPGetEpollDetails(epfd, details, len, wid);
+}
 int DP_Cfg(DP_CfgKv_t* kv, int cnt)
 {
     return g_dPCfg(kv, cnt);
