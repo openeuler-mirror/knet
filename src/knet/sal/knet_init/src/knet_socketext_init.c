@@ -43,6 +43,64 @@
 #define EPOLL_FD_TYPE 2
 #define EPOLL_RESERVE_NUM 10
 
+void GetFdCountMp(KNET_TelemetryInfo *telemetryInfo, int queId)
+{
+    int count = DP_SocketCountGet(telemetryInfo->statType);
+    (void)snprintf_s(telemetryInfo->message[queId], MAX_OUTPUT_LEN, MAX_OUTPUT_LEN, "%d", count);
+}
+
+KNET_SocketState *GetNetStatMp(KNET_TelemetryInfo *telemetryInfo, int queId)
+{
+    int fdMax = KNET_FdMaxGet();
+    KNET_SocketState *sockets =
+        (KNET_SocketState *)rte_malloc(NULL, (fdMax + 1) * sizeof(KNET_SocketState), RTE_CACHE_LINE_SIZE);
+    if (sockets == NULL) {
+        KNET_ERR("K-NET telemetry get net stat failed, rte_malloc sockets failed");
+        return NULL;
+    }
+    (void)memset_s(sockets, sizeof(KNET_SocketState) * (fdMax + 1), 0, sizeof(KNET_SocketState) * (fdMax + 1));
+    int index = 0;
+    for (int i = 0; i < fdMax; i++) {
+        if (KNET_IsFdHijack(i) && KNET_GetFdType(i) == KNET_FD_TYPE_SOCKET) {
+            int dpFd = KNET_OsFdToDpFd(i);
+            DP_SocketState_t dpSocketState = {0};
+            if (DP_GetSocketState(dpFd, &dpSocketState) != 0) {
+                KNET_ERR("K-NET telemetry get net stat failed, osFd %d, dpFd %d ", i, dpFd);
+                rte_free(sockets);
+                return NULL;
+            }
+            if (dpSocketState.workerId == UNCONNECTED_FLAG) {
+                sockets[index].tid = 0;
+            }
+            sockets[index].osFd = i;
+            sockets[index].dpFd = dpFd;
+            sockets[index].tid = telemetryInfo->tid[queId];
+
+            sockets[index].dpSocketState = dpSocketState;
+            index++;
+        }
+    }
+    sockets[index].isLast = true;
+    return sockets;
+}
+
+int GetSockDetailsMp(int fd, KNET_SocketDetails *socketDetails)
+{
+    if (!KNET_IsFdHijack(fd)) {
+        socketDetails->isReady = false;
+        KNET_ERR("K-NET telemetry get socket details failed, fd %d is not hijack", fd);
+        return KNET_ERROR;
+    }
+    int dpFd = KNET_OsFdToDpFd(fd);
+    if (DP_GetSocketDetails(dpFd, &socketDetails->dpSockDetails) < 0) {
+        KNET_ERR("K-NET telemetry get socket details failed, get dpfd %d socket details failed", dpFd);
+        socketDetails->isReady = false;
+        return KNET_ERROR;
+    }
+    socketDetails->isReady = true;
+    return KNET_OK;
+}
+
 EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int queId)
 {
     int fdMax = KNET_FdMaxGet();
@@ -103,6 +161,15 @@ void ShowDpStats(KNET_TelemetryInfo *telemetryInfo, int queId)
                 break;
             case KNET_TELEMETRY_UPDATE_QUE_INFO:
                 KNET_MaintainQueue2TidPidMp(queId);
+                break;
+            case KNET_TELEMETRY_GET_FD_COUNT:
+                GetFdCountMp(telemetryInfo, queId);
+                break;
+            case KNET_TELEMETRY_GET_NET_STAT:
+                telemetryInfo->socketStates = GetNetStatMp(telemetryInfo, queId);
+                break;
+            case KNET_TELEMETRY_GET_SOCKET_INFO:
+                (void)GetSockDetailsMp(telemetryInfo->socketDetails.osFd, &(telemetryInfo->socketDetails));
                 break;
             case KNET_TELEMETRY_GET_EPOLL_STAT:
                 telemetryInfo->epollDetailCtx = GetEpollStatMp(telemetryInfo, queId);

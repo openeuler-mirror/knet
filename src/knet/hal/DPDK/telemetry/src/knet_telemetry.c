@@ -39,6 +39,9 @@ extern "C" {
 typedef enum {
     ETHDEV_USAGE_CB,
     EPOLL_DETAILS_CB,
+    GET_FD_COUNT,
+    GET_NET_STAT,
+    GET_SOCK_INFO,
     TCP_STATS_CB,
     MAX_CB_NUM
 } KnetTelemetryCbsEnum;
@@ -62,6 +65,21 @@ static TelemetryCmdInfo g_telemetryCmdInfos[MAX_CB_NUM] = {
                           .helpCmd = "Return epoll detail statistics. "
                                      "Usage: /knet/stack/epoll_stat, <pid> <start_epoll_fd> "
                                      "<epoll_fd_cnt> <start_fd> <fd_cnt>"},
+    [GET_FD_COUNT] = {.cb_single = KnetTelemetryGetFdCountCallback,
+                      .cb_multi = KnetTelemetryGetFdCountCallbackMp,
+                      .registeredCmd = "/knet/stack/fd_count",
+                      .helpCmd = "Return fd count of input socket type. "
+                                 "Usage: /knet/stack/fd_count,[pid] <tcp/udp/epoll>"},
+    [GET_NET_STAT] = {.cb_single = KnetTelemetryGetNetStatCallback,
+                      .cb_multi = KnetTelemetryGetNetStatCallbackMp,
+                      .registeredCmd = "/knet/stack/net_stat",
+                      .helpCmd = "Return all connected socket information. "
+                                 "Usage: /knet/stack/net_stat,<pid> <start_fd> <fd_cnt>"},
+    [GET_SOCK_INFO] = {.cb_single = KnetTelemetryGetSockInfoCallback,
+                       .cb_multi = KnetTelemetryGetSockInfoCallbackMp,
+                       .registeredCmd = "/knet/stack/socket_info",
+                       .helpCmd = "Return socket details of input fd. "
+                                  "Usage: /knet/stack/socket_info,[pid] <fd>"},
     [TCP_STATS_CB] = {.cb_single = KnetTelemetryStatisticCallback,
                       .cb_multi = KnetTelemetryStatisticCallbackMp,
                       .registeredCmd = "/knet/ethstats",
