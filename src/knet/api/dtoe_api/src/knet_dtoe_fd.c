@@ -136,6 +136,47 @@ void *KNET_GetConnBySock(int sockfd)
     return g_knetDtoeFdMap[sockfd].dtoe_conn;
 }
 
+int KNET_SockLeakResInit(struct KNET_Fd *sock)
+{
+    int32_t leakSize = flexda_dtoe_get_leaked_packet_size(sock->dtoe_conn);
+    if (leakSize > 0) {
+        sock->leakBuf = malloc(leakSize);
+        if (sock->leakBuf == NULL) {
+            KNET_ERR("Leaked buf malloc failed");
+            return -1;
+        }
+        sock->leakSize = flexda_dtoe_recv_leaked_packet(sock->dtoe_conn, sock->leakBuf, leakSize);
+        if (sock->leakSize < 0) {
+            KNET_ERR("sockfd %d recv leaked packet failed, ret %d, leakSize %d", sock->sockfd, sock->leakSize, leakSize);
+            goto recvLeakedPktFailed;
+        }
+        
+        TAILQ_INSERT_TAIL(&sock->recv_channel->leakList, sock, sock);
+
+        KNET_DEBUG("sockfd %d leak resource init, leakSize %d", sock->sockfd, sock->leakSize);
+    }
+
+    return 0;
+
+recvLeakedPktFailed:
+    free(sock->leakBuf);
+    sock->leakBuf = NULL;
+    sock->leakSize = 0;
+    return -1;
+}
+
+void KNET_SockLeakedResUninit(struct KNET_Fd *sock)
+{
+    if (sock->leakSize > 0) {
+        KNET_SpinlockLock(&sock->recv_channel->leakLock);
+        TAILQ_REMOVE(&sock->recv_channel->leakList, sock, sock);
+        KNET_SpinlockUnlock(&sock->recv_channel->leakLock);
+    }
+    free(sock->leakBuf);
+    sock->leakBuf = NULL;
+    sock->leakSize = 0;
+}
+
 void KNET_ResetFdState(int sockfd)
 {
     g_knetDtoeFdMap[sockfd].dtoe_conn = NULL;
@@ -147,4 +188,5 @@ void KNET_ResetFdState(int sockfd)
     g_knetDtoeFdMap[sockfd].send.comp_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send.last_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].user_data = NULL;
+    KNET_SockLeakedResUninit(&g_knetDtoeFdMap[sockfd]);
 }

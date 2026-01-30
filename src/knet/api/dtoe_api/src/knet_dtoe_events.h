@@ -13,6 +13,8 @@
 #ifndef __KNET_DTOE_EVENTS_H__
 #define __KNET_DTOE_EVENTS_H__
 #include <sys/queue.h>
+
+#include "knet_lock.h"
 #include "knet_dtoe_api.h"
 #include "dtoe_interface.h"
 
@@ -23,12 +25,17 @@ struct knet_send_channel_events {
     uint32_t next_event_idx;
 };
 
+TAILQ_HEAD(KnetLeakListHead, KNET_Fd);
+
 struct knet_recv_channel_events {
     struct knet_recv_channel channel;
     /* 以下是knet需要的结构 */
     struct knet_recv_events* events;
     uint32_t maxevents;
     uint32_t next_event_idx;
+
+    struct KnetLeakListHead leakList; // 当连接有泄漏数据时，KNET_Fd在leakedList中
+    KNET_SpinLock leakLock;
 };
 
 typedef struct knet_req_node {

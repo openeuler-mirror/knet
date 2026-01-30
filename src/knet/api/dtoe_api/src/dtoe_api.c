@@ -21,6 +21,15 @@
 #include "knet_dtoe_events.h"
 #include "knet_dtoe_config.h"
 
+_Static_assert(sizeof(struct knet_recv_channel) == sizeof(struct recv_channel), \
+    "struct knet_recv_channel must same as dtoe");
+_Static_assert(offsetof(struct knet_recv_channel, epoll_fd) == offsetof(struct recv_channel, epoll_fd), \
+    "struct knet_recv_channel member offset must same as dtoe");
+_Static_assert(offsetof(struct knet_recv_channel, rx_queue) == offsetof(struct recv_channel, rx_queue), \
+    "struct knet_recv_channel member offset must same as dtoe");
+_Static_assert(offsetof(struct knet_recv_channel, oqid) == offsetof(struct recv_channel, oqid), \
+    "struct knet_recv_channel member offset must same as dtoe");
+
 #define IP_STR_MAX_LEN 64
 #define KNET_DTOE_MAX_CHANL_CONFIG 16
 
@@ -125,18 +134,36 @@ void knet_reg_conn_async_offload_done(void *dtoe_conn, uint8_t rsp_status)
         return;
     }
 
-    if (dtoe_conn == NULL) {
+    if (unlikely(dtoe_conn == NULL)) {
         KNET_ERR("dtoe_conn is null in conn_async_offload_done");
         return;
     }
 
     int fd = get_fd_from_dtoe_conn(dtoe_conn);
-    if (fd == KNET_INVALID_FD) {
+    if (unlikely(fd == KNET_INVALID_FD)) {
         KNET_ERR("Close down fd is invalid");
         return;
     }
+
+    if (unlikely(rsp_status == KNET_ASYNC_OFFLOAD_FAIL)) {
+        KNET_ERR("sockfd %d async offload failed", fd);
+        goto offloadFailed;
+    }
+
     KNET_INFO("Conn async offload done fd %d", fd);
+
+    int ret = KNET_SockLeakResInit(KNET_GetFdConnUserData(fd));
+    if (ret != 0) {
+        KNET_ERR("sockfd %d leak res init failed, ret %d", fd, ret);
+        goto leakResInitFailed;
+    }
+
     g_knet_dtoe_ops.conn_async_offload_done(fd, rsp_status);
+    return;
+
+leakResInitFailed:
+offloadFailed:
+    g_knet_dtoe_ops.conn_async_offload_done(fd, KNET_ASYNC_OFFLOAD_FAIL);
 }
 
 KNET_API int knet_init(const char * local_ip)
@@ -296,6 +323,9 @@ int knet_create_recv_channel(enum knet_schd_type schd_mod, uint32_t depth, struc
         return ret;
     }
     *channel = &knetRecvChannel->channel;
+
+    TAILQ_INIT(&knetRecvChannel->leakList);
+
     KNET_INFO("Knet create recv channel success, devSn %lu, schd_mod %d, depth %u",
         g_dtoeRes.dev.devSn, schd_mod, depth);
     return ret;
@@ -367,6 +397,8 @@ void knet_prepare_close(int sockfd)
         return;
     }
     dtoe_prepare_close(KNET_GetConnBySock(sockfd));
+
+    KNET_DEBUG("sockfd %d prepare close", sockfd);
 }
 
 void knet_close(int sockfd)
@@ -379,6 +411,8 @@ void knet_close(int sockfd)
     // 置0后释放req队列
     KNET_UninitFreeReq(sockfd);
     dtoe_close(sockfd, KNET_GetConnBySock(sockfd));
+
+    KNET_DEBUG("sockfd %d knet close", sockfd);
 }
 
 int knet_fd_is_offloaded(int sockfd)
@@ -396,7 +430,7 @@ int knet_fd_is_offloaded(int sockfd)
 
 void *knet_get_ulp_user_data(int sockfd)
 {
-    if (!KNET_IsOsFdValid(sockfd)) {
+    if (unlikely(!KNET_IsOsFdValid(sockfd))) {
         KNET_ERR("Knet get ulp user data sockfd %d is invalid", sockfd);
         return NULL;
     }
@@ -428,7 +462,7 @@ static inline bool is_send_complete(struct KNET_Fd* conn, KnetReqNode* rnode)
 static void knet_dtoe_send_complete(void* dtoe_conn, struct dtoe_tx_event* event)
 {
     struct KNET_Fd* sock = (struct KNET_Fd*) dtoe_get_ulp_user_data(dtoe_conn);
-    if (sock == NULL || event == NULL) {
+    if (unlikely(sock == NULL || event == NULL)) {
         KNET_ERR("sock: %s, event: %s, null is illeagal",
             sock == NULL ? "Null" : "not Null", event == NULL ? "Null" : "not Null");
         return;
@@ -484,6 +518,7 @@ static void knet_dtoe_receive_notify(void* dtoe_conn, int iov_cnt)
         if (sock->recvEventIndex == KNET_INVALID_EVENT_INDEX) { // sockfd第一次触发recv notify，记录event index位置
             recvChannel->events[recvChannel->next_event_idx].sockfd = sock->sockfd;
             recvChannel->events[recvChannel->next_event_idx].desc_cnt = iov_cnt;
+            recvChannel->events[recvChannel->next_event_idx].type = KNET_RX_EVENT_NORMAL;
             sock->recvEventIndex = recvChannel->next_event_idx;
             ++recvChannel->next_event_idx;
         } else { // 后续第2 3 ... N 次触发recv_notify，聚合desc_cnt
@@ -492,6 +527,7 @@ static void knet_dtoe_receive_notify(void* dtoe_conn, int iov_cnt)
     } else if (iov_cnt == 0) { // iov_cnt为0的事件不能聚合，要返回给用户，告知对端连接已断开
         recvChannel->events[recvChannel->next_event_idx].sockfd = sock->sockfd;
         recvChannel->events[recvChannel->next_event_idx].desc_cnt = iov_cnt;
+        recvChannel->events[recvChannel->next_event_idx].type = KNET_RX_EVENT_NORMAL;
         ++recvChannel->next_event_idx;
     } else {
         KNET_ERR("sockfd %d, iov_cnt: %d, unknown reason", sock->sockfd, iov_cnt);
@@ -554,10 +590,16 @@ int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_s
  */
 int knet_send(int sockfd, struct knet_tx_req* tx_req)
 {
-    if (tx_req == NULL) {
+    if (unlikely(tx_req == NULL)) {
         KNET_ERR("tx_req null is illeagal");
         return -EINVAL;
     }
+
+    if (unlikely(!KNET_IsOsFdValid(sockfd))) {
+        KNET_ERR("sockfd %d is invalid", sockfd);
+        return -EINVAL;
+    }
+
     struct dtoe_tx_desc descs[tx_req->descs_num];
     for (int i = 0; i < tx_req->descs_num; i++) {
         descs[i].type = DTOE_TX_MR_TYPE;
@@ -569,7 +611,7 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
         .tx_in.ulp_flag = 0
     };
     KnetReqNode* req = (KnetReqNode*)TAILQ_FIRST(&KNET_GetFdConnUserData(sockfd)->send.free_req);
-    if (req == NULL) {
+    if (unlikely(req == NULL)) {
         KNET_ERR("req is Null, out of memory");
         return -ENOMEM;
     }
@@ -603,7 +645,7 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
  */
 int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_recv_events* events, uint32_t maxevents)
 {
-    if (recv_channel == NULL || events == NULL) {
+    if (unlikely(recv_channel == NULL || events == NULL)) {
         KNET_ERR("recv_channel: %s, events: %s, null is illeagal", 
         recv_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null");
         return -1;
@@ -614,7 +656,26 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
     recv_channel_events->maxevents = maxevents;
     recv_channel_events->next_event_idx = 0;
 
-    dtoe_poll_receive_channel((recv_channel_s*) recv_channel, maxevents);  // recv_channel地址即是recv_channel_events地址
+    /* 有泄漏数据未被接收，增加事件返回告知用户 */
+    if (!TAILQ_EMPTY(&recv_channel_events->leakList)) {
+        struct KNET_Fd *sock;
+#ifndef KNET_REQ_NODE_ATOMIC
+        KNET_SpinlockLock(&recv_channel_events->leakLock);
+#endif
+        TAILQ_FOREACH(sock, &recv_channel_events->leakList, sock) {
+            recv_channel_events->events[recv_channel_events->next_event_idx].sockfd = sock->sockfd;
+            recv_channel_events->events[recv_channel_events->next_event_idx].desc_cnt = 0;
+            recv_channel_events->events[recv_channel_events->next_event_idx].type = KNET_RX_EVENT_LEAK;
+            KNET_DEBUG("recv channel, leak sockfd %d, next_event_idx %u", sock->sockfd, recv_channel_events->next_event_idx);
+            ++recv_channel_events->next_event_idx;
+        }
+#ifndef KNET_REQ_NODE_ATOMIC
+        KNET_SpinlockUnlock(&recv_channel_events->leakLock);
+#endif
+    }
+
+    /* recv_channel地址即是recv_channel_events地址 */
+    dtoe_poll_receive_channel((recv_channel_s*) recv_channel, maxevents - recv_channel_events->next_event_idx);
 
     for (uint32_t i = 0; i < recv_channel_events->next_event_idx; ++i) {
         KNET_GetFdConnUserData(events[i].sockfd)->recvEventIndex = KNET_INVALID_EVENT_INDEX;
@@ -625,6 +686,11 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
 
 int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags)
 {
+    if (unlikely(!KNET_IsOsFdValid(sockfd))) {
+        KNET_ERR("sockfd %d is invalid", sockfd);
+        return -EINVAL;
+    }
+
     int ret = dtoe_recv(KNET_GetFdConnUserData(sockfd)->dtoe_conn, (struct dtoe_rx_desc *)desc, desc_num, flags);
     if (ret < 0) {
         KNET_ERR("dtoe recv failed, ret %d", ret);
@@ -634,6 +700,37 @@ int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags)
     KNET_DEBUG("dtoe recv bytes: %d, dtoe fd: %d", ret, sockfd);
 
     return ret;
+}
+
+int32_t knet_get_leaked_packet_size(int sockfd)
+{
+    if (unlikely(!KNET_IsOsFdValid(sockfd))) {
+        KNET_ERR("sockfd %d is invalid", sockfd);
+        return -EINVAL;
+    }
+
+    return KNET_GetFdConnUserData(sockfd)->leakSize;
+}
+
+int32_t knet_recv_leaked_packet(int sockfd, void *buffer, int32_t recv_len)
+{
+    if (unlikely(!KNET_IsOsFdValid(sockfd))) {
+        KNET_ERR("sockfd %d is invalid", sockfd);
+        return -EINVAL;
+    }
+
+    struct KNET_Fd *sock = KNET_GetFdConnUserData(sockfd);
+    int32_t leakSize = sock->leakSize;
+    if (recv_len < leakSize) {
+        KNET_ERR("recv_len %d must bigger than leakSize %d", recv_len, leakSize);
+        return -EINVAL;
+    }
+
+    (void)memcpy_s(buffer, recv_len, sock->leakBuf, leakSize); // 长度已提前判断，不会异常
+
+    KNET_SockLeakedResUninit(sock);
+
+    return leakSize;
 }
 
 void knet_log(const char *function, int line, int level, const char *format, ...)
