@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.14.1)
 
 project(DP LANGUAGES C)
 
-
 set(CMAKE_SKIP_RPATH TRUE)
 
 set(TARGET_DP dpstack)
@@ -10,12 +9,29 @@ set(CMAKE_C_STANDARD 11)
 set(DP_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(KNET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall")
-
-if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "aarch64")
-    add_compile_options(-march=armv8-a+crc)
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64")
-    add_compile_options(-msse4.2)
+set(CMAKE_C_FLAGS "")
+set(CMAKE_C_FLAGS_DEBUG "")
+set(CMAKE_C_FLAGS_RELEASE "")
+#TCP协议栈相关编译选项
+set(CMAKE_C_FLAGS
+    "-Werror \
+    -Wall \
+    -Wfloat-equal \
+    -Wshadow \
+    -Wformat=2 \
+    -fgnu89-inline \
+    -fno-common \
+    -fno-strict-aliasing \
+    -fno-omit-frame-pointer \
+    -pipe \
+    -freg-struct-return \
+    -fPIC \
+    -fstack-protector-strong \
+    -fsigned-char"
+)
+#如果Release版本，-O2优化
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FORTIFY_SOURCE=2 -O2")
 endif()
 
 #设置头文件依赖路径
@@ -30,11 +46,21 @@ set(PROJECT_OUT_INC_DIR ${KNET_SRC_DIR}/build/include/dp)
 #设置库文件输出路径
 set(PROJIECT_OUT_LIB_DIR ${KNET_SRC_DIR}/build/lib/dp)
 
-add_compile_options(-D_FORTIFY_SOURCE=2 -O2 -fPIE -fPIC -fstack-protector-strong)
-add_link_options(-O2 -rdynamic -Wl,-z,relro -Wl,-z,now -Wl,-EL -Wl,-z,noexecstack -s -pie)
+#设置连接选项
+set(CMAKE_SHARED_LINKER_FLAGS
+    "-rdynamic \
+    -Wl,-EL \
+    -Wl,-z,relro,-z,noexecstack \
+    -Wl,-z,now \
+    -lpthread \
+    -ldl"
+)
 
+#如果Release版本
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -g")
+endif()
 include(${DP_SRC_DIR}/cmake/knet.cmake)
-
 
 # 获取knet.spec文件中的Version号
 set(VERSION_REGEX "Version:[ \t]+(.+)")

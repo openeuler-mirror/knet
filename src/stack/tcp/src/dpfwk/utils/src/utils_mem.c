@@ -134,7 +134,9 @@ void DP_ZcopyMemCntAdd(uint32_t wid, size_t size, DP_MemType_t type)
         DP_ADD_MEM_STAT(wid, size, type);
         return;
     }
+    #ifdef KNET_DEBUG_BUILD
     DP_ATOMIC_MEM_ADD(0, size, type);       // 零拷贝内存计数中，DP_ATOMIC_MEM_ADD对应mod字段对应为wid，非共线程记录在worker0中
+    #endif
 }
 
 /* 零拷贝内存打点减少函数 */
@@ -144,7 +146,9 @@ void DP_ZcopyMemCntSub(uint32_t wid, size_t size, DP_MemType_t type)
         DP_SUB_MEM_STAT(wid, size, type);
         return;
     }
+    #ifdef KNET_DEBUG_BUILD
     DP_ATOMIC_MEM_SUB(0, size, type);       // 零拷贝内存计数中，DP_ATOMIC_MEM_SUB对应mod字段对应为wid，非共线程记录在worker0中
+    #endif
 }
 
 /* 内存打点增加函数 */

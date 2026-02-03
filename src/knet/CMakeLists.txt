@@ -1,39 +1,60 @@
-if (${KNET_BUILD_TYPE} STREQUAL "Test")
-    add_compile_options(-g -O0 -fsanitize=address -fsanitize=undefined -fsanitize-coverage=trace-pc)
-endif ()
+# 清除默认的编译选项
+set(CMAKE_C_FLAGS "")
+set(CMAKE_C_FLAGS_DEBUG "")
+set(CMAKE_C_FLAGS_RELEASE "")
 
-if (${KNET_BUILD_TYPE} STREQUAL "Fuzz")
-    add_compile_options(-Wall -g -fPIC -fno-omit-frame-pointer -fno-common -O0 -fsanitize=address -fsanitize=undefined -fsanitize-coverage=trace-pc)
-endif ()
+# Unit Test编译选项
+if (${KNET_BUILD_TYPE} STREQUAL "Test")
+    set(CMAKE_C_FLAGS 
+        "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage -g -O0 \
+        -fsanitize=address \
+        -fsanitize=undefined \
+        -fsanitize-coverage=trace-pc"
+    )
+# Fuzz测试编译选项
+elseif (${KNET_BUILD_TYPE} STREQUAL "Fuzz")
+    set(CMAKE_C_FLAGS 
+        "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage -Wall -g -fPIC \
+        -fno-omit-frame-pointer \
+        -fno-common \
+        -O0 \
+        -fsanitize=address \
+        -fsanitize=undefined \
+        -fsanitize-coverage=trace-pc"
+    )
+# SDV测试编译选项
+elseif (${KNET_BUILD_TYPE} STREQUAL "SDV")
+    set(CMAKE_C_FLAGS 
+        "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage"
+    )
+# Release编译选项
+elseif (${KNET_BUILD_TYPE} STREQUAL "Release")
+    set(CMAKE_C_FLAGS
+        "-Werror \
+        -Wall \
+        -O2 \
+        -D_FORTIFY_SOURCE=2 \
+        -fPIE \
+        -fPIC \
+        -fstack-protector-strong"
+    )
+# Debug编译选项默认从项目CMake统一添加
+elseif (${KNET_BUILD_TYPE} STREQUAL "Debug")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall")
+endif()
+
 
 set(KET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../)
 set(TARGET_CORE knet_core)
 set(TARGET_FRAME knet_frame)
 set(TARGET_DAEMON knet_mp_daemon)
+set(SECURE_C boundscheck)
 set(DPDK_DIR ${KET_SRC_DIR}/opensource/dpdk/output/lib64)
-
-# 检查boundscheck库
-find_library(BOUNDSCHECK_LIB
-    NAMES boundscheck
-    PATHS ${KET_SRC_DIR}/opensource/secure_c/lib
-    NO_DEFAULT_PATH
-)
-
-# 使用boundscheck
-if(BOUNDSCHECK_LIB)
-    message(STATUS "Found boundscheck library: ${BOUNDSCHECK_LIB}")
-    set(SECURE_LIB_NAME boundscheck)
-    set(SECURE_LIB_PATH ${KET_SRC_DIR}/opensource/secure_c/lib)
-else()
-    message(WARNING "Neither securec nor boundscheck library found")
-    set(SECURE_LIB_NAME "")
-    set(SECURE_LIB_PATH "")
-endif()
 
 link_directories(
     ${DPDK_DIR}
     ${KET_SRC_DIR}/opensource/cJSON/build
-    ${SECURE_LIB_PATH}
+    ${KET_SRC_DIR}/opensource/secure_c/lib
     ${KET_SRC_DIR}/opensource/Secodefuzz/lib
 )
 
@@ -100,6 +121,17 @@ if(${KNET_BUILD_TYPE} STREQUAL "Release")
     )
 endif()
 
+# knet_core链接选项
+target_link_options(${TARGET_CORE} PRIVATE
+    -O2
+    -rdynamic
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-EL
+    -Wl,-z,noexecstack
+    -s
+)
+
 # 根据找到的库设置链接选项
 target_link_libraries(${TARGET_CORE}
     base config dpdk_init log tun mem thread rand dpdk_utils osapi 
@@ -108,7 +140,7 @@ target_link_libraries(${TARGET_CORE}
 
     # 下面都是外部opensource的动态库
     libcjson.a
-    -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
+    -Wl,--whole-archive ${SECURE_C} -Wl,--no-whole-archive
     ${DPDK_LIBS}
     dl
     pthread
@@ -130,6 +162,17 @@ if(${KNET_BUILD_TYPE} STREQUAL "Release")
     )
 endif()
 
+# knet_frame链接选项
+target_link_options(${TARGET_FRAME} PRIVATE
+    -O2
+    -rdynamic
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-EL
+    -Wl,-z,noexecstack
+    -s
+)
+
 target_link_libraries(${TARGET_FRAME}
     posix_api socket_bridge log zcopy cothread extern_api
     ${TARGET_CORE}
@@ -148,6 +191,19 @@ if(${KNET_BUILD_TYPE} STREQUAL "Release")
         VERBATIM
     )
 endif()
+
+# knet_daemon链接选项
+target_link_options(${TARGET_DAEMON} PRIVATE
+    -O2
+    -rdynamic
+    -Wl,-z,relro
+    -Wl,-z,now
+    -Wl,-EL
+    -Wl,-z,noexecstack
+    -s
+    -pie
+)
+
 # 根据找到的库设置daemon的链接选项
 target_link_libraries(${TARGET_DAEMON}
     base config log mbuf fmm transmission rpc dpdk_init thread hash capability offload dpdk_utils pktdump tcp_fd
@@ -156,7 +212,7 @@ target_link_libraries(${TARGET_DAEMON}
     telemetry
     rte_telemetry
     libcjson.a
-    ${SECURE_LIB_NAME}
+    ${SECURE_C}
     dl
     pthread
     cap
