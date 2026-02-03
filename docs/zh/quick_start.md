@@ -111,7 +111,7 @@ $ vim /etc/knet/knet_comm.conf
 ```
 mac填绑定网卡的mac。
 ip填绑定网卡的ip。
-ctrl_vcpu_ids 为控制面线程绑核，需要在有效核号内，且需要与数据面分开。数据面绑核见dpdk配置项core_list_global参数。其他配置参数可参考参数[配置参考](./Desgin_docs_Reference.md)
+ctrl_vcpu_ids 为控制面线程绑核，需要在有效核号内，且需要与数据面分开。数据面绑核见dpdk配置项core_list_global参数。其他配置参数可参考参数[配置参考](configuration_item_reference.md)。
 
 
 ## 服务端中运行redis
