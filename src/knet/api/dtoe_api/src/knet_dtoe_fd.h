@@ -14,7 +14,7 @@
 #define __KNET_DTOE_FD_H__
 
 #include <stdbool.h>
-#include "dtoe_interface.h"
+#include "flexda_dtoe_interface.h"
 #include "knet_dtoe_events.h"
 #include "knet_dtoe_api.h"
 #include "knet_lock.h"
@@ -26,7 +26,7 @@
 struct KNET_Fd {
     void *dtoe_conn;
     int sockfd;
-    struct knet_send_channel_events *send_channel;
+    struct KnetSendChannel *send_channel;
     struct {
         uint16_t last_sn; // 上一个已完成的req的send_sn
         uint16_t comp_sn; // send_complete对应的finish_msn
@@ -35,7 +35,7 @@ struct KNET_Fd {
     } send;
     KNET_SpinLock send_lock;
 
-    struct knet_recv_channel_events *recv_channel;
+    struct KnetRecvChannel *recv_channel;
     int recvEventIndex; // 一次knet_poll_recv_channel调用中，该sockfd第一次事件触发对应结果数组的下标
 
     int32_t leakSize;
@@ -71,7 +71,7 @@ bool KNET_IsOsFdValid(int osFd);
  * @param out [IN] 连接卸载后DTOE返回的连接信息
  * @retval null
  */
-void KNET_SetFdState(int sockfd, struct knet_offload_in *in, dtoe_offload_out_s *out);
+void KNET_SetFdState(int sockfd, struct knet_offload_in *in, flexda_dtoe_offload_out_s *out);
 
 /**
  * @brief 初始化freereq链表

@@ -30,10 +30,8 @@ struct knet_ulp_ops {
 
 struct knet_mr {
     void *addr;             /* 用户态传入需要注册的虚拟地址 */
-    size_t length;          /* 用户态传入注册内存对应的长度 */
+    uint32_t length;          /* 用户态传入注册内存对应的长度 */
     uint32_t lkey;          /* 对应芯片MPT表项的索引 */
-    void *kernel_mr_addr;   /* 内核态MR结构地址，解注册时使用 */
-    uint32_t rsv[4];
 };
 
 enum knet_schd_type {
@@ -59,15 +57,13 @@ struct knet_send_channel {
 
 struct knet_recv_events {
     int sockfd;
-    uint32_t desc_cnt; // 表示dtoe_recv上传的desc个数，建议dtoe_recv入参desc_num赋值到这里。 个数为0时表示连接已断开
+    uint32_t iov_cnt; // 表示dtoe_recv上传的iov个数，建议dtoe_recv入参iov_cnt赋值到这里。 个数为0时表示连接已断开
     enum knet_recv_event_type type;
 };
 
 struct knet_recv_channel {
     int epoll_fd;   /* epoll 句柄, poll 模式无效 */
     void* rx_queue; /* rx channel 句柄, 后续 poll 使用 */
-    uint32_t oqid;  /*  VBS场景,用于 IO abort保序 */
-    uint32_t rsv[4];
 };
 
 struct knet_offload_in {
@@ -81,28 +77,11 @@ struct knet_iovec {
     size_t iov_len;
 };
 
-struct knet_tx_desc {
-    struct knet_iovec iov;
-    uint32_t lkey;
-};
-
 struct knet_tx_req {
-    struct knet_tx_desc* descs;
-    uint16_t descs_num;
+    struct knet_iovec *iov;
+    uint32_t iov_cnt;
+    uint32_t lkey;
     uint64_t wr_id;
-};
-
-enum knet_recv_type {
-    KNET_RX_NORM_TYPE = 0,
-    KNET_RX_IO_FINISH,
-    KNET_RX_IO_ABORT,
-    KNET_RX_IO_EXCEPTION,
-    KNET_RX_TYPE_MAX,
-};
-
-struct knet_rx_desc {
-    enum knet_recv_type type;
-    struct knet_iovec iov;
 };
 
 /**
@@ -242,13 +221,12 @@ int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct kne
 /**
  * @brief knet接收接口
  * @param sockfd [IN] 标准socket的fd句柄
- * @param desc [IN] 接收buf信息
- * @param desc_num [IN] desc个数
- * @param flags [IN] 预留（与标准socket保持一致）。暂不支持，填全0
+ * @param iov [IN] 接收buf信息
+ * @param iov_cnt [IN] iov个数
  * @return 非负数-成功接收的长度，负数-接收失败
- * @attention 建议desc_num赋值为struct knet_recv_event的iovcnt
+ * @attention 建议iov_cnt赋值为struct knet_recv_event的iovcnt
  */
-int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags);
+int knet_recv(int sockfd, struct knet_iovec *iov, int iov_cnt);
 
 /**
  * @brief 获取漏包数据大小
