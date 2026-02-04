@@ -39,6 +39,7 @@ cp -rf %{_topdir}/BUILD/usr/include/knet/knet_socket_api.h %{buildroot}"/usr/inc
 cp -rf %{_topdir}/SOURCES/knet_comm.conf %buildroot%{knetsysdir}/knet/
 cp -rf %{_topdir}/SOURCES/knet_rsyslog.conf %buildroot%{knetsysdir}/rsyslog.d/
 cp -rf %{_topdir}/SOURCES/logrotate/knet %buildroot%{knetsysdir}/logrotate.d/
+cp -rf %{_topdir}/SOURCES/tools %buildroot%{knetsysdir}/knet/
 
 
 %pre
@@ -83,5 +84,8 @@ fi
 %attr(640, root, root) %{knetsysdir}/rsyslog.d/knet_rsyslog.conf
 %attr(640, root, root) %{knetsysdir}/logrotate.d/knet
 %dir %{knetsysdir}/knet/run
+%dir %{knetsysdir}/knet/tools
+%attr(500, root, root) %{knetsysdir}/knet/tools/merge_conf.sh
+%attr(500, root, root) %{knetsysdir}/knet/tools/collect.sh
 
 %changelog
