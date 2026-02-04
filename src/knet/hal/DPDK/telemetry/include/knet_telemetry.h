@@ -17,8 +17,10 @@
 #include "dp_debug_api.h"
 #include "knet_types.h"
 
+#define MAX_PROCESS_NUM 32
 #define MAX_OUTPUT_LEN 16384 /* 适配DP_ShowStatistics接口维测信息长度 */
 #define KNET_TELEMETRY_MZ_NAME "knet_telemetry_debug_info_mz"
+#define KNET_TELEMETRY_PERSIST_MZ_NAME "knet_telemetry_persist_mz"
 #define UNCONNECTED_FLAG 0xFFFFFFFF
 
 /* 统计信息输出打印方式 */
@@ -26,6 +28,7 @@ typedef enum {
     KNET_STAT_OUTPUT_TO_LOG = 0,   /* 打印到日志 */
     KNET_STAT_OUTPUT_TO_SCREEN,    /* 打印到屏幕 */
     KNET_STAT_OUTPUT_TO_TELEMETRY, /* 打印到telemetry */
+    KNET_STAT_OUTPUT_TO_FILE,      /* 打印到文件 */
     KNET_STAT_OUTPUT_MAX
 } KNET_StatOutputType;
 
@@ -78,6 +81,21 @@ typedef struct {
     KNET_SocketDetails socketDetails;
     EpollTelemetryContext *epollDetailCtx;
 } KNET_TelemetryInfo;
+
+typedef enum {
+    KNET_TELE_PERSIST_INTI,       /* 初始化状态 */
+    KNET_TELE_PERSIST_WAITSECOND, /* 主进程等待从进城刷新数据 */
+    KNET_TELE_PERSIST_MSGREADY,   /* 从进程消息准备好 */
+    KNET_TELE_PERSIST_ERROR,      /* 从进程消息准备出错 */
+    KNET_TELE_PERSIST_MAX
+} KNET_TELE_PERSIST_STATE;
+
+typedef struct {
+    KNET_TELE_PERSIST_STATE state;
+    pid_t curPid;
+    DP_StatType_t msgType;
+    char message[DP_STAT_MAX][MAX_OUTPUT_LEN];
+} KNET_TelemetryPersistInfo;
 
 /**
  * @brief 进行支持dpdk-telemetry工具必要的初始化操作，包括初始化运行时目录、查找遥感套接字、创建硬链接和注册遥感命令
