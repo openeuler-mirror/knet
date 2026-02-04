@@ -303,6 +303,7 @@ def build_rpm():
     shutil.copy2(f"{KNET_SOURCE_DIR}/build/src/knet/knet_mp_daemon", f"{KNET_RPM_DIR}/BUILD/usr/bin")
     shutil.copy2(f"{KNET_SOURCE_DIR}/build/include/extern_api/h/knet_socket_api.h",
         f"{KNET_RPM_DIR}/BUILD/usr/include/knet")
+    shutil.copytree(f"{KNET_SOURCE_DIR}/tools", f"{KNET_RPM_DIR}/SOURCES/tools")
 
     cmd = ["rpmbuild", f"-ba", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
     output = subprocess.run(cmd, shell=False)
