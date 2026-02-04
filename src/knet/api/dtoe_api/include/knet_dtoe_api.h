@@ -41,7 +41,13 @@ enum knet_schd_type {
     KNET_POLL_SCHD,
     KNET_SCHD_MOD_BUTT
 };
-struct knet_send_events{
+
+enum knet_recv_event_type {
+    KNET_RX_EVENT_NORMAL,
+    KNET_RX_EVENT_LEAK, // 有漏包数据，需调用漏包接收接口将漏包数据先接收完
+};
+
+struct knet_send_events {
     uint64_t wr_id;
     int sockfd;
 };
@@ -54,6 +60,7 @@ struct knet_send_channel {
 struct knet_recv_events {
     int sockfd;
     uint32_t desc_cnt; // 表示dtoe_recv上传的desc个数，建议dtoe_recv入参desc_num赋值到这里。 个数为0时表示连接已断开
+    enum knet_recv_event_type type;
 };
 
 struct knet_recv_channel {
@@ -242,6 +249,23 @@ int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct kne
  * @attention 建议desc_num赋值为struct knet_recv_event的iovcnt
  */
 int knet_recv(int sockfd, struct knet_rx_desc *desc, int desc_num, int flags);
+
+/**
+ * @brief 获取漏包数据大小
+ * @param sockfd [IN] 标准socket的fd句柄
+ * @return 非负数-可接收的长度，负数-获取失败
+ */
+int32_t knet_get_leaked_packet_size(int sockfd);
+
+/**
+ * @brief 接收漏包数据
+ * @param sockfd [IN] 标准socket的fd句柄
+ * @param buffer [IN] 接收缓冲区
+ * @param recv_len [IN] 接收缓冲区长度
+ * @return 非负数-成功接收的长度，负数-接收失败
+ * @attention 必须一次接收完所有漏包数据，即recv_len必须大于等于knet_get_leaked_packet_size获取到的长度
+ */
+int32_t knet_recv_leaked_packet(int sockfd, void *buffer, int32_t recv_len);
 
 /**
  * @brief 日志输出函数

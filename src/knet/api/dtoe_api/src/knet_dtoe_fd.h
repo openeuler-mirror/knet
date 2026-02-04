@@ -38,6 +38,10 @@ struct KNET_Fd {
     struct knet_recv_channel_events *recv_channel;
     int recvEventIndex; // 一次knet_poll_recv_channel调用中，该sockfd第一次事件触发对应结果数组的下标
 
+    int32_t leakSize;
+    TAILQ_ENTRY(KNET_Fd) sock;
+    void *leakBuf;
+
     void *user_data;
     uint32_t recv_sn;
 };
@@ -96,6 +100,18 @@ struct KNET_Fd *KNET_GetFdConnUserData(int sockfd);
  * @retval void *连接卸载后DTOE返回的连接信息
  */
 void *KNET_GetConnBySock(int sockfd);
+
+/**
+ * @brief 初始化sock漏包相关资源
+ * @param sock [IN]
+ */
+int KNET_SockLeakResInit(struct KNET_Fd *sock);
+
+/**
+ * @brief 销毁sock漏包相关资源
+ * @param sock [IN]
+ */
+void KNET_SockLeakedResUninit(struct KNET_Fd *sock);
 
 /**
  * @brief 重置文件描述符的状态

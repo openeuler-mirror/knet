@@ -226,7 +226,7 @@ void KNET_LogFixLenOutputHook(const char* format, ...)
 
 void KNET_Log(const char *function, int line, int level, const char *format, ...)
 {
-    if (g_logLevel < level) {
+    if (likely(g_logLevel < level)) {
         return;
     }
 
