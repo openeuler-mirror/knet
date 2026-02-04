@@ -16,34 +16,34 @@
 
 #include "knet_lock.h"
 #include "knet_dtoe_api.h"
-#include "dtoe_interface.h"
+#include "flexda_dtoe_interface.h"
 
-struct knet_send_channel_events {
+struct KnetSendChannel {
     struct knet_send_channel channel;
     struct knet_send_events* events;
     uint32_t maxevents;
-    uint32_t next_event_idx;
+    uint32_t nextEventIdx;
 };
 
 TAILQ_HEAD(KnetLeakListHead, KNET_Fd);
 
-struct knet_recv_channel_events {
+struct KnetRecvChannel {
     struct knet_recv_channel channel;
     /* 以下是knet需要的结构 */
     struct knet_recv_events* events;
     uint32_t maxevents;
-    uint32_t next_event_idx;
+    uint32_t nextEventIdx;
 
     struct KnetLeakListHead leakList; // 当连接有泄漏数据时，KNET_Fd在leakedList中
     KNET_SpinLock leakLock;
 };
 
-typedef struct knet_req_node {
-    TAILQ_ENTRY(knet_req_node) node;
+typedef struct KnetReqNode {
+    TAILQ_ENTRY(KnetReqNode) node;
     uint64_t wr_id;     // 用户透传id
     uint16_t send_sn;   // dtoe_send时出参的curr_msn
 } __attribute__((packed)) KnetReqNode;
 
-TAILQ_HEAD(KnetReqListHead, knet_req_node);
+TAILQ_HEAD(KnetReqListHead, KnetReqNode);
 
 #endif
