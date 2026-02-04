@@ -31,8 +31,7 @@ elseif (${KNET_BUILD_TYPE} STREQUAL "Test" OR ${KNET_BUILD_TYPE} STREQUAL "SDV" 
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
     add_compile_definitions(KNET_SDV_TEST)
 else ()
-    add_compile_options(-D_FORTIFY_SOURCE=2 -O2 -fPIE -fPIC -fstack-protector-strong)
-    add_link_options(-O2 -rdynamic -Wl,-z,relro -Wl,-z,now -Wl,-EL -Wl,-z,noexecstack -s -pie)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
     add_definitions(-UKNET_DEBUG_BUILD)
 endif ()
 
