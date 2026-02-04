@@ -18,6 +18,19 @@
 
 #include "knet_config_rpc.h"
 
+static struct KnetRpcReqNotifyTelemetry g_telemetryNotifyFunc = {0};
+
+int KNET_RpcRegTelemetryNotifyFunc(struct KnetRpcReqNotifyTelemetry* notifyFunc)
+{
+    if (notifyFunc == NULL) {
+        KNET_ERR("K-NET telemetry reg persist rpc notify func failed");
+        return -1;
+    }
+    g_telemetryNotifyFunc.addNewProcess = notifyFunc->addNewProcess;
+    g_telemetryNotifyFunc.delOldProcess = notifyFunc->delOldProcess;
+    return 0;
+}
+
 int ConfigDisconnetHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest,
                            struct KNET_RpcMessage *knetRpcResponse)
 {

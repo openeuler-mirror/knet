@@ -165,6 +165,20 @@ union KNET_CfgValue {
     char strValueArr[MAX_STRVALUE_COUNT][MAX_STRVALUE_NUM];
 };
 
+typedef void (*KnetRpcRequestHandle)(int, pid_t);
+struct KnetRpcReqNotifyTelemetry {
+    KnetRpcRequestHandle addNewProcess;
+    KnetRpcRequestHandle delOldProcess;
+};
+
+/**
+ * @brief 注册RPC遥测通知函数
+ *
+ * @param notifyFunc [IN] 遥测通知回调函数指针,包含不同的事件函数
+ * @return int 0表示成功，-1表示失败
+ */
+int KNET_RpcRegTelemetryNotifyFunc(struct KnetRpcReqNotifyTelemetry* notifyFunc);
+
 /**
  * @brief 配置文件初始化
  *
