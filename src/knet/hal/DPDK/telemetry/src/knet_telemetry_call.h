@@ -26,6 +26,8 @@ int KnetTelemetryGetSockInfoCallback(const char *cmd, const char *params, struct
 int KnetTelemetryGetSockInfoCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryEpollDetailsCallback(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryEpollDetailsCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryQueIdMapPidTidCallback(const char *cmd, const char *params, struct rte_tel_data *data);
+int KnetTelemetryQueIdMapPidTidCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
 
 #define CHECK_ADD_VALUE_TO_DICT(func, ...)                                                                             \
     do {                                                                                                               \

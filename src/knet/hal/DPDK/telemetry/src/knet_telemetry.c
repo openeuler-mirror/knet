@@ -37,6 +37,7 @@ extern "C" {
  * @brief 新增维测接口需要新增枚举变量
  */
 typedef enum {
+    QUEUEID_MAP_PIDTID_CB,
     ETHDEV_USAGE_CB,
     EPOLL_DETAILS_CB,
     GET_FD_COUNT,
@@ -54,6 +55,11 @@ typedef struct {
 } TelemetryCmdInfo;
 
 static TelemetryCmdInfo g_telemetryCmdInfos[MAX_CB_NUM] = {
+    [QUEUEID_MAP_PIDTID_CB] = {.cb_single = KnetTelemetryQueIdMapPidTidCallback,
+                               .cb_multi = KnetTelemetryQueIdMapPidTidCallbackMp,
+                               .registeredCmd = "/knet/ethdev/queue",
+                               .helpCmd = "Return queueid map pid and tid information. "
+                                          "Usage: /knet/ethdev/queue"},
     [ETHDEV_USAGE_CB] = {.cb_single = KnetTelemetryEthdevUsageCallback,
                          .cb_multi = KnetTelemetryEthdevUsageCallback,
                          .registeredCmd = "/knet/ethdev/usage",

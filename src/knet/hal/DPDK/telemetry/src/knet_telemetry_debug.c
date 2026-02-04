@@ -25,6 +25,7 @@
 #include "knet_transmission.h"
 #include "knet_config.h"
 #include "knet_utils.h"
+#include "knet_telemetry_call.h"
 #include "knet_telemetry_debug.h"
 
 #define TELEMETRY_DEBUG_USLEEP 100000
@@ -33,7 +34,7 @@
 #define TIMEOUT_TIMES 10
 #define DECIMAL_NUM 10
 #define PID_MAX_LEN 20
-
+#define INVALID_TID 0U
 
 typedef struct {
     const char *cmd;
@@ -463,4 +464,111 @@ int ParseTelemetryParams(const char *params, uint32_t *paramsArr, int maxCount)
 abnormal:
     free(paramsStrCopy);
     return -1;
+}
+
+KNET_STATIC int ComposedKeybufAndAddDict(struct rte_tel_data *data, uint32_t pid, uint32_t tid, uint32_t lcoreId,
+                                         uint32_t queId)
+{
+    struct rte_tel_data *queueDict = rte_tel_data_alloc();
+    if (queueDict == NULL) {
+        KNET_ERR("K-NET telemetry queue callback failed, queueDict alloc failed");
+        return KNET_ERROR;
+    }
+    if (rte_tel_data_start_dict(queueDict) != 0) {
+        KNET_ERR("K-NET telemetry queue callback failed, queueDict start dict failed");
+        rte_tel_data_free(queueDict);
+        return KNET_ERROR;
+    }
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "pid", pid);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "tid", tid);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "lcoreId", lcoreId);
+    char keyName[MAX_JSON_KEY_NAME_LEN] = "queue";
+    (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
+                     MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%u", queId);
+    if (CheckAddContainerToDict(data, keyName, queueDict) != 0) {
+        return KNET_ERROR; // 失败在函数内释放内存
+    }
+    return KNET_OK;
+}
+int AddPidTid(struct rte_tel_data *data, uint32_t queId)
+{
+    if (queId >= MAX_QUEUE_NUM) {
+        KNET_ERR("QueId exceed MAX_QUEUE_NUM");
+        return KNET_ERROR;
+    }
+    KNET_QueIdMapPidTid_t *queMapPidTid = KNET_GetQueIdMapPidTidLcoreInfo();
+    if (queMapPidTid[queId].tid == INVALID_TID) {
+        return KNET_OK;
+    }
+    if (ComposedKeybufAndAddDict(data, queMapPidTid[queId].pid, queMapPidTid[queId].tid, queMapPidTid[queId].lcoreId,
+                                 queId) != KNET_OK) {
+        KNET_ERR("ComposedKey buf and add dict container failed, pid %u, tid %u, lcore %u, queId %u",
+                 queMapPidTid[queId].pid, queMapPidTid[queId].tid, queMapPidTid[queId].lcoreId, queId);
+        return KNET_ERROR;
+    }
+    return KNET_OK;
+}
+int KnetTelemetryQueIdMapPidTidCallback(const char *cmd, const char *params, struct rte_tel_data *data)
+{
+    if (data == NULL || cmd == NULL || params != NULL) {
+        KNET_ERR("Rte telemetry data is null or params is null");
+        return KNET_ERROR;
+    }
+    if (rte_tel_data_start_dict(data) != 0) {
+        KNET_ERR("Rte telemetry data start dict failed");
+        return KNET_ERROR;
+    }
+    for (uint32_t queId = 0; queId < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; queId++) {
+        if (AddPidTid(data, queId) != KNET_OK) {
+            KNET_ERR("Rte telemetry add pid tid failed");
+            return KNET_ERROR;
+        }
+    }
+    return KNET_OK;
+}
+KNET_STATIC int AddMpPidTid(struct rte_tel_data *data, KNET_TelemetryInfo *telemetryInfo, uint32_t queId)
+{
+    if (queId >= MAX_QUEUE_NUM) {
+        KNET_ERR("QueId exceed MAX_QUEUE_NUM");
+        return KNET_ERROR;
+    }
+    if (ComposedKeybufAndAddDict(data, telemetryInfo->pid[queId], telemetryInfo->tid[queId],
+                                 telemetryInfo->lcoreId[queId], queId) != KNET_OK) {
+        KNET_ERR("Composekey Mp buffer and add dict container failed, pid %u, tid %u, lcore %u, queId %u",
+                 telemetryInfo->pid[queId], telemetryInfo->tid[queId], telemetryInfo->lcoreId[queId], queId);
+        return KNET_ERROR;
+    }
+    return KNET_OK;
+}
+int KnetTelemetryQueIdMapPidTidCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data)
+{
+    if (data == NULL || cmd == NULL || params != NULL) {
+        KNET_ERR("Rte telemetry data is null or params is null");
+        return KNET_ERROR;
+    }
+    if (rte_tel_data_start_dict(data) != 0) {
+        KNET_ERR("Rte telemetry data start dict failed");
+        return KNET_ERROR;
+    }
+    const struct rte_memzone *mz = rte_memzone_lookup(KNET_TELEMETRY_MZ_NAME);
+    if (mz == NULL || mz->addr == NULL) {
+        KNET_ERR("Subprocess couldn't allocate memory for histack debug info");
+        return KNET_ERROR;
+    }
+    KNET_TelemetryInfo *telemetryInfo = mz->addr;
+    telemetryInfo->telemetryType = KNET_TELEMETRY_UPDATE_QUE_INFO;
+    for (int queId = 0; queId < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; queId++) {
+        if (!KNET_IsQueueIdUsed(queId)) {
+            continue;
+        }
+        telemetryInfo->msgReady[queId] = 1;
+        if (KnetHandleTimeout(telemetryInfo, queId) != KNET_OK) {
+            return KNET_ERROR;
+        }
+        if (AddMpPidTid(data, telemetryInfo, queId) != KNET_OK) {
+            KNET_ERR("Add pid and tid to telemetry failed");
+            return KNET_ERROR;
+        }
+    }
+    return KNET_OK;
 }
