@@ -34,7 +34,7 @@ void KnetQueueInit(void);
 void KnetSetQueueNum(int num);
 
 // config rpc
-int KnetSetProcessLocalQid(int clientId, int queueId);
+int KnetSetProcessLocalQid(int clientId, int queueId, pid_t pid);
 int KnetGetProcessLocalQid(int clientId);
 int KnetGetQueueIdFromPool(int requeseQueueId);
 int KnetFreeQueueIdInPool(int index);

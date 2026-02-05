@@ -746,7 +746,7 @@ int ConfigRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, s
             return -1;
         }
     } else if (req->type == CONF_REQ_TYPE_FREE) {
-        ret = KnetFreeRequestHandler(clientId, req->queueId);
+        ret = KnetFreeRequestHandler(clientId, req->queueId, req->pid);
         if (ret != 0) {
             KNET_ERR("Free queue id request failed, clientId %d, type %d, ret %d", clientId, req->type, ret);
             return -1;

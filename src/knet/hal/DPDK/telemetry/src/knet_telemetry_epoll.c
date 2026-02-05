@@ -42,6 +42,7 @@ typedef enum {
     PARAM_FD_CNT,
     EPOLL_DETAILS_PARAMS_NUM
 } EpollIndex;
+
 KNET_STATIC int ParseEpollDetailsParams(const char *params, TelemetryEpollParams *epollParams)
 {
     uint32_t paramsArr[EPOLL_DETAILS_PARAMS_NUM] = {0};
@@ -135,7 +136,7 @@ KNET_STATIC DP_EpollDetails_t *SortSockDetailsByOsFd(DP_EpollDetails_t *sockDeta
     return sockDetailsSorted;
 }
 
-DP_EpollDetails_t *GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary)
+DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary)
 {
     int exceptedSockFdCount = GetEpollDetailsHookHandler(epFd, NULL, 0, workerId);
     if (exceptedSockFdCount < 0) {
@@ -290,7 +291,7 @@ KNET_STATIC int ProcessEpollDetailsInfo(TelemetryEpollParams *epollParams, struc
             int epollDpFd = KNET_OsFdToDpFd(osFd);
             int workerId = 0;
             int maxSockFd = 0;
-            DP_EpollDetails_t *sockDetails = GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
+            DP_EpollDetails_t *sockDetails = KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
             if (sockDetails == NULL) {
                 KNET_ERR("K-NET telemetry epoll details callback failed, get epoll sock details failed");
                 return KNET_ERROR;

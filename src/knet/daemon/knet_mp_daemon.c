@@ -89,6 +89,14 @@ int DaemonInitResource(void)
         KNET_ERR("K-NET init public resource failed");
         return -1;
     }
+
+    /* 创建telemetry持久化线程 */
+    ret = KNET_TelemetryStartPersistThread(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
+    if (ret != 0) {
+        KNET_ERR("K-NET daemon init telemetry persist thread failed");
+        return -1;
+    }
+    
     return 0;
 }
 

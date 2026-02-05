@@ -15,6 +15,7 @@
 
 #include "rte_hash.h"
 #include "rte_flow.h"
+#include "rte_telemetry.h"
 #include "knet_config.h"
 #include "knet_types.h"
 #include "knet_offload.h"
@@ -22,6 +23,7 @@
 #define INVALID_IP  0xFFFFFFFF
 #define PORT_MAX 65535U
 #define MAX_CPD_NAME_LEN 32
+#define UINT32_BIT_LEN 32
 
 struct KNET_FDirRequest {
     uint32_t type;
@@ -117,4 +119,13 @@ KNET_QueIdMapPidTid_t* KNET_GetQueIdMapPidTidLcoreInfo(void);
  * @param input lcoreId 设置队列被使用的lcoreId
  */
 int KNET_SetQueIdMapPidTidLcoreInfo(uint32_t queId, uint32_t pid, uint32_t tid, uint32_t lcoreId, uint32_t workerId);
+
+/**
+ * @brief 处理流表维测信息
+ * @param input startIndex 起始流表索引
+ * @param input flowCount 输出流表数量
+ * @param input data dpdk维测数据结构，存放需要输出的数据
+ */
+int KNET_ProcessFlowTable(uint32_t startIndex, uint32_t flowCount, struct rte_tel_data *data);
+
 #endif // __KNET_TRANSMISSION_H__

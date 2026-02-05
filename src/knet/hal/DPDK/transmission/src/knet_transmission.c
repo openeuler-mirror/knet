@@ -32,7 +32,17 @@ enum AccConnectType {
 static bool g_ctlFlowFlag = false;
 static KNET_SpinLock g_transLock[MAX_QUEUE_NUM] = {0};
 static KNET_QueIdMapPidTid_t g_queIdMapPidTid[MAX_QUEUE_NUM] = {0};
-
+static KNET_ATOMIC64_T g_nextEntryId = {0};  // 新增：Entry ID 原子计数器
+// 生成唯一的 Entry ID
+static uint32_t GenerateEntryId(void)
+{
+    KNET_HalAtomicAdd64(&g_nextEntryId, 1);
+    return (uint32_t)g_nextEntryId.count;
+}
+uint32_t KNET_GetMaxEntryId(void)
+{
+    return (uint32_t)g_nextEntryId.count; // 32位足够容纳所有流表
+}
 int ConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key);
 int DisconnectHandler(int id, uint64_t *key);
 
@@ -144,7 +154,9 @@ int KNET_EventNotify(struct KNET_FDirRequest *fdir)
     return *(int *)res.fixedLenData;
 }
 
-int GenerateIpv4PortFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flow) // 流规则下发
+// 流规则下发
+int GenerateIpv4PortFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flow,
+                         struct KNET_FlowTeleInfo *flowTele)
 {
     struct KNET_FlowCfg cfg = {0};
 
@@ -160,7 +172,7 @@ int GenerateIpv4PortFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flo
     cfg.dstPortMask = flowReq->dstPortMask;
     cfg.proto = flowReq->proto;
 
-    return KNET_GenerateIpv4Flow(KNET_GetNetDevCtx()->xmitPortId, &cfg, flow);
+    return KNET_GenerateIpv4Flow(KNET_GetNetDevCtx()->xmitPortId, &cfg, flow, flowTele);
 }
 
 static bool CheckQueueIdInHash(uint16_t queueId, struct rte_flow *arpFlow)
@@ -229,7 +241,8 @@ int CtrFlowChange(uint16_t queueId, struct rte_flow *arpFlow)
     return 0;
 }
 
-int GenerateFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flow, struct rte_flow **arpFlow)
+int GenerateFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flow, struct rte_flow **arpFlow,
+                 struct KNET_FlowTeleInfo *flowTele)
 {
     int32_t ret = 0;
 
@@ -257,16 +270,16 @@ int GenerateFlow(struct KNET_FDirRequest *flowReq, struct rte_flow **flow, struc
         }
         ret = KNET_GenerateArpFlow(KNET_GetNetDevCtx()->xmitPortId, flowReq->queueId[0], arpFlow);
         if (ret != 0) {
-            KNET_ERR("Generate ctl arp flow failed. port %hu, queue %hu", \
-                KNET_GetNetDevCtx()->xmitPortId, flowReq->queueId[0]);
+            KNET_ERR("Generate ctl arp flow failed. port %hu, queue %hu", KNET_GetNetDevCtx()->xmitPortId,
+                     flowReq->queueId[0]);
             return -1;
         }
         g_ctlFlowFlag = true;
     }
-    ret = GenerateIpv4PortFlow(flowReq, flow);
+    ret = GenerateIpv4PortFlow(flowReq, flow, flowTele);
     if (ret != 0) {
-        KNET_ERR("GenerateIpv4TcpFlow failed. dstIp %u, dstIpMask %u, dstPort %u, dstPortMask %u, proto %d", \
-            flowReq->dstIp, flowReq->dstIpMask, flowReq->dstPort, flowReq->dstPortMask, flowReq->proto);
+        KNET_ERR("GenerateIpv4TcpFlow failed. dstIp %u, dstIpMask %u, dstPort %u, dstPortMask %u, proto %d",
+                 flowReq->dstIp, flowReq->dstIpMask, flowReq->dstPort, flowReq->dstPortMask, flowReq->proto);
         return -1;
     }
     return 0;
@@ -285,6 +298,7 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
     (void)memset_s(oldEntry, sizeof(struct Entry), 0, sizeof(struct Entry));
     oldEntry->ip_port = *key;
     oldEntry->map.clientId = id;
+    oldEntry->map.entryId = GenerateEntryId();
     KNET_HalAtomicSet64(&oldEntry->map.count, 1);
     // 每个hash表维护流表的queue信息
     if (flowReq->queueIdSize > KNET_MAX_QUEUES_PER_PORT) {
@@ -305,7 +319,8 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
         return -1;
     }
 
-    ret = GenerateFlow(flowReq, &flow, &arpFlow);
+    struct KNET_FlowTeleInfo flowTele;
+    ret = GenerateFlow(flowReq, &flow, &arpFlow, &flowTele);
     if (ret != 0) {
         KNET_ERR("Generate flow failed.");
         ret = KnetFdirHashTblDel(key);
@@ -317,6 +332,9 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
     oldEntry->map.flow = flow;
     oldEntry->map.arpFlow = arpFlow;
     oldEntry->map.dPortMask = flowReq->dstPortMask;
+    // 宏定义的数组长度保证长度一致
+    (void)memcpy_s(&oldEntry->map.pattern, sizeof(oldEntry->map.pattern), flowTele.pattern, sizeof(flowTele.pattern));
+    (void)memcpy_s(&oldEntry->map.action, sizeof(oldEntry->map.action), flowTele.action, sizeof(flowTele.action));
     return 0;
 }
 

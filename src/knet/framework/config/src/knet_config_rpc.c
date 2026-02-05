@@ -73,14 +73,17 @@ int KnetGetRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, 
         return -1;
     }
 
-    int ret = KnetSetProcessLocalQid(clientId, queueId);  // 主进程保留从进程和queueId之间的映射关系
+    int ret = KnetSetProcessLocalQid(clientId, queueId, req->pid);  // 主进程保留从进程和queueId之间的映射关系
     if (ret != 0) {
         KnetFreeQueueIdInPool(queueId);
         KnetDelProcessLocalQid(clientId);
         KNET_ERR("Set process local queue id failed, client %d, ret %d", clientId, ret);
         return -1;
     }
-
+    // 持久化新增进程
+    if (g_telemetryNotifyFunc.addNewProcess != NULL) {
+        g_telemetryNotifyFunc.addNewProcess(clientId, req->pid);
+    }
     knetRpcResponse->dataType = RPC_MSG_DATA_TYPE_FIXED_LEN;
     knetRpcResponse->dataLen = sizeof(int);
     ret = memcpy_s(knetRpcResponse->fixedLenData, RPC_MESSAGE_SIZE, &queueId, sizeof(int));
@@ -93,7 +96,7 @@ int KnetGetRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, 
     return 0;
 }
 
-int KnetFreeRequestHandler(int clientId, int queueId)
+int KnetFreeRequestHandler(int clientId, int queueId, pid_t pid)
 {
     int ret = KnetFreeQueueIdInPool(queueId);
     if (ret != 0) {
@@ -105,6 +108,11 @@ int KnetFreeRequestHandler(int clientId, int queueId)
     if (ret != 0) {
         KNET_ERR("Delete process local queue id failed, ret %d, client %d", ret, clientId);
         return -1;
+    }
+    // 告诉持久化有进程退出
+    if (g_telemetryNotifyFunc.delOldProcess != NULL) {
+        g_telemetryNotifyFunc.delOldProcess(clientId, pid);
+        KNET_WARN("Del old process from persist failed, client %d, pid %d", clientId, pid);
     }
     return 0;
 }
@@ -139,6 +147,7 @@ static int GetQueueIdFromPrimary(void)
     if (KNET_GetCfg(CONF_HW_BIFUR_ENABLE)->intValue == BIFUR_ENABLE) {
         req.queueId = GetEnvQueueId();
     }
+    req.pid = getpid();
 
     struct KNET_RpcMessage knetRpcRequest = {0};
     int ret = memcpy_s(knetRpcRequest.fixedLenData, RPC_MESSAGE_SIZE, (char *)&req, sizeof(struct ConfigRequest));

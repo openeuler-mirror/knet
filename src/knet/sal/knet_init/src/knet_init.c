@@ -53,6 +53,7 @@
 #include "knet_pkt.h"
 #include "knet_transmission.h"
 #include "knet_init.h"
+
 typedef struct {
     KNET_SpinLock lock;
     uint64_t threadID;
@@ -73,7 +74,6 @@ static bool g_cfgInit = false;
 #define DPDK_RTE_MP_HAND_THREAD_NAME "rte_mp_handle"
 #define KNET_SIGQUIT_WAIT (10 * 1000)
 #define KNET_NO_KERNELFORWARD_FREQ 10000
-#define UINT32_BIT_LEN 32
 
 void KNET_AllThreadLock(void)
 {
@@ -163,6 +163,25 @@ KNET_STATIC void ProcessTelemetryQueueMapWorker()
     }
 }
 
+void ProcessTelemetryShowStats(bool flag, KNET_TelemetryInfo *telemetryInfo, int queId)
+{
+    if (flag) {
+        KNET_SpinlockLock(&g_multiPdumpThread.lock);
+        ShowDpStats(telemetryInfo, queId);
+        KNET_SpinlockUnlock(&g_multiPdumpThread.lock);
+    }
+}
+
+void ProcessTelemetryPersist(bool flag, KNET_TelemetryPersistInfo *telemetryPersistInfo, pid_t pid)
+{
+    if (flag) {
+        KNET_SpinlockLock(&g_multiPdumpThread.lock);
+        if (telemetryPersistInfo->curPid == pid && telemetryPersistInfo->state == KNET_TELE_PERSIST_WAITSECOND) {
+            PrepareAllDpStates(telemetryPersistInfo);
+        }
+        KNET_SpinlockUnlock(&g_multiPdumpThread.lock);
+    }
+}
 /**
  * @brief 多进程中从进程抓包轮询线程函数
  */
@@ -176,6 +195,9 @@ KNET_STATIC void *MultiPdumpThreadFunc(void* args)
 
     /* 协议栈打点统计共享内存获取 */
     KNET_TelemetryInfo *telemetryInfo = NULL;
+    KNET_TelemetryPersistInfo *telemetryPersistInfo = NULL;
+    bool persistFlag = false;
+    pid_t curPid = getpid();
     /* 开启配置 且 为多进程模式 */
     bool telemetryFlag = KNET_GetCfg(CONF_DPDK_TELEMETRY)->intValue == 1 &&
                          KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE;
@@ -187,17 +209,21 @@ KNET_STATIC void *MultiPdumpThreadFunc(void* args)
         } else {
             telemetryInfo = tcpMz->addr;
         }
+        const struct rte_memzone *persistMz = rte_memzone_lookup(KNET_TELEMETRY_PERSIST_MZ_NAME);
+        if (persistMz == NULL || persistMz->addr == NULL) {
+            KNET_ERR("Subprocess couldn't allocate memory for persist mz");
+        } else {
+            telemetryPersistInfo = persistMz->addr;
+            persistFlag = true;
+        }
     }
 
     int queId = KNET_GetCfg(CONF_INNER_QID)->intValue;
     uint32_t usSleepGap = 100000;    // 100000表示100ms
     /* 从进程轮询是否需要开启抓包 */
     while (1) {
-        if (telemetryFlag) {
-            KNET_SpinlockLock(&g_multiPdumpThread.lock);
-            ShowDpStats(telemetryInfo, queId);
-            KNET_SpinlockUnlock(&g_multiPdumpThread.lock);
-        }
+        ProcessTelemetryShowStats(telemetryFlag, telemetryInfo, queId);
+        ProcessTelemetryPersist(persistFlag, telemetryPersistInfo, curPid);
         ProcessTelemetryQueueMapWorker();
         if (g_threadStop) {
             return NULL;
@@ -254,8 +280,19 @@ KNET_STATIC int LcoreMainloop(void *arg)
     uint64_t interval = (hz * 9) / 100;  // 等价于 hz * 0.09
     uint64_t lastCycle = rte_get_timer_cycles();
     /* 多进程更新0队列的数据，单进程worker的queue和workerId暂时相等 */
-    (void)KNET_SetQueIdMapPidTidLcoreInfo(workerInfo->workerId, getpid(), syscall(SYS_gettid),
-                                          workerInfo->lcoreId, workerInfo->workerId);
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE) {
+        (void)KNET_SetQueIdMapPidTidLcoreInfo(workerInfo->workerId, getpid(), syscall(SYS_gettid), workerInfo->lcoreId,
+                                              workerInfo->workerId);
+    } else {
+        uint32_t queMap[MAX_QUEUE_NUM / UINT32_BIT_LEN] = {0};
+        DP_GetNetdevQueMap(workerInfo->workerId, KNET_GetIfIndex(), queMap, sizeof(queMap) / sizeof(queMap[0]));
+        for (int i = 0; i < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; i++) {
+            if (((1U << (i % UINT32_BIT_LEN)) & queMap[i / UINT32_BIT_LEN]) != 0) {
+                KNET_SetQueIdMapPidTidLcoreInfo(i, getpid(), syscall(SYS_gettid), lcoreId, workerInfo->workerId);
+            }
+        }
+    }
+
     /* Main loop. 8< */
     while (1) {
         KNET_SpinlockLock(&workerInfo->lock);
@@ -461,6 +498,12 @@ KNET_STATIC int32_t DpdkStackInit(void)
         return -1;
     }
 
+    ret = KNET_TelemetryStartPersistThread(KNET_GetCfg(CONF_INNER_PROC_TYPE)->intValue,
+                                           KNET_GetCfg(CONF_COMMON_MODE)->intValue);
+    if (ret != 0) {
+        return -1; // 函数内部打印日志
+    }
+
     KNET_SetDpInited();
 
     return 0;
@@ -616,6 +659,7 @@ void Uninit(void)
             KNET_DpExit();
             usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
             g_threadStop = true;
+            KNET_TelemetrySetPersistThreadExit();
             usleep(200 * 1000); // 通过延时保证数据面和控制面线程已退出，200 * 1000表示200ms
             (void)KNET_FreeTapGlobal();
             KNET_PktBatchFree();
@@ -637,6 +681,7 @@ void Uninit(void)
         usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
 
         g_threadStop = true;        // 置此标志位，控制面和数据面线程才会退出,抓包线程也会退出
+        KNET_TelemetrySetPersistThreadExit();
         usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
         int ret = JoinDpdkAndStackThread();
         if (ret != 0) {
