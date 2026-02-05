@@ -140,7 +140,7 @@ typedef struct {
 
 static const dpStatFormat DP_STATES_FORMATING[DP_STAT_MAX] = {
     {DP_STAT_TCP, "\"/knet/stack/tcp_stat\": {", "},\n"},
-    {DP_STAT_TCP_CONN, "\"/knet/stack/tcp_conn_stat\": {", "},\n"},
+    {DP_STAT_TCP_CONN, "\"/knet/stack/conn_stat\": {", "},\n"},
     {DP_STAT_PKT, "\"/knet/stack/pkt_stat\": {", "},\n"},
     {DP_STAT_ABN, "\"/knet/stack/abn_stat\": {", "},\n"},
     {DP_STAT_MEM, "\"/knet/stack/mem_stat\": {", "},\n"},
