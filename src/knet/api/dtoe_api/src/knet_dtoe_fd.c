@@ -177,6 +177,15 @@ void KNET_SockLeakedResUninit(struct KNET_Fd *sock)
     sock->leakSize = 0;
 }
 
+/**
+ * @note 不可将user_data置NULL
+ * 原因: 目前Reset操作在用户close_done回调之前
+ *       如果这里置NULL，会导致用户无法使用knet_get_ulp_user_data获取sockfd对应的user_data指针
+ *       所以这里不置NULL，等到用户下一次相同的sockfd号进行tcp卸载时，再覆盖原先的值 
+ * 其他方案：如果将KNET_ResetFdState放置于用户close_done之后，会导致用户close(fd)之后，多线程场景下其他线程申请相同fd tcp卸载，
+ *          会导致KNET_ResetFdState覆盖了KNET_SetFdState的值。
+ *          可行的方案是劫持close函数或封装close函数，在用户close之前执行user_data置空
+ */
 void KNET_ResetFdState(int sockfd)
 {
     g_knetDtoeFdMap[sockfd].dtoe_conn = NULL;
@@ -187,6 +196,5 @@ void KNET_ResetFdState(int sockfd)
     g_knetDtoeFdMap[sockfd].recvEventIndex = KNET_INVALID_EVENT_INDEX;
     g_knetDtoeFdMap[sockfd].send.comp_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send.last_sn = KNET_INVALID_SN;
-    g_knetDtoeFdMap[sockfd].user_data = NULL;
     KNET_SockLeakedResUninit(&g_knetDtoeFdMap[sockfd]);
 }

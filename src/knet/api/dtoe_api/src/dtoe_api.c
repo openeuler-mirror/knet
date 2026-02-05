@@ -77,7 +77,7 @@ static int getFdFromDtoeConn(void *dtoe_conn)
 
     int fd = knetUserData->sockfd;
     if (!KNET_IsOsFdValid(fd)) {
-        KNET_ERR("Conn fd is invalid");
+        KNET_ERR("Conn fd %d is invalid", fd);
         return KNET_INVALID_FD;
     }
     return fd;
@@ -99,6 +99,11 @@ static void KnetRegCloseDone(void *dtoe_conn)
         KNET_ERR("Close down fd is invalid");
         return;
     }
+
+    KNET_ResetFdState(fd);
+    // 置0后释放req队列
+    KNET_UninitFreeReq(fd);
+
     KNET_DEBUG("Close down fd %d", fd);
     g_knetDtoeOps.close_done(fd);
 }
@@ -285,7 +290,8 @@ int knet_create_send_channel(enum knet_schd_type schd_mod, uint32_t depth, struc
         return ret;
     }
     *channel = &knetSendChannel->channel;
-    KNET_INFO("Knet create send channel success, devSn %lu, schd_mod %d", g_dtoeRes.dev.devSn, schd_mod);
+    KNET_INFO("Knet create send channel success, devSn %lu, schd_mod %d, epoll_fd %d",
+        g_dtoeRes.dev.devSn, schd_mod, knetSendChannel->channel.epoll_fd);
     return ret;
 }
 
@@ -399,11 +405,9 @@ void knet_close(int sockfd)
         KNET_ERR("Knet close sockfd %d is invalid", sockfd);
         return;
     }
-    KNET_ResetFdState(sockfd);
-    // 置0后释放req队列
-    KNET_UninitFreeReq(sockfd);
-    flexda_dtoe_close(sockfd, KNET_GetConnBySock(sockfd));
 
+    flexda_dtoe_close(sockfd, KNET_GetConnBySock(sockfd));
+    
     KNET_DEBUG("sockfd %d knet close", sockfd);
 }
 
