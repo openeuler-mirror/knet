@@ -26,11 +26,12 @@ enum ConfigRequestType {
 struct ConfigRequest {
     enum ConfigRequestType type;
     int queueId;
+    pid_t pid;
 };
 
 int KnetGetRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest,
                           struct KNET_RpcMessage *knetRpcResponse);
-int KnetFreeRequestHandler(int clientId, int queueId);
+int KnetFreeRequestHandler(int clientId, int queueId, pid_t pid);
 int KnetGetQueueIdFromPrimary(void);
 int KnetFreeQueueIdFromPrimary(int index);
 int KnetRegConfigRpcHandler(enum KNET_ProcType procType);

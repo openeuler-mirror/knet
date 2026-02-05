@@ -25,9 +25,8 @@ typedef enum {
 
 #define BOND_LRO_SEG 1518
 #define RSS_KEY_LEN 64
-#define MAX_TRANS_PATTERN_NUM 4
 #define MAX_ARP_PATTERN_NUM 2
-#define MAX_ACTION_NUM 2
+
 
 int32_t KNET_SetLRO(const struct rte_eth_dev_info *devInfo, struct rte_eth_conf *portConf, int dpdkPortType)
 {
@@ -142,7 +141,27 @@ KNET_STATIC void TcpFlowCreationSuccessLog(uint16_t portId, struct KNET_FlowCfg 
  * flowPattern[2] TCP 数据包
  * flowPattern[3] 结束项 (END)
  */
-int32_t KNET_GenerateIpv4Flow(uint16_t portId, struct KNET_FlowCfg *flowCfg, struct rte_flow **flow)
+KNET_STATIC int32_t ValidateAndCreateFlow(uint16_t portId, struct rte_flow_attr *flowAttr,
+                                          struct rte_flow_item flowPattern[],
+                                          struct rte_flow_action flowAction[],
+                                          struct rte_flow **flow)
+{
+    struct rte_flow_error flowError = {0};
+    int32_t ret = rte_flow_validate(portId, flowAttr, flowPattern, flowAction, &flowError);
+    if (ret != 0) {
+        KNET_ERR("Flow validate failed, ret %d, error %s", ret, flowError.message);
+        return ret;
+    }
+    *flow = rte_flow_create(portId, flowAttr, flowPattern, flowAction, &flowError);
+    if (*flow == NULL) {
+        KNET_ERR("Failed to create flow rule, error %s", flowError.message);
+        return -1;
+    }
+    return 0;
+}
+
+int32_t KNET_GenerateIpv4Flow(uint16_t portId, struct KNET_FlowCfg *flowCfg, struct rte_flow **flow,
+                              struct KNET_FlowTeleInfo *flowTele)
 {
     struct rte_flow_action flowAction[MAX_ACTION_NUM] = {0};
     struct rte_flow_action_queue flowActionQueue = {0};
@@ -184,19 +203,12 @@ int32_t KNET_GenerateIpv4Flow(uint16_t portId, struct KNET_FlowCfg *flowCfg, str
     }
     flowPattern[END_PATTERN_INDEX].type = RTE_FLOW_ITEM_TYPE_END;
 
-    struct rte_flow_error flowError = {0};
-    ret = rte_flow_validate(portId, &flowAttr, flowPattern, flowAction, &flowError);
+    ret = ValidateAndCreateFlow(portId, &flowAttr, flowPattern, flowAction, flow);
     if (ret != 0) {
-        KNET_ERR("Flow validate failed, ret %d, error %s", ret, flowError.message);
         return ret;
     }
-
-    *flow = rte_flow_create(portId, &flowAttr, flowPattern, flowAction, &flowError);
-    if (*flow == NULL) {
-        KNET_ERR("Failed to create flow rule, error %s", flowError.message);
-        return -1;
-    }
-
+    (void)memcpy_s(flowTele->pattern, sizeof(flowTele->pattern), flowPattern, sizeof(flowPattern)); // 宏定义的数组长度
+    (void)memcpy_s(flowTele->action, sizeof(flowTele->action), flowAction, sizeof(flowAction));     // 宏定义的数组长度
     TcpFlowCreationSuccessLog(portId, flowCfg);
     return 0;
 }
@@ -227,17 +239,9 @@ int32_t KNET_GenerateArpFlow(uint16_t portId, uint32_t queueId, struct rte_flow 
 
     flowPattern[1].type = RTE_FLOW_ITEM_TYPE_END;
 
-    struct rte_flow_error flowError = {0};
-    int32_t ret = rte_flow_validate(portId, &flowAttr, flowPattern, flowAction, &flowError);
+    int32_t ret = ValidateAndCreateFlow(portId, &flowAttr, flowPattern, flowAction, flow);
     if (ret != 0) {
-        KNET_ERR("Flow validate failed, ret %d, error %s", ret, flowError.message);
         return ret;
-    }
-
-    *flow = rte_flow_create(portId, &flowAttr, flowPattern, flowAction, &flowError);
-    if (*flow == NULL) {
-        KNET_ERR("Failed to create flow rule, %s", flowError.message);
-        return -1;
     }
 
     KNET_DEBUG("Create arp flow rule success, port %hu, queue %u", portId, queueId);

@@ -483,6 +483,11 @@ uint32_t KNET_ACC_Debug(uint32_t flag, char *output, uint32_t len)
         }
     } else if (outType == KNET_STAT_OUTPUT_TO_SCREEN) {
         printf("%s\n", output);
+    } else if (outType == KNET_STAT_OUTPUT_TO_FILE) {
+        if (KNET_DebugOutputToFile(output, len) != KNET_OK) {
+            KNET_ERR("K-NET stat output to file failed");
+            return KNET_ERROR;
+        }
     }
 
     return KNET_OK;
@@ -494,6 +499,11 @@ uint32_t KnetRegDebug(void)
         DP_ShowStatistics, DP_SocketCountGet, DP_GetSocketState, DP_GetSocketDetails, DP_GetEpollDetails};
     if (KNET_DpTelemetryHookReg(dpTelemetryhooks) != KNET_OK) {
         KNET_ERR("K-NET register telemetry run dp show statistics failed");
+        return KNET_ERROR;
+    }
+    /* 单独注册持久化hook，避免影响 */
+    if (KNET_DpShowStatisticsHookRegPersist(DP_ShowStatistics) != KNET_OK) {
+        KNET_ERR("K-NET register telemetry persistence run dp show statistics failed");
         return KNET_ERROR;
     }
 

@@ -77,8 +77,8 @@ typedef struct {
     uint32_t pid[MAX_QUEUE_NUM];  // 共享内存内记录pid
     uint32_t tid[MAX_QUEUE_NUM];  // 共享内存内记录tid
     uint32_t lcoreId[MAX_QUEUE_NUM];  // 共享内存内记录lcoreId
-    KNET_SocketState *socketStates;
-    KNET_SocketDetails socketDetails;
+    KNET_SocketState *socketStates; // 单个进程内所有连接信息
+    KNET_SocketDetails socketDetails; // 单个fd详细信息
     EpollTelemetryContext *epollDetailCtx;
 } KNET_TelemetryInfo;
 
@@ -139,6 +139,22 @@ typedef struct {
 int KNET_DpTelemetryHookReg(KNET_DpTelemetryHooks dpTelemetryHooks);
 
 /**
+ * @brief 注册协议栈遥测功能钩子
+ * @param hook 协议栈遥测钩子
+ * @return int 0：成功 -1：失败
+ */
+int KNET_DpShowStatisticsHookRegPersist(KNET_DpShowStatisticsHook hook);
+
+/**
+ * @brief 将调试信息输出到文件
+ * @param output 信息的字符缓冲区
+ * @param len 缓冲区的长度
+ * @return int 0：成功 -1：失败
+ * @attention 只能被 KNET_ACC_Debug 调用，调用前 output 已做判空
+ */
+int KNET_DebugOutputToFile(const char *output, uint32_t len);
+
+/**
  * @brief 更新queueId到pid和tid的映射关系
  * @param queId 队列号
  * @param pid 进程号
@@ -147,6 +163,27 @@ int KNET_DpTelemetryHookReg(KNET_DpTelemetryHooks dpTelemetryHooks);
  */
 int KNET_MaintainQueue2TidPidMp(uint32_t queId);
 
+/**
+ * @brief 获取epoll的socket详细信息
+ * @param epFd epoll的fd
+ * @param workerId 工作进程id
+ * @param maxSockFd 最大socket fd
+ * @param isSecondary 是否是从进程
+ * @return DP_EpollDetails_t* 详细信息
+ * @note: 返回的内存需要调用者释放
+ */
+DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary);
 
-DP_EpollDetails_t *GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary);
+/**
+ * @brief 启动数据持久化线程
+ * @param procType 主进程 or 从进程
+ * @param processMode 单进程 or 多进程
+ * return int 0, 成功; -1, 失败;
+ */
+int32_t KNET_TelemetryStartPersistThread(int procType, int processMode);
+
+/**
+ * @brief 退出持久化线程
+ */
+void KNET_TelemetrySetPersistThreadExit(void);
 #endif  // __KNET_TELEMETRY_H__

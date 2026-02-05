@@ -37,13 +37,13 @@ extern "C" {
  * @brief 新增维测接口需要新增枚举变量
  */
 typedef enum {
+    FLOWTABLE_CB,
     QUEUEID_MAP_PIDTID_CB,
     ETHDEV_USAGE_CB,
     EPOLL_DETAILS_CB,
     GET_FD_COUNT,
     GET_NET_STAT,
     GET_SOCK_INFO,
-    TCP_STATS_CB,
     MAX_CB_NUM
 } KnetTelemetryCbsEnum;
 
@@ -55,6 +55,11 @@ typedef struct {
 } TelemetryCmdInfo;
 
 static TelemetryCmdInfo g_telemetryCmdInfos[MAX_CB_NUM] = {
+    [FLOWTABLE_CB] = {.cb_single = KnetTelemetryFlowTableCallback,
+                      .cb_multi = KnetTelemetryFlowTableCallback,
+                      .registeredCmd = "/knet/flow/list",
+                      .helpCmd = "Return flowtable information. "
+                                 "Usage: /knet/flow/list,<startIndex> <flowCount>"},
     [QUEUEID_MAP_PIDTID_CB] = {.cb_single = KnetTelemetryQueIdMapPidTidCallback,
                                .cb_multi = KnetTelemetryQueIdMapPidTidCallbackMp,
                                .registeredCmd = "/knet/ethdev/queue",
@@ -85,11 +90,7 @@ static TelemetryCmdInfo g_telemetryCmdInfos[MAX_CB_NUM] = {
                        .cb_multi = KnetTelemetryGetSockInfoCallbackMp,
                        .registeredCmd = "/knet/stack/socket_info",
                        .helpCmd = "Return socket details of input fd. "
-                                  "Usage: /knet/stack/socket_info,[pid] <fd>"},
-    [TCP_STATS_CB] = {.cb_single = KnetTelemetryStatisticCallback,
-                      .cb_multi = KnetTelemetryStatisticCallbackMp,
-                      .registeredCmd = "/knet/ethstats",
-                      .helpCmd = "Return tcp statistic"}};
+                                  "Usage: /knet/stack/socket_info,[pid] <fd>"}};
 
 #define KNET_DPDK_SOCKET_BUFFER_SIZE 1024
 
@@ -280,6 +281,31 @@ KNET_STATIC int32_t TelemetryMzInit(void)
     return KNET_OK;
 }
 
+KNET_STATIC int32_t RegDpShowStatisticCmd(void)
+{
+    telemetry_cb telemetryCallbackFunc = KnetTelemetryStatisticCallback;
+    int ret = 0;
+    
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE) {
+        telemetryCallbackFunc = KnetTelemetryStatisticCallbackMp;
+    }
+    char *cmds[] = {"/knet/stack/tcp_stat",
+                    "/knet/stack/conn_stat",
+                    "/knet/stack/pkt_stat",
+                    "/knet/stack/abn_stat",
+                    "/knet/stack/mem_stat",
+                    "/knet/stack/pbuf_stat",
+                    NULL};
+    for (int i = 0; cmds[i] != NULL; ++i) {
+        ret = rte_telemetry_register_cmd(cmds[i], telemetryCallbackFunc, "Return stack statistics");
+        if (ret < 0) {
+            KNET_ERR("K-NET register telemetry cmd %s failed, ret %d", cmds[i], ret);
+            return KNET_ERROR;
+        }
+    }
+    return KNET_OK;
+}
+
 KNET_STATIC int32_t RegTelemetryCmd(void)
 {
     if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE && TelemetryMzInit() != KNET_OK) {
@@ -296,7 +322,7 @@ KNET_STATIC int32_t RegTelemetryCmd(void)
         }
     }
 
-    return KNET_OK;
+    return RegDpShowStatisticCmd();
 }
 
 /**

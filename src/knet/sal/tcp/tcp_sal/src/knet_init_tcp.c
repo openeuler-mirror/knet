@@ -444,8 +444,14 @@ int KNET_DpdkLcoreMatchDpWorker(uint32_t lcoreId)
     g_dpWorkerIdTable.workerInfo[g_dpWorkerIdTable.maxWorkerId].workerId = lcoreId;
     g_dpWorkerIdTable.workerInfo[g_dpWorkerIdTable.maxWorkerId].lcoreId = lcoreId;
     g_dpWorkerIdTable.coreIdToWorkerId[lcoreId] = lcoreId;
-    (void)KNET_SetQueIdMapPidTidLcoreInfo(lcoreId, getpid(), syscall(SYS_gettid),
-                                          lcoreId, lcoreId);
+    
+    uint32_t queMap[MAX_QUEUE_NUM / UINT32_BIT_LEN] = {0};
+    DP_GetNetdevQueMap(lcoreId, KNET_GetIfIndex(), queMap, sizeof(queMap) / sizeof(queMap[0]));
+    for (int i = 0; i < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; i++) {
+        if (((1U << (i % UINT32_BIT_LEN)) & queMap[i / UINT32_BIT_LEN]) != 0) {
+            KNET_SetQueIdMapPidTidLcoreInfo(i, getpid(), syscall(SYS_gettid), lcoreId, lcoreId);
+        }
+    }
 
     KNET_INFO("DpWorkerId %u match lcoreId %u", lcoreId, lcoreId);
 

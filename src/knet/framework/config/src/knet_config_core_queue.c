@@ -32,6 +32,7 @@ struct QueueIdPool {
 struct CqMap {          // 记录clientId与queueId的映射关系
     int clientId;
     int queueId;
+    pid_t pid; // 记录进程id
 };
 
 static struct QueueIdPool g_queueIdPool = {
@@ -113,7 +114,7 @@ int KnetGetProcessLocalQid(int clientId)
     return -1;
 }
 
-int KnetSetProcessLocalQid(int clientId, int queueId)
+int KnetSetProcessLocalQid(int clientId, int queueId, pid_t pid)
 {
     if (clientId < 0) {
         KNET_ERR("Invalid clientId");
@@ -123,6 +124,7 @@ int KnetSetProcessLocalQid(int clientId, int queueId)
         if (g_processLocalQid[i].clientId == -1) {
             g_processLocalQid[i].clientId = clientId;
             g_processLocalQid[i].queueId = queueId;
+            g_processLocalQid[i].pid = pid;
             return 0;
         }
     }
@@ -141,6 +143,7 @@ int KnetDelProcessLocalQid(int clientId)
         if (g_processLocalQid[i].clientId == clientId) {
             g_processLocalQid[i].clientId = -1;
             g_processLocalQid[i].queueId = -1;
+            g_processLocalQid[i].pid = -1;
             return 0;
         }
     }
@@ -228,6 +231,7 @@ void KnetQueueInit(void)
     for (int i = 0; i < MAX_PROCESS_NUM; ++i) {
         g_processLocalQid[i].clientId = -1;
         g_processLocalQid[i].queueId = -1;
+        g_processLocalQid[i].pid = -1;
     }
 }
 

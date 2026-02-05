@@ -22,4 +22,9 @@
  */
 void ShowDpStats(KNET_TelemetryInfo *telemetryInfo, int queId);
 
+/**
+ * @brief 持久化刷新当前进程所有dp状态
+ * @param telemetryInfo 遥测信息
+ */
+void PrepareAllDpStates(KNET_TelemetryPersistInfo *telemetryInfo);
 #endif  // __KNET_SOCKETEXT_INIT_H__

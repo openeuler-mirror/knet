@@ -16,15 +16,19 @@
 
 #include "cJSON.h"
 #include "rte_eal.h"
+#include "rte_hash.h"
+#include "rte_errno.h"
 #include "rte_memzone.h"
 
 #include "dp_debug_api.h"
 #include "dp_socket_api.h"
 #include "knet_log.h"
-#include "knet_telemetry.h"
-#include "knet_transmission.h"
+#include "knet_types.h"
 #include "knet_config.h"
 #include "knet_utils.h"
+#include "knet_offload.h"
+#include "knet_telemetry.h"
+#include "knet_transmission.h"
 #include "knet_telemetry_call.h"
 #include "knet_telemetry_debug.h"
 
@@ -34,19 +38,36 @@
 #define TIMEOUT_TIMES 10
 #define DECIMAL_NUM 10
 #define PID_MAX_LEN 20
+#define FLOW_TABLE_MAX_NUM 256
+#define RIGHT_MOVE_16BITS 16
+#define IP_32BITS_FULL_MASK 0xFFFF
+#define INET_IP_STR_LEN 16
+#define INET_PORT_STR_LEN 8
+#define MASK_STR_LEN 16
 #define INVALID_TID 0U
+#define FLOW_PROTO_STR_MAX_LEN 16
+#define FLOW_ACTION_STR_MAX_LEN 64
+#define FLOW_ARP_QUEUE_ID_STR_LEN 64
 
 typedef struct {
     const char *cmd;
     DP_StatType_t type;
 } StatMapping;
 
-static const StatMapping KNET_STAT_MAPPINGS[DP_STAT_MAX] = {{"tcp", DP_STAT_TCP},
-    {"conn", DP_STAT_TCP_CONN},
-    {"pkt", DP_STAT_PKT},
-    {"abn", DP_STAT_ABN},
-    {"mem", DP_STAT_MEM},
-    {"pbuf", DP_STAT_PBUF}};
+static const StatMapping KNET_STAT_MAPPINGS[DP_STAT_MAX] = {
+    {"/knet/stack/tcp_stat", DP_STAT_TCP},
+    {"/knet/stack/conn_stat", DP_STAT_TCP_CONN},
+    {"/knet/stack/pkt_stat", DP_STAT_PKT},
+    {"/knet/stack/abn_stat", DP_STAT_ABN},
+    {"/knet/stack/mem_stat", DP_STAT_MEM},
+    {"/knet/stack/pbuf_stat", DP_STAT_PBUF}
+};
+
+typedef enum {
+    FLOW_TABLE_START_INDEX = 0,
+    FLOW_TABLE_COUNT,
+    FLOW_TABLE_PARAMS_MAX
+} FlowTableIndex;
 
 char g_knetDebugOutput[MAX_OUTPUT_LEN] = {0};
 
@@ -181,26 +202,35 @@ KNET_STATIC int ProcessJsonData(cJSON *json, struct rte_tel_data *data)
     return KNET_OK;
 }
 
-KNET_STATIC int ValidateInputAndParseParams(
-    const char *cmd, const char *params, struct rte_tel_data *data, DP_StatType_t *type)
+KNET_STATIC int ValidateParams(const char *params, struct rte_tel_data *data)
 {
-    if (data == NULL || cmd == NULL) {
-        KNET_ERR("Rte telemetry data or cmd is null");
+    if (data == NULL) {
+        KNET_ERR("Rte telemetry data is null");
         return KNET_ERROR;
     }
-    /* 内部判断 params 是否为 NULL，并打印日志 */
-    *type = GetStatTypeFromString(params);
-    if (*type == DP_STAT_MAX) {
-        return KNET_ERROR;
+    /* 单进程场景该回调允许params为空，或者为该进程pid */
+    if (params != NULL) {
+        uint32_t inputPid = 0;
+        if (KNET_TransStrToNum(params, &inputPid) != KNET_OK) {
+            KNET_ERR("Telemetry statistic validate params failed, invalid params");
+            return KNET_ERROR;
+        }
+        if (inputPid != (uint32_t)getpid()) {
+            KNET_ERR("Telemetry statistic validate params failed, input pid is not knet process pid");
+            return KNET_ERROR;
+        }
     }
     return KNET_OK;
 }
 
 int KnetTelemetryStatisticCallback(const char *cmd, const char *params, struct rte_tel_data *data)
 {
-    DP_StatType_t type = DP_STAT_MAX;
-    if (ValidateInputAndParseParams(cmd, params, data, &type) != KNET_OK) {
-        return KNET_ERROR;
+    DP_StatType_t type = GetStatTypeFromString(cmd);
+    if (type == DP_STAT_MAX) {
+        return KNET_ERROR; // 函数内部已经打印日志
+    }
+    if (ValidateParams(params, data) != KNET_OK) {
+        return KNET_ERROR; // 函数内部已经打印日志
     }
 
     /* 通过已注册的钩子调用 DP_ShowStatistics,内部已打印日志 */
@@ -304,70 +334,32 @@ int KnetGetQueIdByPid(uint32_t pid, KNET_TelemetryInfo* telemetryInfo)
     return queId;
 }
 
-static void FreeResources(cJSON *json, struct rte_tel_data *procTelData)
+KNET_STATIC int ValidateParamsAndGetQueId(const char *params, int *queId, KNET_TelemetryInfo *telemetryInfo)
 {
-    if (json != NULL) {
-        cJSON_Delete(json);
-    }
-    if (procTelData != NULL) {
-        rte_tel_data_free(procTelData);
-        procTelData = NULL;  // 防止重复释放
-    }
-}
-// 处理单个队列统计信息的函数
-static int ProcessQueueStatistics(
-    KNET_TelemetryInfo *telemetryInfo, DP_StatType_t type, struct rte_tel_data *data, int queId)
-{
-    char pidString[PID_MAX_LEN] = {0};
-    uint32_t pid = telemetryInfo->pid[queId];
-    telemetryInfo->statType = type;
-    telemetryInfo->telemetryType = KNET_TELEMETRY_STATISTIC;
-    (void)memset_s(telemetryInfo->message[queId], MAX_OUTPUT_LEN, 0, MAX_OUTPUT_LEN);
-    telemetryInfo->msgReady[queId] = 1;  // 触发对应进程写入信息
-
-    if (KnetHandleTimeout(telemetryInfo, queId) != KNET_OK) {
-        KNET_ERR("K-NET telemetry statistic handle time out");
-        return KNET_ERROR;  // 日志在函数KnetHandleTimeout内打印
-    }
-
-    cJSON *json = cJSON_Parse(telemetryInfo->message[queId]);
-    if (json == NULL) {
-        KNET_ERR("K-NET telemetry statistic parse cjson failed");
+    uint32_t inputPid = 0;
+    if (KNET_TransStrToNum(params, &inputPid) != KNET_OK) {
+        KNET_ERR("K-NET telemetry statistic validata parmas failed, invalid params");
         return KNET_ERROR;
     }
-    struct rte_tel_data *procTelData = rte_tel_data_alloc();
-    if (procTelData == NULL) {
-        KNET_ERR("Failed to allocate memory for rte_tel_data");
-        cJSON_Delete(json);
+    *queId = KnetGetQueIdByPid(inputPid, telemetryInfo);
+    if (*queId == -1) {
+        KNET_ERR("K-NET telemetry statistic invalid pid");
         return KNET_ERROR;
     }
-    if (ProcessJsonData(json, procTelData) != KNET_OK) {
-        KNET_ERR("K-NET telemetry statistic process cjson failed");
-        FreeResources(json, procTelData);
-        return KNET_ERROR;
-    }
-    int ret = sprintf_s(pidString, PID_MAX_LEN, "pid_%u", pid);
-    if (ret < 0) {
-        KNET_ERR("Turn type of pid to string failed");
-        FreeResources(json, procTelData);
-        return KNET_ERROR;
-    }
-    if (rte_tel_data_add_dict_container(data, pidString, procTelData, 0) != 0) {
-        KNET_ERR("Rte telemetry data add dict container failed");
-        FreeResources(json, procTelData);
-        return KNET_ERROR;
-    }
-    cJSON_Delete(json);
-
     return KNET_OK;
 }
 
 int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data)
 {
-    DP_StatType_t type = DP_STAT_MAX;
-    if (ValidateInputAndParseParams(cmd, params, data, &type) != KNET_OK) {
+    if (data == NULL || params == NULL) {
+        KNET_ERR("K-NET telemetry data or param is null");
         return KNET_ERROR;
     }
+    DP_StatType_t type = GetStatTypeFromString(cmd);
+    if (type == DP_STAT_MAX) {
+        return KNET_ERROR; // 函数内部已经打印日志
+    }
+
     const struct rte_memzone *mz = rte_memzone_lookup(KNET_TELEMETRY_MZ_NAME);
     if (mz == NULL || mz->addr == NULL) {
         KNET_ERR("Subprocess couldn't allocate memory for tcp debug info");
@@ -375,24 +367,37 @@ int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct
     }
 
     KNET_TelemetryInfo *telemetryInfo = mz->addr;
-    KnetUpdateSlaveProcessPidInfo(telemetryInfo);  // 初始化共享内存,内部记录从进程pid关系
+    KnetUpdateSlaveProcessPidInfo(telemetryInfo); // 初始化共享内存,内部记录从进程pid关系
     if (KnetWaitAllSlavePorcessHandle(telemetryInfo) != KNET_OK) {
-        return KNET_ERROR;  // 等待更新从进程pid, 日志在函数内打印
+        return KNET_ERROR; // 等待更新从进程pid, 日志在函数内打印
     }
-    if (rte_tel_data_start_dict(data) != 0) {
-        KNET_ERR("Rte telemetry data start dict failed");
+    int queId = -1;
+    if (ValidateParamsAndGetQueId(params, &queId, telemetryInfo) != KNET_OK) {
         return KNET_ERROR;
     }
-    for (int queId = 0; queId < MAX_QUEUE_NUM; queId++) {
-        if (!KNET_IsQueueIdUsed(queId)) {
-            continue;
-        }
-        if (ProcessQueueStatistics(telemetryInfo, type, data, queId) != KNET_OK) {
-            return KNET_ERROR;
-        }
+
+    telemetryInfo->statType = type;
+    telemetryInfo->telemetryType = KNET_TELEMETRY_STATISTIC;
+    (void)memset_s(telemetryInfo->message[queId], MAX_OUTPUT_LEN, 0, MAX_OUTPUT_LEN);
+    telemetryInfo->msgReady[queId] = 1;
+    if (KnetHandleTimeout(telemetryInfo, queId) != KNET_OK) {
+        KNET_ERR("K-NET telemetry statistic handle time out");
+        return KNET_ERROR;
     }
+    cJSON *json = cJSON_Parse(telemetryInfo->message[queId]);
+    if (json == NULL) {
+        KNET_ERR("K-NET telemetry statistic parse cjson failed");
+        return KNET_ERROR;
+    }
+    if (ProcessJsonData(json, data) != KNET_OK) {
+        KNET_ERR("K-NET telemetry statistic process cjson failed");
+        cJSON_Delete(json);
+        return KNET_ERROR;
+    }
+    cJSON_Delete(json);
     return KNET_OK;
 }
+
 int KnetGetTidByWorkerId(uint32_t workerId, uint32_t *tid)
 {
     for (int queueId = 0; queueId < KNET_GetCfg(CONF_DPDK_QUEUE_NUM)->intValue; queueId++) {
@@ -464,6 +469,45 @@ int ParseTelemetryParams(const char *params, uint32_t *paramsArr, int maxCount)
 abnormal:
     free(paramsStrCopy);
     return -1;
+}
+KNET_STATIC int ParseFlowTableParams(const char *params, uint32_t *startIndex, uint32_t *count)
+{
+    uint32_t paramsArr[FLOW_TABLE_PARAMS_MAX] = {0};
+    if (ParseTelemetryParams(params, paramsArr, FLOW_TABLE_PARAMS_MAX) != FLOW_TABLE_PARAMS_MAX) {
+        KNET_ERR("Flow table query, rte telemetry invalid input failed, except "
+                 "format <startIndex> <count>");
+        return KNET_ERROR;
+    }
+    *startIndex = paramsArr[FLOW_TABLE_START_INDEX];
+    *count = paramsArr[FLOW_TABLE_COUNT];
+    if (*count > FLOW_TABLE_MAX_NUM) {
+        KNET_ERR("Flow table query, rte telemetry invalid input failed, count must be less than %u",
+                 FLOW_TABLE_MAX_NUM);
+        return KNET_ERROR;
+    }
+    return KNET_OK;
+}
+
+int KnetTelemetryFlowTableCallback(const char *cmd, const char *params, struct rte_tel_data *data)
+{
+    if (data == NULL || params == NULL) {
+        KNET_ERR("Rte telemetry data is null or params is null");
+        return KNET_ERROR;
+    }
+
+    uint32_t startIndex;
+    uint32_t count;
+    if (ParseFlowTableParams(params, &startIndex, &count) != KNET_OK) {
+        return KNET_ERROR; // 内部打印日志
+    }
+    if (rte_tel_data_start_dict(data) != 0) {
+        KNET_ERR("Rte telemetry data start flow table dict failed");
+        return KNET_ERROR;
+    }
+    if (KNET_ProcessFlowTable(startIndex, count, data) != KNET_OK) {
+        return KNET_ERROR;
+    }
+    return KNET_OK;
 }
 
 KNET_STATIC int ComposedKeybufAndAddDict(struct rte_tel_data *data, uint32_t pid, uint32_t tid, uint32_t lcoreId,

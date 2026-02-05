@@ -121,7 +121,7 @@ EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int que
             int epollDpFd = KNET_OsFdToDpFd(osFd);
             int workerId = 0;
             int maxSockFd = 0;
-            DP_EpollDetails_t *sockDetails = GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
+            DP_EpollDetails_t *sockDetails = KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
             if (sockDetails == NULL) {
                 rte_free(epollDetailCtx);
                 KNET_ERR("K-NET telemetry epoll details callback failed, get epoll sock details failed");
@@ -143,6 +143,23 @@ EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int que
     epollDetailCtx[index].isLast = true;
     return epollDetailCtx;
 }
+
+void PrepareAllDpStates(KNET_TelemetryPersistInfo *telemetryInfo)
+{
+    if (telemetryInfo == NULL) {
+        return;
+    }
+    for (int i = 0; i < DP_STAT_MAX; i++) {
+        telemetryInfo->msgType = i;
+        DP_ShowStatistics(i, -1, KNET_STAT_OUTPUT_TO_FILE);
+        if (telemetryInfo->state == KNET_TELE_PERSIST_ERROR) {
+            return;
+        }
+    }
+    telemetryInfo->state = KNET_TELE_PERSIST_MSGREADY;
+    return;
+}
+
 /**
  * @brief 多进程调用, 每个从进程会通过该接口更新共享内存的数据(维测信息和pid/tid映射关系)
  */

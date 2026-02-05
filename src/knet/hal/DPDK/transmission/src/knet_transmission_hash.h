@@ -19,10 +19,13 @@ struct Entry {
     uint64_t ip_port;
     struct Map {
         int clientId;
+        uint32_t entryId; // 新增哈希表项id用于维测顺序输出
         uint16_t queueIdSize;
         uint16_t dPortMask;
         KNET_ATOMIC64_T count;
         uint16_t queueId[KNET_MAX_QUEUES_PER_PORT];
+        struct rte_flow_action action[MAX_ACTION_NUM]; // 维测输出action信息
+        struct rte_flow_item pattern[MAX_TRANS_PATTERN_NUM]; // 维测输出协议栈
         struct rte_flow *flow;
         struct rte_flow *arpFlow;
     } map;
