@@ -79,9 +79,10 @@ KNET_STATIC char *GetFlowPatternTypeStr(enum rte_flow_item_type type)
                           [RTE_FLOW_ITEM_TYPE_UDP] = "UDP"};
     return patternStr[type];
 }
-KNET_STATIC int GetFlowPatternStr(struct rte_flow_item *pattern, char *patternStr)
+KNET_STATIC int GetFlowPatternStr(struct rte_flow_item *pattern, size_t patternLen, char *patternStr,
+                                  size_t patternStrLen)
 {
-    size_t remaining = FLOW_PROTO_STR_MAX_LEN;
+    size_t remaining = patternStrLen;
     size_t offset = 0;
     int ret = snprintf_s(patternStr, remaining, remaining - 1, "%s", GetFlowPatternTypeStr(pattern[0].type));
     if (ret < 0 || (size_t)ret >= remaining) {
@@ -89,7 +90,7 @@ KNET_STATIC int GetFlowPatternStr(struct rte_flow_item *pattern, char *patternSt
     }
     offset += (size_t)ret;
     remaining -= (size_t)ret;
-    for (int i = 1; pattern[i].type != RTE_FLOW_ITEM_TYPE_END; i++) {
+    for (size_t i = 1; i < patternLen && pattern[i].type != RTE_FLOW_ITEM_TYPE_END; i++) {
         if (remaining <= 1) {
             goto ERR;
         }
@@ -116,11 +117,12 @@ KNET_STATIC char *GetActionTypeStr(enum rte_flow_action_type type)
     return actionStr[type];
 }
 
-KNET_STATIC int GetFlowActionStr(struct rte_flow_action *action, struct Entry *nextEntry, char *actionStr)
+KNET_STATIC int GetFlowActionStr(struct rte_flow_action *action, size_t actionLen, struct Entry *nextEntry,
+                                 char *actionStr, size_t actionStrLen)
 {
     // 只有QUEUE和RSS两种action才有后续的queId列表
-    (void)strncpy_s(actionStr, FLOW_ACTION_STR_MAX_LEN, GetActionTypeStr(action[0].type), FLOW_ACTION_STR_MAX_LEN - 1);
-    size_t remaining = FLOW_ACTION_STR_MAX_LEN;
+    (void)strncpy_s(actionStr, actionStrLen, GetActionTypeStr(action[0].type), actionStrLen - 1);
+    size_t remaining = actionStrLen;
     size_t offset = strlen(actionStr);
     int ret = snprintf_s(actionStr + offset, remaining, remaining - 1, "%u", nextEntry->map.queueId[0]);
     if (ret < 0 || (size_t)ret >= remaining) {
@@ -176,12 +178,12 @@ KNET_STATIC int ProcessFlowInfo(struct Entry *nextEntry, struct rte_tel_data *fl
         return KNET_ERROR;
     }
     char protoStr[FLOW_PROTO_STR_MAX_LEN] = {0};
-    if (GetFlowPatternStr(pattern, protoStr) != KNET_OK) {
+    if (GetFlowPatternStr(pattern, MAX_TRANS_PATTERN_NUM, protoStr, sizeof(protoStr)) != KNET_OK) {
         return KNET_ERROR;
     }
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, flowDict, "protocol", protoStr);
     char actionStr[FLOW_ACTION_STR_MAX_LEN] = {0};
-    if (GetFlowActionStr(action, nextEntry, actionStr) != KNET_OK) {
+    if (GetFlowActionStr(action, MAX_ACTION_NUM, nextEntry, actionStr, sizeof(actionStr)) != KNET_OK) {
         return KNET_ERROR;
     }
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, flowDict, "action", actionStr);

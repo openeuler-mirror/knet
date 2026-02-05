@@ -118,7 +118,6 @@ void TelemetrySetNewProcess(int clientID, pid_t pid)
                 oldestExitProc = i;
             }
         }
-        KNET_WARN("K-NET Telemetry find oldest exit process: %d", oldestExitProc);
         if (oldestExitProc == -1) {
             KNET_ERR("K-NET Telemetry can't find oldest exit process to replace");
         } else {
@@ -393,11 +392,11 @@ int StartDumpOldFile(FILE *oldFile)
         return -1;
     }
     char resolvedPath[PATH_MAX + 1] = {0};
-    if (realpath(dumpName, resolvedPath) == NULL) {
+    if (realpath(SAVE_FILE_PATH, resolvedPath) == NULL) {
         KNET_ERR("K-NET telemetry statistic persist dump failed. Realpath check failed with errno %d", errno);
         return -1;
     }
-    FILE *newFile = fopen(resolvedPath, "wb");
+    FILE *newFile = fopen(dumpName, "wb");
     if (newFile == NULL) {
         KNET_ERR("K-NET telemetry statistic persist dump failed, Open dump file failed with errno %d", errno);
         return -1;
@@ -413,7 +412,7 @@ int StartDumpOldFile(FILE *oldFile)
     }
     (void)fclose(newFile);
     /* 设置转储后的文件权限0400 */
-    if (chmod(resolvedPath, FILE_AUTHORITY_DUMP) == -1) {
+    if (chmod(dumpName, FILE_AUTHORITY_DUMP) == -1) {
         KNET_ERR("K-NET telemetry statistic persist dump failed. Set dump file authority failed with errno %d", errno);
         return -1;
     }
