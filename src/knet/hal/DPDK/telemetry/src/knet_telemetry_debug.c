@@ -146,7 +146,7 @@ KNET_STATIC int AddJsonToData(cJSON *json, const char *key, struct rte_tel_data 
         return KNET_ERROR;
     }
 
-    if (rte_tel_data_add_dict_u64(data, key, value) != 0) {
+    if (ADD_DICT_INT_FUNC(data, key, value) != 0) {
         KNET_ERR("Rte telemetry data add dict u64 failed");
         return KNET_ERROR;
     }
@@ -523,9 +523,9 @@ KNET_STATIC int ComposedKeybufAndAddDict(struct rte_tel_data *data, uint32_t pid
         rte_tel_data_free(queueDict);
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "pid", pid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "tid", tid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "lcoreId", lcoreId);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "pid", pid);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "tid", tid);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "lcoreId", lcoreId);
     char keyName[MAX_JSON_KEY_NAME_LEN] = "queue";
     (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
                      MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%u", queId);

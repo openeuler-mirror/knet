@@ -14,6 +14,12 @@
 #define __KNET_TELEMETRY_CALL_H__
  
 #include "rte_telemetry.h"
+#include <rte_version.h>
+#if RTE_VERSION >= RTE_VERSION_NUM(23,11,0,0)
+    #define ADD_DICT_INT_FUNC rte_tel_data_add_dict_uint
+#else
+    #define ADD_DICT_INT_FUNC rte_tel_data_add_dict_u64
+#endif
 
 int KnetTelemetryStatisticCallback(const char *cmd, const char *params, struct rte_tel_data *data);
 int KnetTelemetryStatisticCallbackMp(const char *cmd, const char *params, struct rte_tel_data *data);
