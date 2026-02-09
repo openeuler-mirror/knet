@@ -188,6 +188,6 @@ dpdk-telemetry.py脚本没有找到可用的socket文件。
     回显示例：
 
     ```
-    /home/KNET_USER/knet/dpdk/rte/dpdk_telemetry.v2 # KNET_USER为用户名占位符，/dpdk/rte路径会自动创建，/home/KNET_USER/knet为[2](#zh-cn_topic_0000002259824124_zh-cn_topic_0000002199819437_li4426749144812)配置的环境变量
+    /home/KNET_USER/knet/dpdk/rte/dpdk_telemetry.v2 # KNET_USER为用户名占位符，/dpdk/rte路径会自动创建，/home/KNET_USER/knet为[2]配置的环境变量
     ```
 

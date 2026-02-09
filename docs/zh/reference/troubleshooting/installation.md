@@ -39,7 +39,7 @@ error: Failed dependencies:
 
 ### 处理步骤
 
-参考[installation](/installation/installation.md)安装K-NET。
+参考[installation](../../installation/installation.md)安装K-NET。
 
 ## 安装时显示软件包已安装
 

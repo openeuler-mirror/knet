@@ -19,8 +19,8 @@ K-NET为了方便获取定位能力，提供了运维工具：抓包工具、网
 -   日志工具**knet\_comm.log**：记录K-NET运行期间程序行为，提供错误跟踪、告警记录等基础功能，方便问题定位。
 -   运维脚本**knet\_ctl.sh**：脚本运行option设置为collect时，可以收集运维信息，方便问题定位。
 
-# 工具使用
-## 1  抓包工具dumpcap
+## 工具使用
+### 1  抓包工具dumpcap
 
 >**说明：** 
 >-   请用户先参见[安装抓包工具](../installation/installation.md#抓包工具)后再参考本章节进行使用。
@@ -81,7 +81,7 @@ LD_PRELOAD=/usr/lib64/librte_net_sp600.so ./dumpcap [-D] [-h] [-i <pci bdf port>
     ```
     LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/KNET_USER/tx.pcap # 重启后恢复
     ```
-## 2 网卡统计信息工具dpdk-telemetry
+### 2 网卡统计信息工具dpdk-telemetry
 
 **使用前配置**
 
@@ -148,7 +148,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
 **dpdk-telemetry**详细使用方法参考[dpdk-telemetry.py](/reference/script_reference/dpdk-telemetry.md)。
 
-## 3 日志工具knet\_comm.log
+### 3 日志工具knet\_comm.log
 
 knet\_comm.log在K-NET安装后即可记录K-NET运行信息。
 
@@ -183,9 +183,9 @@ tail **<option\>** /var/log/knet/knet\_comm.log
     tail -f /var/log/knet/knet_comm.log
     ```
 
-# 日常运维
+## 日常运维
 
-## 1 网卡检查
+### 1 网卡检查
 
 1.  检测网卡驱动是否存在。
 
@@ -246,7 +246,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
         >**说明：** 
         >若使用流量分叉功能，需将模板切换为ROCE\_2X100G\_UN\_ADAP。
 
-## 2 业务状态检查
+### 2 业务状态检查
 
 1.  检查DPDK接管状态。
 
@@ -349,9 +349,9 @@ tail **<option\>** /var/log/knet/knet\_comm.log
 
             再次查看状态是否为“active”。
 
-## 3 K-NET状态检查
+### 3 K-NET状态检查
 
-### 日志检查
+#### 日志检查
 
 通过日志查看K-NET状态。
 
@@ -378,7 +378,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
 
         处理方式：检查去掉“/etc/knet/knet\_comm.conf ”错误符号，常见排查方法是确保花括号“\{\}”在/etc/knet/knet\_comm.conf中配对正确， 引号""配对正确，逗号“,”没有多余或遗漏。
 
-### 查看网卡收发包
+#### 查看网卡收发包
 
 dpdk-Telemetry适配后除了查看网口收发包、错包、丢包之外，还能查看TCP等网络状态。K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
@@ -406,7 +406,7 @@ dpdk-Telemetry适配后除了查看网口收发包、错包、丢包之外，还
 
     若存在丢包、错包，则表示网络存在异常，可结合dumpcap抓包工具进一步排查异常。
 
-### 获取网络包
+#### 获取网络包
 
 1.  确保已完成[配置大页内存](/feature/preparations.md#配置大页内存)，并在“dpdk-stable-21.11.7/app/dumpcap”目录执行下列操作可开启K-NET抓包。
 
