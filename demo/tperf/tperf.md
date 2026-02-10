@@ -2,7 +2,7 @@
 
 ## 简介
 tperf_knet.patch基于libtpa原生tperf工具开发，将原生tpa接口转换为标准POSIX接口，并在此基础上，分别适配了K-NET共线程、零拷贝、共线程加零拷贝特性。
-libtpa源码链接为：https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c。
+libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c](https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c)。
 ## tperf新增/修改命令参数：
 * server端：
 -n ：运行的线程数，每个线程有各自的listen端口，为-p的端口+线程id。如-p 11111 -n 2，则在11111与11112的端口分别有1个线程进行监听；
@@ -71,26 +71,38 @@ vi /etc/knet/knet_comm.conf
 ### tperf_os
 1并发：
 ```
+# 服务端
 taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
 ```
 
 2并发:
 ```
+# 服务端
 taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
 ```
 
 ### KNET无感加速tperf_os
 1并发：
 ```
+# 服务端
 taskset -c 17-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 17
+
+# 客户端
 taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
 ```
 
 2并发:
 ```
+# 服务端
 taskset -c 16-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
 ```
 
@@ -103,7 +115,10 @@ taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 
 1并发：
 打流命令：
 ```
+# 服务端
 taskset -c 16-31 ./tperf_knetco -s -l 192.168.1.6 -p 11111 -n 1 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31 
 ```
 2并发：
@@ -113,7 +128,10 @@ taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -
 "queue_num":2,
 ```
 ```
+# 服务端
 taskset -c 16-31 ./tperf_knetco -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31 -P 49300,49618
 ```
 
@@ -123,7 +141,10 @@ taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -
 
 1并发：
 ```
+# 服务端
 taskset -c 17-31 ./tperf_knetzcopy -s -l 192.168.1.6 -p 11111 -n 1 -S 17
+
+# 客户端
 taskset -c 17-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 17 -t write -d 31 -P 58532
 ```
 2并发：
@@ -134,7 +155,10 @@ taskset -c 17-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 409
 "queue_num": 2,
 ```
 ```
+# 服务端
 taskset -c 18-31 ./tperf_knetzcopy -s -l 192.168.1.6 -p 11111 -n 2 -S 18
+
+# 客户端
 taskset -c 18-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 18 -t write -d 31 -P 49452,51507
 ```
 ### tperf_knetcozcopy
@@ -148,7 +172,10 @@ taskset -c 18-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 409
 ```echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range```
 1并发：
 ```
+# 服务端
 taskset -c 16-31 ./tperf_knetcozcopy -s -l 192.168.1.6 -p 11111 -n 1 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_knetcozcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31 -P 49631
 ```
 2并发：
@@ -158,6 +185,9 @@ taskset -c 16-31 ./tperf_knetcozcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4
 "queue_num": 2,
 ```
 ```
+# 服务端
 taskset -c 16-31 ./tperf_knetcozcopy -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+
+# 客户端
 taskset -c 16-31 ./tperf_knetcozcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31 -P 49154,49162
 ```
