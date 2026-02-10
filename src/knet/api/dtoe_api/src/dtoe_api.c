@@ -468,16 +468,16 @@ static void knet_dtoe_send_complete(void* dtoe_conn, flexda_dtoe_tx_event_s* eve
     while (req != NULL) {
         sock->send.comp_sn = event->finish_msn;
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG,
-            "send complete, sockfd %d, wr_id %llu, nextEventIdx %u, compSn %u, lastSn %u, sendSn %u",
-            sock->sockfd, req->wr_id, sock->send_channel->nextEventIdx,
+            "send complete, sockfd %d, wr_id %llu, compSn %u, lastSn %u, sendSn %u",
+            sock->sockfd, req->wr_id,
             sock->send.comp_sn, sock->send.last_sn, req->send_sn);
         if (!is_send_complete(sock, req)) {
             break;
         }
-        // req 序号满足send complete时记录事件
-        sock->send_channel->events[sock->send_channel->nextEventIdx].wr_id = req->wr_id;
-        sock->send_channel->events[sock->send_channel->nextEventIdx].sockfd = sock->sockfd;
-        ++sock->send_channel->nextEventIdx;
+        
+        if (likely(req->freeCb != NULL)) {
+            req->freeCb(req->sockfd, req->wr_id);
+        }
         
         // last_sn 在收到ack时更新
         sock->send.last_sn = req->send_sn;
@@ -560,22 +560,15 @@ void knet_ulp_ops_register(struct knet_ulp_ops *ops)
  * @param maxevents [IN] 最大事件数
  * @return 完成事件数
  */
-int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_send_events* events, uint32_t maxevents)
+int knet_poll_send_channel(struct knet_send_channel* send_channel, uint32_t maxevents)
 {
-    if (unlikely(send_channel == NULL || events == NULL)) {
-        KNET_ERR("send_channel: %s, events: %s, null is illeagal",
-            send_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null");
+    if (unlikely(send_channel == NULL)) {
+        KNET_ERR("send_channel: %s, null is illeagal", send_channel == NULL ? "Null" : "not Null");
         return -EINVAL;
     }
-    //
-    struct KnetSendChannel* send_channel_events = (struct KnetSendChannel*)send_channel;
-    send_channel_events->events = events;
-    send_channel_events->nextEventIdx = 0;
-    send_channel_events->maxevents = maxevents;
 
-    /* todo：maxevents / 2，除以2是因为dtoe_poll_send_channel的index与rnode存在一对多的情况，可能导致越界，除2先缓解 */
-    flexda_dtoe_poll_send_channel((flexda_send_channel_s*)send_channel, maxevents / 2);   // send_channel地址即是send_channel_events地址
-    return send_channel_events->nextEventIdx;
+    flexda_dtoe_poll_send_channel((flexda_send_channel_s*)send_channel, maxevents);   // send_channel地址即是send_channel_events地址
+    return 0;
 }
 
 /**
@@ -609,7 +602,8 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
     int ret = flexda_dtoe_send(KNET_GetFdConnUserData(sockfd)->dtoe_conn, (struct iovec *)tx_req->iov, tx_req->iov_cnt, &info);
     if (ret < 0) {
         if (ret != -EAGAIN) {
-            KNET_ERR("dtoe send failed, ret %d", ret);
+            KNET_ERR("sockfd %d dtoe send failed, ret %d, iov_cnt %u, wr_id %llu",
+                sockfd, ret, tx_req->iov_cnt, tx_req->wr_id);
         }
         return ret;
     }
@@ -620,7 +614,9 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
     KNET_SpinlockLock(&KNET_GetFdConnUserData(sockfd)->send_lock);
 #endif
     TAILQ_REMOVE(&KNET_GetFdConnUserData(sockfd)->send.free_req, req, node);
+    req->freeCb = tx_req->free_cb;
     req->wr_id = tx_req->wr_id;
+    req->sockfd = sockfd;
     req->send_sn = info.tx_out.curr_msn;
     TAILQ_INSERT_TAIL(&KNET_GetFdConnUserData(sockfd)->send.unack_req, req, node);
 #ifndef KNET_REQ_NODE_ATOMIC

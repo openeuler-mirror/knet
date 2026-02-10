@@ -30,7 +30,7 @@ struct knet_ulp_ops {
 
 struct knet_mr {
     void *addr;             /* 用户态传入需要注册的虚拟地址 */
-    uint32_t length;          /* 用户态传入注册内存对应的长度 */
+    size_t length;          /* 用户态传入注册内存对应的长度 */
     uint32_t lkey;          /* 对应芯片MPT表项的索引 */
 };
 
@@ -77,11 +77,14 @@ struct knet_iovec {
     size_t iov_len;
 };
 
+typedef void (*knet_tx_req_free_cb_t)(int sockfd, uint64_t wr_id);
+
 struct knet_tx_req {
     struct knet_iovec *iov;
     uint32_t iov_cnt;
     uint32_t lkey;
     uint64_t wr_id;
+    knet_tx_req_free_cb_t free_cb;
 };
 
 /**
@@ -195,11 +198,10 @@ void *knet_get_ulp_user_data(int sockfd);
 /**
  * @brief 检查 tx channel 完成事件，执行对应处理
  * @param send_channel [IN/OUT] knet 对外tx channel
- * @param events [IN/OUT] 关注事件
  * @param maxevents [IN] 最大事件数
  * @return 完成事件数
  */
-int knet_poll_send_channel(struct knet_send_channel* send_channel, struct knet_send_events* events, uint32_t maxevents);
+int knet_poll_send_channel(struct knet_send_channel* send_channel, uint32_t maxevents);
 
 /**
  * @brief knet send

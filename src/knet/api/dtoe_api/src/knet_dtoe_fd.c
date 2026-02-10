@@ -188,6 +188,7 @@ void KNET_SockLeakedResUninit(struct KNET_Fd *sock)
  */
 void KNET_ResetFdState(int sockfd)
 {
+    KNET_SockLeakedResUninit(&g_knetDtoeFdMap[sockfd]);
     g_knetDtoeFdMap[sockfd].dtoe_conn = NULL;
     g_knetDtoeFdMap[sockfd].sockfd = KNET_INVALID_FD;
     g_knetDtoeFdMap[sockfd].recv_sn = KNET_INVALID_SN;
@@ -196,5 +197,4 @@ void KNET_ResetFdState(int sockfd)
     g_knetDtoeFdMap[sockfd].recvEventIndex = KNET_INVALID_EVENT_INDEX;
     g_knetDtoeFdMap[sockfd].send.comp_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send.last_sn = KNET_INVALID_SN;
-    KNET_SockLeakedResUninit(&g_knetDtoeFdMap[sockfd]);
 }
