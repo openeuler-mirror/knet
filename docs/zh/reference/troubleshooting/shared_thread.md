@@ -9,11 +9,11 @@
 [ERR] K-NET port range [49152, 65024], which may conflict with Kernel local port range [1024, 49999]. Please modify knet_comm.conf or Kernel port range.
 ```
 
-## 原因
+### 原因
 
 内核和K-NET端口相互冲突。
 
-## 处理步骤
+### 处理步骤
 
 上述问题可以通过两个方法解决：
 
@@ -27,8 +27,7 @@
 
 用户可以根据实际情况选择相应的方法，并再次启动业务即可。
 
-## 共线程与内核流量转发同时启用导致内核态应用无法建链、打流<a name="ZH-CN_TOPIC_0000002476920238"></a>
-
+## 共线程与内核流量转发同时启用导致内核态应用无法建链、打流
 ### 现象描述
 
 K-NET配置文件启用如下功能：

@@ -13,7 +13,7 @@
     netstat -ntap
     ```
 
-    ![](/figures/zh-cn_image_0000002503868586.png)
+    ![](../../figures/zh-cn_image_0000002503868586.png)
 
 2.  查看K-NET使用端口范围：
 

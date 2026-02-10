@@ -1,7 +1,7 @@
 # 收集运维信息故障
 ## 收集时回显Please check the format of knet\_comm.conf.
 
-#### 现象描述
+### 现象描述
 
 在服务端通过以下命令收集运维信息：
 
@@ -35,17 +35,17 @@ parse error: Expected separator between values at line 6, column 18
 [2025-02-17 16:35:30][ERROR] An error occurred during the collection.
 ```
 
-#### 原因
+### 原因
 
 /etc/knet/knet\_comm.conf配置文件不符合CJson格式。
 
-#### 处理步骤
+### 处理步骤
 
 根据knet\_deploy.log日志提示信息修改配置文件格式，使其符合CJson格式。
 
 ## 收集时回显Please install jq.
 
-#### 现象描述
+### 现象描述
 
 在服务端通过以下命令收集运维信息：
 
@@ -62,11 +62,11 @@ sh knet_ctl.sh --collect comm
 See log(/var/log/knet/deploy/knet_deploy.log) for more details.
 ```
 
-#### 原因
+### 原因
 
 需要安装jq依赖进行配置文件中telemetry配置项值的校验，未安装jq依赖便会报错。
 
-#### 处理步骤
+### 处理步骤
 
 安装jq依赖后，再进行运维信息收集。
 
