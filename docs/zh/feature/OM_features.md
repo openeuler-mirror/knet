@@ -17,7 +17,8 @@ K-NET为了方便获取定位能力，提供了运维工具：抓包工具、网
     -   检查TCP报文统计指标，包括TCP相关统计、TCP连接状态统计、协议栈各类报文统计、协议栈异常打点统计、协议栈内存使用统计、协议栈PBUF使用统计等。
 
 -   日志工具**knet\_comm.log**：记录K-NET运行期间程序行为，提供错误跟踪、告警记录等基础功能，方便问题定位。
--   运维脚本**knet\_ctl.sh**：脚本运行option设置为collect时，可以收集运维信息，方便问题定位。
+-   运维信息收集脚本**collect.sh**：收集运维信息，方便问题定位。
+-   配置文件合并脚本**merge_conf.sh**：更新K-NET配置文件的历史配置。
 
 ## 工具使用
 ### 1  抓包工具dumpcap
@@ -25,11 +26,11 @@ K-NET为了方便获取定位能力，提供了运维工具：抓包工具、网
 >**说明：** 
 >-   请用户先参见[安装抓包工具](../installation/installation.md#抓包工具)后再参考本章节进行使用。
 >-   K-NET使用的DPDK版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
->-   仅SP670网卡用户使用抓包时需要使用**LD\_PRELOAD=/usr/lib64/librte\_net\_sp600.so**，TM280网卡用户无需使用LD\_PRELOAD加载驱动。
+>-   仅SP670网卡用户使用抓包时需要使用**LD\_PRELOAD=/usr/lib64/librte\_net\_hinic3.so**，TM280网卡用户无需使用LD\_PRELOAD加载驱动。
 
 **命令格式**
 ```shell
-LD_PRELOAD=/usr/lib64/librte_net_sp600.so ./dumpcap [-D] [-h] [-i <pci bdf port>] [-c <packet_num_>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>_][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
+LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci bdf port>] [-c <packet_num_>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>_][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
 ```
 **高频参数说明**
 
@@ -63,8 +64,8 @@ LD_PRELOAD=/usr/lib64/librte_net_sp600.so ./dumpcap [-D] [-h] [-i <pci bdf port>
 -   进入“dpdk-stable-21.11.7/app/dumpcap”目录再使用抓包定位K-NET劫持的业务。
 
     ```
-    LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默认DPDK接管网口，抓取K-NET业务数据包，写入/home/KNET_USER用户目录下，文件名为tx.pcap
-    LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/KNET_USER/tx.pcap -f "host 192.168.1.11 && port 6380" # 使用默认DPDK接管网口，在以上条件基础上新增host和port过滤条件, 192.168.1.11为抓包想要过滤的主机ip，6380为想要过滤主机的端口
+    LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默认DPDK接管网口，抓取K-NET业务数据包，写入/home/KNET_USER用户目录下，文件名为tx.pcap
+    LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap -f "host 192.168.1.11 && port 6380" # 使用默认DPDK接管网口，在以上条件基础上新增host和port过滤条件, 192.168.1.11为抓包想要过滤的主机ip，6380为想要过滤主机的端口
     ```
 
 -   如果dumpcap被意外终止，例如被执行**pkill -9 dumpcap**或**pkill dumpcap**命令。为了恢复使用，请启动-关闭-重启dumpcap，以恢复抓包定位能力。
@@ -73,13 +74,13 @@ LD_PRELOAD=/usr/lib64/librte_net_sp600.so ./dumpcap [-D] [-h] [-i <pci bdf port>
 
     ```
     pkill -9 dumpcap
-    LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/KNET_USER/tx.pcap # 第一次启动
+    LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 第一次启动
     ```
 
     “ctrl+C”正常退出：
 
     ```
-    LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/KNET_USER/tx.pcap # 重启后恢复
+    LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 重启后恢复
     ```
 ### 2 网卡统计信息工具dpdk-telemetry
 
@@ -411,9 +412,9 @@ dpdk-Telemetry适配后除了查看网口收发包、错包、丢包之外，还
 1.  确保已完成[配置大页内存](/feature/preparations.md#配置大页内存)，并在“dpdk-stable-21.11.7/app/dumpcap”目录执行下列操作可开启K-NET抓包。
 
     ```
-    chmod a+s /usr/lib64/librte_net_sp600.so 
+    chmod a+s /usr/lib64/librte_net_hinic3.so 
     setcap cap_sys_rawio,cap_dac_read_search,cap_sys_admin+ep dumpcap  
-    LD_PRELOAD=librte_net_sp600.so ./dumpcap -w /home/<username>/tx.pcap
+    LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/<username>/tx.pcap
     ```
 
 2.  抓包完成后，“Ctrl + C”结束，在/home/**_<username\>_**/下生成tx.pcap。

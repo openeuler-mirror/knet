@@ -1,5 +1,6 @@
 # 故障处理
 
+- [动态库缺失故障](lib_not_found.md)
 - [Bond故障](Bond.md)
 - [安装故障](installation.md)
 - [内核流量转发故障](kernel_traffic_forwarding.md)
@@ -7,7 +8,7 @@
 - [内存故障](memory.md)
 - [多进程故障](multi-process_mode.md)
 - [网络故障](network.md)
-- [收集运维信息故障](O&M.md)
+- [收集运维信息故障](OM.md)
 - [性能波动故障](performance.md)
 - [telemetry故障](telemetry.md)
 - [流分叉故障](flow_bifurcation.md)
