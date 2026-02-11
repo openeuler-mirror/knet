@@ -2,17 +2,8 @@
 
 ## 命令行卸载
 
-进入K-NET安装目录，卸载K-NET软件包。
-
 ```
-sh knet_ctl.sh --uninstall comm all
-```
-
-回显示例：
-
-```
-[2024-01-03 11:27:32][INFO] The knet-libknet package is uninstalled.
-[2024-01-03 11:27:33][INFO] The histackdp package is uninstalled.
+rpm -e ubs-knet-1.0.0-1.ctl2.aarch64
 ```
 
 ## SmartKit批量卸载
@@ -22,14 +13,5 @@ sh knet_ctl.sh --uninstall comm all
 -   鲲鹏架构：
 
     ```
-    cd /path; tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_Arm.tar.gz; cd Data-Acceleration-Kit-KNET_25.2.0_Arm; sh knet_ctl.sh --uninstall comm all
+    rpm -e ubs-knet-1.0.0-1.ctl2.aarch64
     ```
-
--   x86架构：
-
-    ```
-    cd /path; tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_X86.tar.gz; cd Data-Acceleration-Kit-KNET_25.2.0_X86; sh knet_ctl.sh --uninstall comm all
-    ```
-
-    > **说明：** 
-    >/path为用户上传K-NET软件包的路径，请用户根据实际填写。

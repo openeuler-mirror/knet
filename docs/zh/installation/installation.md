@@ -122,7 +122,7 @@
     >若为root用户可跳过此步骤。
 
     ```
-    chmod a+s /usr/lib64/librte_net_sp600.so
+    chmod a+s /usr/lib64/librte_net_hinic3.so
     setcap cap_sys_rawio,cap_dac_read_search,cap_sys_admin+ep dumpcap
     ```
 
@@ -168,54 +168,35 @@
 
 ## 命令行安装
 
-1.  获取K-NET软件包上传至服务器。如果是虚拟机，则需要拷贝到虚拟机。
-2.  解压软件包，并进入解压缩后的目录。
-    -   鲲鹏架构：
-
-        ```
-        tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_Arm.tar.gz
-        cd Data-Acceleration-Kit-KNET_25.2.0_Arm
-        ```
-
-    -   x86架构：
-
-        ```
-        tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_X86.tar.gz
-        cd Data-Acceleration-Kit-KNET_25.2.0_X86
-        ```
-
-3.  安装K-NET软件包。
-
-    >**须知：** 
-    >建议使用knet\_ctl.sh脚本进行安装/升级K-NET。若手动执行rpm包安装相关命令，可能导致配置文件的丢失。
+1.  下载K-NET源码并编译。
 
     ```
-    sh knet_ctl.sh --install comm all # 安装K-NET，适用于未安装过或者已卸载了K-NET的环境场景
+    git clone https://atomgit.com/openeuler/knet.git
+    cd knet
+    python3 build.py rpm
     ```
 
-    回显示例如下所示。
+2.  安装K-NET。
 
+    若首次安装，执行以下命令：
     ```
-    [2025-02-08 10:03:40][INFO] The histackdp package is installed.
-    [2025-02-08 10:03:45][INFO] The knet-libknet package is installed.
+    rpm -ivh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm
+    ```
+    
+    若安装过K-NET，执行以下命令直接升级：
+    ```
+    rpm -Uvh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm --force --nodeps
     ```
 
 ## SmartKit批量安装
 
-对于SmartKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
-
--   鲲鹏架构：
+对于Computing Toolkit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
 
     ```
-    cd /path; tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_Arm.tar.gz; cd Data-Acceleration-Kit-KNET_25.2.0_Arm; sh knet_ctl.sh --install comm all
-    ```
-
--   x86架构：
-
-    ```
-    cd /path; tar -xzvf Data-Acceleration-Kit-KNET_25.2.0_X86.tar.gz; cd Data-Acceleration-Kit-KNET_25.2.0_X86; sh knet_ctl.sh --install comm all
+    cd /path; git clone https://atomgit.com/openeuler/knet.git; cd knet; python3 build.py rpm; rpm -ivh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm
     ```
 
     > **说明：** 
-    >“/path”为用户上传K-NET软件包的路径，请根据实际填写。
+    >“/path”为用户下载K-NET的路径，请根据实际填写。
+
 

@@ -77,7 +77,7 @@ K-NET配置文件在目录“/etc/knet/knet\_comm.conf”。
 |rx_cache_size|接收缓存大小，单位个。</p> **约束：**<p>tx_cache_size * 业务实例个数 + rx_cache_size * 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
 |socket_mem   |预分配每个socket大页内存大小，单位MB。<p>多个参数间请使用“,”分隔。例如：<p>`"socket_mem" : "--socket-mem=1024,2048"`<p>表示在0号socket上预分配1024M，在1号socket上分配2048M。|--socket-mem=1024|0~服务器分配现有的可用大页内存总量|
 |socket_limit |限制每个socket上可分配的最大内存。不支持传统内存模式。单位MB。</p> **约束：**<p>socket_limit大于等于socket_mem的内存数。|--socket-limit=1024|0~服务器分配现有的可用大页内存总量|
-|external_driver|不同场景填写不同的PMD驱动。注意前面有个-d。<p>SP670<p>`"external_driver" : "-dlibrte_net_sp600.so"`<p> TM280<p>`"external_driver" : ""`|-dlibrte_net_sp600.so|-dlibrte_net_sp600.so，置空|
+|external_driver|不同场景填写不同的PMD驱动。注意前面有个-d。<p>SP670<p>`"external_driver" : "-dlibrte_net_hinic3.so"`<p> TM280<p>`"external_driver" : ""`|-dlibrte_net_hinic3.so|-dlibrte_net_hinic3.so，置空|
 |telemetry    |统计信息的开关。<li>0：表示不开启。<li>1：表示开启。|1|0，1|
 |huge_dir     |大页挂载路径。<p>例如：`"huge_dir" : "--huge-dir=/home/username/hugepages"`|-|-|
 |base-virtaddr|DPDK主进程内存映射起始虚拟地址基地址。<p>例如：`"base-virtaddr": "--base-virtaddr=0x100000000"`|-|-|

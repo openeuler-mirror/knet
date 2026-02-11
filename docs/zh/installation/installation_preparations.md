@@ -119,36 +119,40 @@
 
 ## 安装SP670驱动（仅SP670网卡涉及）
 
-1.  若使用openEuler操作系统，执行[步骤2](#step2)，然后执行[步骤4](#step4)及后续步骤；若使用CTyunos操作系统，直接从[步骤3](#step3)开始执行。
-2.  <a id="step2"></a>若使用openEuler操作系统，智能网卡的驱动安装请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)中“软件安装\>独立部件场景下安装\>安装驱动和管理工具\>单独安装驱动”章节，“安装hisdk3驱动”的前4步，即第5步“使驱动生效”先不执行。注意除了安装hisdk3驱动，还要按照hisdk3的方法安装hinic3和dpdk-sp600的驱动。按照hisdk3、hinic3和dpdk-sp600的顺序安装，但是安装dpdk-sp600的时候需要在命令后面添加“--nodeps --force”。命令如下所示：
-
-    ```
-    rpm -ivh dpdk-sp600-*.aarch64.rpm --nodeps --force
-    ```
-
-    hisdk3、hinic3、dpdk-sp600驱动安装完后，执行使驱动生效步骤：
-
-    ```
-    modprobe hiudk3
-    modprobe hisdk3
-    ```
-
-    >**说明：** 
-    >如果在使驱动生效时，出现问题，请先查看内核版本是否匹配，如果匹配，则先重启操作系统，再执行驱动生效。
-
-3.  <a id="step3"></a>若使用CTyunos操作系统，智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/carrier/docview?nid=DOC1101400832&topicId=edc0a769)[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
+1.  智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/carrier/docview?nid=DOC1101400832&topicId=edc0a769)[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
 
     ```
     sh install.sh -d bifur
     ```
 
-    安装dpdk-sp600驱动请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)，需在命令后面添加“--nodeps --force”。命令如下所示：
+2.  安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。命令如下所示：
 
     ```
-    rpm -ivh dpdk-sp600-*.aarch64.rpm --nodeps --force
+    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
+    cd dpdk-hinic3
+    sh install.sh ../dpdk-stable-21.11.7 install bifur
     ```
+    以下手动拷贝so和重新安装DPDK驱动步骤任选一个执行：
+    
+    1.  手动拷贝so：
+    
+        ```
+        sh install.sh ../dpdk-stable-21.11.7 build
+        sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+        ls -l /usr/lib64/librte_net_hinic3.so*
+        sudo ldconfig
+        ```
+    
+    2.  或重新安装DPDK驱动：
+    
+        ```
+        cd ../dpdk-stable-21.11.7
+        meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
+        ninja -C build
+        ninja install -C build
+        ```
 
-4.  <a id="step4"></a>查看网卡模板。
+3.  <a id="step4"></a>查看网卡模板。
 
     ```
     hinicadm3 cfg_template -i hinic0
@@ -201,7 +205,7 @@
 2.  安装虚拟机参考[《QEMU-KVM虚拟机 安装指南（openEuler 22.03）》](https://www.hikunpeng.com/document/detail/zh/kunpengcpfs/ecosystemEnable/QEMU-KVM/kunpengqemukvm_03_0002.html)，但是需要将里面的openEuler 22.03 SP3换成[版本配套关系](../release_note.md)中要求的系统版本。
 3.  系统安装完成后按照安装界面的指示重启，然后连接虚拟机。_以虚拟机名为vm\_perf\_2203_为例。
 
-    若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../feature/O&M_features.md#重启虚拟机失败进入shell界面)进行恢复。
+    若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../reference/troubleshooting/virtua_machine.md)进行恢复。
 
     -   Arm环境连接到虚拟机。
 
@@ -398,23 +402,31 @@
 
 ## 安装SP670驱动
 
-若用户需要在虚拟化环境上运行业务，还需要重新在虚机上安装SP670驱动。虚拟机中只需要安装hisdk3、hinic3和dpdk-sp600驱动。
+若用户需要在虚拟化环境上运行业务，还需要重新在虚机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
 
-1.  下载hisdk3，hinic3和dpdk-sp600\*驱动包，使用SFTP上传到虚拟机环境。
-2.  智能网卡的驱动安装请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)中“软件安装”中独立场景安装章节，其中安装驱动参考“安装驱动和管理工具”章节中的安装驱动部分的前3步，即第4步“使驱动生效”先不执行。注意除了安装hisdk3驱动，还要按照hisdk3的方法安装hinic3和dpdk-sp600的驱动。按照hisdk3、hinic3和dpdk-sp600的顺序安装，但是安装dpdk-sp600的时候需要在命令后面添加“--nodeps --force”。命令如下所示：
+安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。命令如下所示：
+
+```
+git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
+cd dpdk-hinic3
+sh install.sh ../dpdk-stable-21.11.7 install bifur
+```
+以下手动拷贝so和重新安装DPDK驱动步骤任选一个执行：
+
+1.  手动拷贝so：
 
     ```
-    rpm -ivh dpdk-sp600-*.aarch64.rpm --nodeps --force
+    sh install.sh ../dpdk-stable-21.11.7 build
+    sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+    ls -l /usr/lib64/librte_net_hinic3.so*
+    sudo ldconfig
     ```
 
-    hisdk3、hinic3、dpdk-sp600驱动安装完后，执行使驱动生效步骤：
+2.  或重新安装DPDK驱动：
 
     ```
-    modprobe hiudk3
-    modprobe hisdk3
-    modprobe hinic3
+    cd ../dpdk-stable-21.11.7
+    meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
+    ninja -C build
+    ninja install -C build
     ```
-
-    >**说明：** 
-    >如果在使驱动生效时，出现问题，请先查看内核版本是否匹配，如果匹配，则先重启虚拟机，再执行驱动生效。
-
