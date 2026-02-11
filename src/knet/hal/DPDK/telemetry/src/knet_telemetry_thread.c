@@ -33,7 +33,7 @@
 #include "knet_types.h"
 
 #define TIME_FORMAT_LEN 32  // 时间格式化长度
-/* 缓冲区大小，dp数据较小，对于×stats,不同网卡的以及不同队列长度会影响数据的长度
+/* 缓冲区大小，dp数据较小，对于xstats,不同网卡的以及不同队列长度会影响数据的长度
    目前支持最大大小32队列长度约54000+字节
 */
 #define DECIMAL 10
@@ -68,7 +68,7 @@ struct ProcessInfo {
     pid_t pid;
     bool alive;
     time_t exitTime; // 进程退出时间
-    int offset;             // 表示该进程写到文件的数据长度,用于计算信移量
+    int offset;             // 表示该进程写到文件的数据长度,用于计算偏移量
     int clientID;           // 该进程对应的rpc fd
 };
 
@@ -309,13 +309,13 @@ static int FindOldestDumpFile(char dumpFiles[][PATH_MAX + 1], int fileCount, int
  */
 KNET_STATIC int CleanupOldDumpFiles(void)
 {
-    size_t totleSize = MAX_COLLECT_DUMP_FILES * (PATH_MAX + 1);
-    char (*dumpFiles)[PATH_MAX + 1] = (char (*)[PATH_MAX + 1]) malloc(totleSize);
+    size_t totalSize = MAX_COLLECT_DUMP_FILES * (PATH_MAX + 1);
+    char (*dumpFiles)[PATH_MAX + 1] = (char (*)[PATH_MAX + 1]) malloc(totalSize);
     if (dumpFiles == NULL) {
         KNET_ERR("K-NET telemetry cleanup old dump files failed. Malloc memory failed");
         return -1;
     }
-    (void)memset_s(dumpFiles, totleSize, 0, totleSize);
+    (void)memset_s(dumpFiles, totalSize, 0, totalSize);
 
     /* 收集目录中的所有转储文件 */
     int fileCount = CollectDumpFiles(dumpFiles, MAX_COLLECT_DUMP_FILES);
@@ -405,7 +405,7 @@ int StartDumpOldFile(FILE *oldFile)
     size_t bytes;
     while ((bytes = fread(buffer, 1, sizeof(buffer), oldFile)) > 0) {
         if (fwrite(buffer, 1, bytes, newFile) != bytes) {
-            KNET_ERR("K-NET telemetey statistic persist dump failed, Write file failed with errno %d", errno);
+            KNET_ERR("K-NET telemetry statistic persist dump failed, Write file failed with errno %d", errno);
             (void)fclose(newFile);
             return -1;
         }
@@ -533,7 +533,7 @@ FILE *OpenFileWithRWB(const char *filePath, const char *filename)
         fclose(fp);
         /* 设置文件的权限为0600 */
         if (chmod(SAVE_FILE_NAME, FILE_AUTHORITY) == -1) {
-            KNET_ERR("K-NET open telemetry persist file failed. Set persist file authozity failed with errno %d",
+            KNET_ERR("K-NET open telemetry persist file failed. Set persist file authority failed with errno %d",
                      errno);
             return NULL;
         }
@@ -668,12 +668,12 @@ int WriteJsonTail(FILE *file, int offset)
     int tailOffset = offset - 2; // 回退最后的",\n"
     int len = FormatingInCustom(temp, &tempLeftLen, "\n}\n");
     if (len < 0) {
-        KNET_ERR("K-NET telemetry persist write json head failed. Format head failed");
+        KNET_ERR("K-NET telemetry persist write json tail failed. Format tail failed");
         return -1;
     }
     int ret = WriteDataToFile(file, temp, len, tailOffset);
     if (ret < 0) {
-        KNET_ERR("K-NET telemetry persist write json head failed. Write head failed");
+        KNET_ERR("K-NET telemetry persist write json tail failed. Write tail failed");
         return -1;
     }
     return ret;
@@ -702,7 +702,7 @@ int TelemetryRefreshDataSingle(FILE *file, struct KnetProcessInfo *knetProcessIn
     /* 构造dpdk xstats数据并写入到文件 */
     FORMAT_FUNC_SUCCESS(WriteDpdkXstats(file, fileOffset), fileOffset);
     if (fileOffset < 0) {
-        KNET_ERR("K-NET telenetry persist write xstats to file failed");
+        KNET_ERR("K-NET telemetry persist write xstats to file failed");
         goto END;
     }
     
@@ -712,15 +712,15 @@ int TelemetryRefreshDataSingle(FILE *file, struct KnetProcessInfo *knetProcessIn
     int outputLeftLen = SINGLE_BLOCK_SIZE - SINGLE_BLOCK_RESERVE;
     int dataOffset = RefreshSingleProcessData(singleOutput, &outputLeftLen, pid, curSequence);
     if (dataOffset < 0) {
-        KNET_ERR("K-NET telenetry persist get dp stats failed");
+        KNET_ERR("K-NET telemetry persist get dp stats failed");
         goto END;
     }
     FORMAT_FUNC_SUCCESS(WriteDataToFile(file, singleOutput, dataOffset, fileOffset), fileOffset);
     if (fileOffset < 0) {
-        KNET_ERR("K-NET telenetry persist write dp stats failed");
+        KNET_ERR("K-NET telemetry persist write dp stats failed");
         goto END;
     }
-    /* 构造json尾格式并写入文件.尾部写失败没哈办法，里面会打印errlog */
+    /* 构造json尾格式并写入文件.尾部写失败没办法，里面会打印errlog */
     FORMAT_FUNC_SUCCESS(WriteJsonTail(file, fileOffset), fileOffset);
 END:
     curSequence += 1;
@@ -739,7 +739,7 @@ int GetSingleProcessDpStatsMulti(char *singleOutput, int *outputLeftLen, int pid
     if (formatLastTail) {
         FORMAT_FUNC_SUCCESS(FormatingInCustom(singleOutput, outputLeftLen, ",\n"), processDataOffset);
         if (processDataOffset < 0) {
-            KNET_ERR("K-NET telemetry peraist format last process tail failed, pid %d", pid);
+            KNET_ERR("K-NET telemetry persist format last process tail failed, pid %d", pid);
             return -1;
         }
     }
@@ -747,7 +747,7 @@ int GetSingleProcessDpStatsMulti(char *singleOutput, int *outputLeftLen, int pid
     FORMAT_FUNC_SUCCESS(RefreshSingleProcessData(singleOutput + processDataOffset, outputLeftLen, pid, sequence),
                         processDataOffset);
     if (processDataOffset < 0) {
-        KNET_ERR("K-NET telemetry persist refreah process %d failed", pid);
+        KNET_ERR("K-NET telemetry persist refresh process %d failed", pid);
         return -1;
     }
     return processDataOffset;
@@ -959,7 +959,7 @@ int32_t KNET_TelemetryStartPersistThread(int procType, int processMode)
     // 创建telemetry持久化线程
     pthread_t tid;
     if (KNET_CreateThread(&tid, KNET_TelemetryPersistThread, NULL) != 0) {
-        KNET_ERR("K-NET reg telemetry Persistance thread failed, errno %d", errno);
+        KNET_ERR("K-NET reg telemetry Persist thread failed, errno %d", errno);
         return KNET_ERROR;
     }
     KNET_ThreadNameSet(tid, "knetPersist");

@@ -384,7 +384,7 @@ KNET_STATIC int ParseNetStatParams(const char *params, uint32_t *pid, uint32_t *
 {
     uint32_t paramsArr[NET_STAT_PARAMS_NUM] = {0};
     if (ParseTelemetryParams(params, paramsArr, NET_STAT_PARAMS_NUM) != NET_STAT_PARAMS_NUM) {
-        KNET_ERR("K-NET telemetry get net state failed, invalid input params, excepted <pid> <start_fd> <fd_cnt>");
+        KNET_ERR("K-NET telemetry get net state failed, invalid input params, expect <pid> <start_fd> <fd_cnt>");
         return KNET_ERROR;
     }
     *pid = paramsArr[NET_STAT_PARAM_PID];
@@ -487,7 +487,7 @@ KNET_STATIC int ValidateParamsAndGetFd(const char *params, uint32_t *inputFd)
     }
     uint32_t paramsArr[SOCK_INFO_PARAM_NUM] = {0};
     if (ParseTelemetryParams(params, paramsArr, SOCK_INFO_PARAM_NUM) != SOCK_INFO_PARAM_NUM) {
-        KNET_ERR("K-NET telemetry get socket info failed, invalid input params, excepted <pid> <start_fd> <fd_cnt>");
+        KNET_ERR("K-NET telemetry get socket info failed, invalid input params, expect <pid> <start_fd> <fd_cnt>");
         return KNET_ERROR;
     }
     inputPid = paramsArr[SOCK_INFO_PARAM_PID];
@@ -513,6 +513,7 @@ KNET_STATIC int ProcessSockInfo(DP_SockDetails_t *dpSockDetails, struct rte_tel_
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isLingerOnoff", dpSockDetails->lingerOnoff);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isNonblock", dpSockDetails->nonblock);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isReuseAddr", dpSockDetails->reuseAddr);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isReusePort", dpSockDetails->reusePort);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isBroadcast", dpSockDetails->broadcast);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isKeepAlive", dpSockDetails->keepalive);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isBindDev", dpSockDetails->bindDev);

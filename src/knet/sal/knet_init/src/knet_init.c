@@ -196,7 +196,7 @@ KNET_STATIC void *MultiPdumpThreadFunc(void* args)
     /* 协议栈打点统计共享内存获取 */
     KNET_TelemetryInfo *telemetryInfo = NULL;
     KNET_TelemetryPersistInfo *telemetryPersistInfo = NULL;
-    bool persistFlag = false;
+    bool persistFlag = KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE;
     pid_t curPid = getpid();
     /* 开启配置 且 为多进程模式 */
     bool telemetryFlag = KNET_GetCfg(CONF_DPDK_TELEMETRY)->intValue == 1 &&
@@ -209,12 +209,14 @@ KNET_STATIC void *MultiPdumpThreadFunc(void* args)
         } else {
             telemetryInfo = tcpMz->addr;
         }
+    }
+    /* 多进程自动启动持久化 */
+    if (persistFlag) {
         const struct rte_memzone *persistMz = rte_memzone_lookup(KNET_TELEMETRY_PERSIST_MZ_NAME);
         if (persistMz == NULL || persistMz->addr == NULL) {
             KNET_ERR("Subprocess couldn't allocate memory for persist mz");
         } else {
             telemetryPersistInfo = persistMz->addr;
-            persistFlag = true;
         }
     }
 
