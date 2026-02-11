@@ -68,7 +68,7 @@
 
     回显示例：
 
-    ![](/figures/zh-cn_image_0000002503958012.png)
+    ![](../figures/zh-cn_image_0000002503958012.png)
 
     ```
     ninja -C build
@@ -76,7 +76,7 @@
 
     回显示例：
 
-    ![](figures/zh-cn_image_0000002535517975.png)
+    ![](../figures/zh-cn_image_0000002535517975.png)
 
     ```
     ninja install -C build
@@ -84,7 +84,7 @@
 
     回显示例：
 
-    ![](/figures/zh-cn_image_0000002503798182.png)
+    ![](../figures/zh-cn_image_0000002503798182.png)
 
 ### （可选）安装抓包工具
 
