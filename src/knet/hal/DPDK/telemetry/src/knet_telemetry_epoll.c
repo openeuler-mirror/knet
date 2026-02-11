@@ -47,7 +47,7 @@ KNET_STATIC int ParseEpollDetailsParams(const char *params, TelemetryEpollParams
 {
     uint32_t paramsArr[EPOLL_DETAILS_PARAMS_NUM] = {0};
     if (ParseTelemetryParams(params, paramsArr, EPOLL_DETAILS_PARAMS_NUM) != EPOLL_DETAILS_PARAMS_NUM) {
-        KNET_ERR("K-NET telemetry epoll details callback failed, invalid input, except format <pid> <start_epoll_fd> "
+        KNET_ERR("K-NET telemetry epoll details callback failed, invalid input, expect format <pid> <start_epoll_fd> "
                  "<epoll_fd_cnt> <start_fd> <fd_cnt>");
         return KNET_ERROR;
     }
@@ -74,7 +74,7 @@ KNET_STATIC int ParseEpollDetailsParamsAndGetQueId(const char *params, Telemetry
 {
     uint32_t paramsArr[EPOLL_DETAILS_PARAMS_NUM] = {0};
     if (ParseTelemetryParams(params, paramsArr, EPOLL_DETAILS_PARAMS_NUM) != EPOLL_DETAILS_PARAMS_NUM) {
-        KNET_ERR("K-NET telemetry epoll details callback failed, invalid input, except format <pid> <start_epoll_fd> "
+        KNET_ERR("K-NET telemetry epoll details callback failed, invalid input, expect format <pid> <start_epoll_fd> "
                  "<epoll_fd_cnt> <start_fd> <fd_cnt>");
         return KNET_ERROR;
     }
@@ -138,11 +138,11 @@ KNET_STATIC DP_EpollDetails_t *SortSockDetailsByOsFd(DP_EpollDetails_t *sockDeta
 
 DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary)
 {
-    int exceptedSockFdCount = GetEpollDetailsHookHandler(epFd, NULL, 0, workerId);
-    if (exceptedSockFdCount < 0) {
+    int expectedSockFdCount = GetEpollDetailsHookHandler(epFd, NULL, 0, workerId);
+    if (expectedSockFdCount < 0) {
         return NULL;
     }
-    int allocFdAmount = exceptedSockFdCount + RESERVED_EPOLL_EVENT_AMOUNT;
+    int allocFdAmount = expectedSockFdCount + RESERVED_EPOLL_EVENT_AMOUNT;
     int detailsFdCount = 0;
     DP_EpollDetails_t *details = (DP_EpollDetails_t *)calloc(1, allocFdAmount * sizeof(DP_EpollDetails_t));
     if (details == NULL) {
@@ -183,7 +183,7 @@ KNET_STATIC int ProcessSockDetails(DP_EpollDetails_t *sockDetails, struct rte_te
         return KNET_ERROR;
     }
     int count = 0;
-    int maxCount = (fdCnt == 0) ? maxSockFd + 1 : fdCnt;
+    int maxCount = (fdCnt == 0) ? MAX_FD_NUM_LIMIT : fdCnt;
     for (int i = 0; i < maxSockFd + 1 && count < maxCount; i++) {
         if ((sockDetails[i].fd != 0 || sockDetails[i].expectEvents != 0) && sockDetails[i].fd >= (uint32_t)startFd) {
             struct rte_tel_data *sockDict = rte_tel_data_alloc();
@@ -285,7 +285,7 @@ KNET_STATIC int ProcessEpollDetailsInfo(TelemetryEpollParams *epollParams, struc
         KNET_ERR("K-NET telemetry epoll details callback failed, data start dict failed");
         return KNET_ERROR;
     }
-    epollParams->epollFdCnt = epollParams->epollFdCnt == 0 ? (uint32_t)fdMax : epollParams->epollFdCnt;
+    epollParams->epollFdCnt = epollParams->epollFdCnt == 0 ? MAX_FD_NUM_LIMIT : epollParams->epollFdCnt;
     for (int osFd = (int)epollParams->epollStartFd; osFd < fdMax && count < (int)epollParams->epollFdCnt; ++osFd) {
         if (KNET_IsFdHijack(osFd) && KNET_GetFdType(osFd) == KNET_FD_TYPE_EPOLL) {
             int epollDpFd = KNET_OsFdToDpFd(osFd);
@@ -314,6 +314,13 @@ KNET_STATIC int ProcessEpollDetailsInfo(TelemetryEpollParams *epollParams, struc
     }
     return KNET_OK;
 }
+
+/**
+ * @brief 获取epoll详细信息
+ * @return 0:成功 -1:失败
+ * @note epoll输出格式在fd数量过多会导致dpdk丢弃details
+ *       通过减少输出数量控制
+ */
 int KnetTelemetryEpollDetailsCallback(const char *cmd, const char *params, struct rte_tel_data *data)
 {
     if (data == NULL || params == NULL) {

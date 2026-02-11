@@ -41,7 +41,7 @@
 #define MASK_STR_LEN 16
 #define INVALID_TID 0U
 #define FLOW_PROTO_STR_MAX_LEN 32
-#define FLOW_ACTION_STR_MAX_LEN 64
+#define FLOW_ACTION_STR_MAX_LEN 256 // 支持队列最大数量为32，action最大为RSS-0,1,2,...,31
 #define FLOW_ARP_QUEUE_ID_STR_LEN 64
 #define MAX_JSON_KEY_NAME_LEN 100
 

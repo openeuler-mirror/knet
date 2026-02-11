@@ -474,7 +474,7 @@ KNET_STATIC int ParseFlowTableParams(const char *params, uint32_t *startIndex, u
 {
     uint32_t paramsArr[FLOW_TABLE_PARAMS_MAX] = {0};
     if (ParseTelemetryParams(params, paramsArr, FLOW_TABLE_PARAMS_MAX) != FLOW_TABLE_PARAMS_MAX) {
-        KNET_ERR("Flow table query, rte telemetry invalid input failed, except "
+        KNET_ERR("Flow table query, rte telemetry invalid input failed, expect "
                  "format <startIndex> <count>");
         return KNET_ERROR;
     }

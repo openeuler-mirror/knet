@@ -49,7 +49,7 @@ KNET_STATIC int ParseEthdevUsageQueryParam(const char *param, uint32_t *port, ui
 {
     uint32_t paramsArr[USAGE_PARAM_NUM] = {0};
     if (ParseTelemetryParams(param, paramsArr, USAGE_PARAM_NUM) != USAGE_PARAM_NUM) {
-        KNET_ERR("Netdev usage query, rte telemetry invalid input failed, except "
+        KNET_ERR("Netdev usage query, rte telemetry invalid input failed, expect "
                  "format <port> <time>");
         return KNET_ERROR;
     }
