@@ -123,10 +123,16 @@ collect_log(){
     fi
 }
 
-collect_stats() {
+collect_statistic() {
     local path=$1
+    mkdir -p ${path}/statistic
+
+    if [ -e "$KNET_CONF_FILE" ]; then
+        cp -pf $KNET_CONF_FILE ${path}/statistic
+    fi
+
     if [ -d "$KNET_TELEMETRY_STATS_PATH/" ]; then
-        cp -rf "$KNET_TELEMETRY_STATS_PATH" ${path}
+        cp -rf "$KNET_TELEMETRY_STATS_PATH" ${path}/statistic
     fi
 }
 
@@ -139,7 +145,7 @@ knet_collect_info()
     collect_hw_info "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
     collect_sw_info "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
     collect_log "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
-    collect_stats "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
+    collect_statistic "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
 
     pushd "${KNET_COMM_LOG_PATH}/info_collect" > /dev/null 2>&1
         tar -zcPf "$folder.tar.gz" ${folder} --remove-files
