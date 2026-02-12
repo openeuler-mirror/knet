@@ -110,31 +110,22 @@
 
 ## 安装SP670驱动（仅SP670网卡涉及）
 
-1.  智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/carrier/docview?nid=DOC1101400832&topicId=edc0a769)[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
+1.  智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
 
     ```
     sh install.sh -d bifur
     ```
 
-2.  安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。命令如下所示：
+2.  安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
 
     ```
     git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
     cd dpdk-hinic3
     sh install.sh ../dpdk-stable-21.11.7 install bifur
     ```
-    以下手动拷贝so和重新安装DPDK驱动步骤任选一个执行：
+    以下安装DPDK驱动至指定目录和手动编译DPDK后拷贝so步骤任选一个执行，若第一次安装DPDK，请参考[安装DPDK](./installation.md#可选安装dpdk)执行步骤1：
     
-    1.  手动拷贝so：
-    
-        ```
-        sh install.sh ../dpdk-stable-21.11.7 build
-        sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
-        ls -l /usr/lib64/librte_net_hinic3.so*
-        sudo ldconfig
-        ```
-    
-    2.  或重新安装DPDK驱动：
+    1.  安装DPDK驱动至指定目录：
     
         ```
         cd ../dpdk-stable-21.11.7
@@ -142,6 +133,20 @@
         ninja -C build
         ninja install -C build
         ```
+    
+    2.  或手动编译DPDK后拷贝so：
+    
+        ```
+        sh install.sh ../dpdk-stable-21.11.7 build
+        sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+        ls -l /usr/lib64/librte_net_hinic3.so*
+        sudo ldconfig
+        ```
+
+        >**说明：** 
+        > {,.22,.22.0} 根据实际DPDK版本替换
+    
+    
 
 3.  <a id="step4"></a>查看网卡模板。
 
@@ -389,17 +394,26 @@
 
 若用户需要在虚拟化环境上运行业务，还需要重新在虚机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
 
-安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。命令如下所示：
+安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
 
 ```
 git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
 cd dpdk-hinic3
 sh install.sh ../dpdk-stable-21.11.7 install bifur
 ```
-以下手动拷贝so和重新安装DPDK驱动步骤任选一个执行：
-
-1.  手动拷贝so：
-
+以下安装DPDK驱动至指定目录和手动编译DPDK后拷贝so步骤任选一个执行，若第一次安装DPDK，请参考[安装DPDK](./installation.md#可选安装dpdk)执行步骤1：
+    
+1.  安装DPDK驱动至指定目录：
+    
+    ```
+    cd ../dpdk-stable-21.11.7
+    meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
+    ninja -C build
+    ninja install -C build
+    ```
+    
+2.  或手动编译DPDK后拷贝so：
+    
     ```
     sh install.sh ../dpdk-stable-21.11.7 build
     sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
@@ -407,11 +421,5 @@ sh install.sh ../dpdk-stable-21.11.7 install bifur
     sudo ldconfig
     ```
 
-2.  或重新安装DPDK驱动：
-
-    ```
-    cd ../dpdk-stable-21.11.7
-    meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
-    ninja -C build
-    ninja install -C build
-    ```
+    >**说明：** 
+    > {,.22,.22.0} 根据实际DPDK版本替换

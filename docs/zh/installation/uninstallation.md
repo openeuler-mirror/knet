@@ -15,3 +15,8 @@ rpm -e knet-1.0.0-1.ctl2.aarch64
     ```
     rpm -e knet-1.0.0.aarch64
     ```
+-   x86架构：
+
+    ```
+    rpm -e knet-1.0.0.x86_64
+    ```

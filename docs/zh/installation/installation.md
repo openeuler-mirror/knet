@@ -179,24 +179,40 @@
 2.  安装K-NET。
 
     若首次安装，执行以下命令：
-    ```
-    rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
-    ```
+    -   鲲鹏架构：
+
+        ```
+        rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
+        ```
+
+    -   x86架构：
+
+        ```
+        rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.x86_64.rpm
+        ```
     
     若安装过K-NET，执行以下命令直接升级：
-    ```
-    rpm -Uvh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm --force --nodeps
-    ```
+    -   鲲鹏架构：
+
+        ```
+        rpm -Uvh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm --force --nodeps
+        ```
+
+    -   x86架构：
+
+        ```
+        rpm -Uvh build/rpmbuild/RPMS/knet-1.0.0.x86_64.rpm --force --nodeps
+        ```
 
 ## Computing ToolKit批量安装
 
-对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
+对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下，以ARM环境初次安装K-NET为例：
 
     ```
-    cd /path; git clone https://atomgit.com/openeuler/knet.git; cd knet; python3 build.py rpm; rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
+    cd /path; rpm -ivh knet-1.0.0.aarh64.rpm
     ```
 
     > **说明：** 
-    >“/path”为用户下载K-NET的路径，请根据实际填写。
+    >“/path”为用户传输K-NET的RPM包路径，请根据实际填写。
 
 
