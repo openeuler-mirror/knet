@@ -34,7 +34,7 @@
         -   x86架构：
 
             ```
-            cd /home; rpm -Uvh knet-1.0.0.x86.rpm
+            cd /home; rpm -Uvh knet-1.0.0.x86_64.rpm
             ```
 
 4.  批量执行命令。

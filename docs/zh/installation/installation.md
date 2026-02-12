@@ -188,9 +188,9 @@
     rpm -Uvh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm --force --nodeps
     ```
 
-## SmartKit批量安装
+## Computing ToolKit批量安装
 
-对于Computing Toolkit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
+对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
 
     ```
     cd /path; git clone https://atomgit.com/openeuler/knet.git; cd knet; python3 build.py rpm; rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
