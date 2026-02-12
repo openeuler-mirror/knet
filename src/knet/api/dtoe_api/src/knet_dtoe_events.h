@@ -20,9 +20,6 @@
 
 struct KnetSendChannel {
     struct knet_send_channel channel;
-    struct knet_send_events* events;
-    uint32_t maxevents;
-    uint32_t nextEventIdx;
 };
 
 TAILQ_HEAD(KnetLeakListHead, KNET_Fd);
@@ -40,7 +37,9 @@ struct KnetRecvChannel {
 
 typedef struct KnetReqNode {
     TAILQ_ENTRY(KnetReqNode) node;
+    knet_tx_req_free_cb_t freeCb;
     uint64_t wr_id;     // 用户透传id
+    int sockfd;
     uint16_t send_sn;   // dtoe_send时出参的curr_msn
 } __attribute__((packed)) KnetReqNode;
 
