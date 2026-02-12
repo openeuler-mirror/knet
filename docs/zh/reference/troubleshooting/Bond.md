@@ -22,3 +22,18 @@ ethtool enp125s0f0  # 网卡名根据用户具体使用的网卡进行修改
 ![](../../figures/zh-cn_image_0000002504028422.png)
 
 以上回显说明网卡链路不通，需要先解决组网问题。
+
+## Bond场景下启动业务，长期无本端或者对端进行连接后，报错“XXX: Failed to allocate LACP packet from pool”。
+
+### 现象描述
+
+Bond场景下启动业务，长期无本端或者对端进行连接后，报错“XXX: Failed to allocate LACP packet from pool”。
+
+### 原因
+
+dpdk内部bug，当bond端口长期空闲后LACP数据报文分配失败。
+
+### 处理步骤
+
+方案一：保持使用bond端口进行网络通信，确保bond端口空闲状态不超过1分钟。
+方案二：参考该[dpdk社区patch](https://mails.dpdk.org/archives/dev/2022-March/237926.html)修改dpdk后重新编译安装dpdk，再运行业务。
