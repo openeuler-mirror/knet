@@ -180,12 +180,12 @@
 
     若首次安装，执行以下命令：
     ```
-    rpm -ivh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm
+    rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
     ```
     
     若安装过K-NET，执行以下命令直接升级：
     ```
-    rpm -Uvh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm --force --nodeps
+    rpm -Uvh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm --force --nodeps
     ```
 
 ## SmartKit批量安装
@@ -193,7 +193,7 @@
 对于Computing Toolkit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下。
 
     ```
-    cd /path; git clone https://atomgit.com/openeuler/knet.git; cd knet; python3 build.py rpm; rpm -ivh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm
+    cd /path; git clone https://atomgit.com/openeuler/knet.git; cd knet; python3 build.py rpm; rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
     ```
 
     > **说明：** 

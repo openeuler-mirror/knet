@@ -13,7 +13,7 @@
 KNET_CONF_FILE="/etc/knet/knet_comm.conf"
 KNET_COMM_LOG_PATH="/var/log/knet"
 KNET_TELEMETRY_STATS_PATH="/etc/knet/run/stats"
-knet_package=ubs-knet
+knet_package=knet
 sp600_package=dpdk-sp600-pmd
 error=0
 
