@@ -269,11 +269,11 @@
     ```
     chmod 550 /usr/lib64/libknet_frame.so
     chmod 550 /usr/lib64/libknet_core.so
-    chmod 550 /usr/lib64/libhistackdp.so
+    chmod 550 /usr/lib64/libdpstack.so
     chmod 550 /usr/bin/knet_mp_daemon
     chown root:KNET_USER_GROUP /usr/lib64/libknet_frame.so
     chown root:KNET_USER_GROUP /usr/lib64/libknet_core.so
-    chown root:KNET_USER_GROUP /usr/lib64/libhistackdp.so
+    chown root:KNET_USER_GROUP /usr/lib64/libdpstack.so
     chown root:KNET_USER_GROUP /usr/bin/knet_mp_daemon
     chmod a+s /usr/lib64/libknet_frame.so
     chown KNET_USER:KNET_USER_GROUP /etc/knet/knet_comm.conf
