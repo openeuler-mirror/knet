@@ -1,8 +1,9 @@
-# 运维架构
+# 运维特性
 
+## 运维架构
 K-NET为了方便获取定位能力，提供了运维工具：抓包工具、遥测工具、日志工具以及运维脚本。
 
-![](/figures/om1.png)
+![](../figures/om1.png)
 
 -   抓包工具**dumpcap**：为K-NET提供调试抓包功能，提供详细的网络实时监测细节，有两种适配K-NET的抓包模式。
     -   单进程抓包，基于主进程间的socket共享主进程收发队列，将共享报文写入文件，文件可由tcpdump命令和Wireshark工具查看。定位工具在使用抓包获取前需要先编译生成抓包程序。K-NET绑定的抓包获取能力在其他场景抓包可能失败，因此该抓包获取能力仅用于K-NET。
@@ -147,7 +148,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
 **使用方法**
 
-**dpdk-telemetry**详细使用方法参考[dpdk-telemetry.py](/reference/script_reference/dpdk-telemetry.md)。
+**dpdk-telemetry**详细使用方法参考[dpdk-telemetry.py遥测信息获取脚本](../reference/script_reference/dpdk-telemetry.md)。
 
 ### 3 日志工具knet\_comm.log
 
@@ -158,7 +159,7 @@ knet\_comm.log在K-NET安装后即可记录K-NET运行信息。
 vim /var/log/knet/knet\_comm.log
 ```
 ```
-tail **<option\>** /var/log/knet/knet\_comm.log
+tail <option> /var/log/knet/knet\_comm.log
 ```
 **命令参数**
 
@@ -196,7 +197,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
 
     检查显示结果，确保hinic3、hisdk3、hinicadm3等网卡驱动已安装。
 
-    ![](/figures/zh-cn_image_0000002519162195.png)
+    ![](../figures/zh-cn_image_0000002519162195.png)
 
     若不存在请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)或[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)进行驱动的安装。
 
@@ -210,7 +211,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
 
     正常情况是包含hinic3、hisdk3、hiudk3等网卡驱动。结果如下：
 
-    ![](/figures/zh-cn_image_0000002486922342.png)
+    ![](../figures/zh-cn_image_0000002486922342.png)
 
     若驱动不存在则执行如下命令加载驱动：
 
@@ -226,7 +227,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
     hinicadm3 cfg_template -i hinic0
     ```
 
-    ![](/figures/zh-cn_image_0000002487082318.png)
+    ![](../figures/zh-cn_image_0000002487082318.png)
 
     “Current Info”字段中显示的为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启：
 
@@ -285,7 +286,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
     确认检查结果：
 
     -   若SP670网卡查询信息出现在“DPDK-compatible driver”一栏，则检测通过。
-    -   若上述查询SP670网卡并未出现在“DPDK-compatible driver”一栏，参考[配置大页内存](/feature/preparations.md#配置大页内存)接管网卡部分继续配置。
+    -   若上述查询SP670网卡并未出现在“DPDK-compatible driver”一栏，参考[配置大页内存](preparations.md#配置大页内存)接管网卡部分继续配置。
 
 2.  检查大页情况。
 
@@ -301,7 +302,7 @@ tail **<option\>** /var/log/knet/knet\_comm.log
     Hugepages mounted on /dev/hugepages /dev/hugepages1G
     ```
 
-    若不存在对应大页，需要挂载相应大小大页，建议配置1G大页或者512MB大页，大页配置参考[配置大页内存](/feature/preparations.md#配置大页内存)配置大页内存部分。
+    若不存在对应大页，需要挂载相应大小大页，建议配置1G大页或者512MB大页，大页配置参考[配置大页内存](preparations.md#配置大页内存)配置大页内存部分。
 
 3.  检查熵池。
     1.  检查是否安装rng-tools：
@@ -358,24 +359,24 @@ tail **<option\>** /var/log/knet/knet\_comm.log
 
 -   正常日志情况不应存在ERR记录，下列示例展示了K-NET正常工作状况：
 
-    ![](/figures/zh-cn_image_0000002535748361.png)
+    ![](../figures/zh-cn_image_0000002535748361.png)
 
 -   若存在ERR日志，则表明存在异常情况，常见异常情况包含如下：
     -   如出现以下日志报错，表示DPDK初始化失败，通常由于大页内存未挂载或未找到被接管的网卡。
 
-        ![](/figures/zh-cn_image_0000002535828393.png)
+        ![](../figures/zh-cn_image_0000002535828393.png)
 
-        处理方式：参照[配置大页内存](/feature/preparations.md#配置大页内存)配置大页内存并接管网卡。
+        处理方式：参照[配置大页内存](preparations.md#配置大页内存)配置大页内存并接管网卡。
 
     -   网卡BDF号不正确，通常在“/etc/knet/knet\_comm.conf”编辑BDF配置时可能配置了不可用网卡，请再次检查填入被DPDK接管网卡的BDF号。
 
-        ![](/figures/zh-cn_image_0000002504028410.png)
+        ![](../figures/zh-cn_image_0000002504028410.png)
 
         处理方式：编辑  “/etc/knet/knet\_comm.conf” 配置文件，配置正确网卡BDF号。
 
     -   “/etc/knet/knet\_comm.conf ”配置不符合json字符串，可能存在符号错误，如未加逗号，引号等，请检查后再次运行K-NET，并检查knet\_comm.log是否还存在报错。
 
-        ![](/figures/zh-cn_image_0000002503868572.png)
+        ![](../figures/zh-cn_image_0000002503868572.png)
 
         处理方式：检查去掉“/etc/knet/knet\_comm.conf ”错误符号，常见排查方法是确保花括号“\{\}”在/etc/knet/knet\_comm.conf中配对正确， 引号""配对正确，逗号“,”没有多余或遗漏。
 
@@ -648,7 +649,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 
 #### 获取网络包
 
-1.  确保已完成[配置大页内存](/feature/preparations.md#配置大页内存)，并在“dpdk-stable-21.11.7/app/dumpcap”目录执行下列操作可开启K-NET抓包。
+1.  确保已完成[配置大页内存](preparations.md#配置大页内存)，并在“dpdk-stable-21.11.7/app/dumpcap”目录执行下列操作可开启K-NET抓包。
 
     ```
     chmod a+s /usr/lib64/librte_net_hinic3.so 
@@ -660,7 +661,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 3.  可使用`tcpdump -r /home/_<username\>_/tx.pcap -v`查看抓包文件或使用Wireshark打开查看。
 4.  使用`tcpdump -r /home/<username\>/tx.pcap`读取数据包，查看数据包详情，操作示例如下：
 
-    ![](/figures/zh-cn_image_0000002535828395.png)
+    ![](../figures/zh-cn_image_0000002535828395.png)
 
     -   正常情况应该有ARP建链包，如上图存在ARP请求和回应。
     -   若存在无法建链、丢包、无法接收数据包等异常情况，请先在ping场景下抓包测试，确保网络链路正常，进一步再通过数据包细节排查。
