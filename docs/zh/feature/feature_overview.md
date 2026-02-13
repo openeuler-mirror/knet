@@ -23,7 +23,7 @@
 |Redis 6.0.20|示例软件，直接参照[单进程模式加速](single_process%20_mode.md)及[多进程模式加速](multi-process_mode.md)。|
 |iPerf3 3.16|K-NET可以直接通过劫持服务端进行网络加速。|
 |SockPerf 3.10|由于用户态协议栈recvfrom()暂不支持MSG_NOSIGNAL flag，将src/input_handlers.h第66-68行代码注释或者删除，具体代码如下：<br>`#ifndef __windows__`<br>`        flags = MSG_NOSIGNAL;`<br>`#endif`<br>再进行编译，编译后K-NET可以劫持双端进行网络加速。|
-|Tperf 1.0|tperf patch链接：https://gitee.com/openeuler/knet/tree/master/example/tperf|
+|Tperf 1.0|tperf patch链接：[获取连接](https://gitee.com/openeuler/knet/tree/master/example/tperf)|
 
 
 参考[版本配套关系](../release_note.md#版本配套关系)安装对应配套版本的业务软件。
@@ -37,5 +37,3 @@ redis-server -v
 若回显结果为6.0.20，则表示满足要求版本，否则需要用户自行源码安装6.0.20版本Redis。
 
 ![](../figures/zh-cn_image_0000002513960595.png)
-
-其他业务软件可以参考[特性支持](#特性支持)进行对应版本校验与安装，并参照上表说明进行使用。

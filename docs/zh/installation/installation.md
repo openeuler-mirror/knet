@@ -1,20 +1,5 @@
 # 安装前配置
 
--   **[安装依赖包](#安装依赖包)**  
-
--   **[（可选）安装DPDK](#可选安装dpdk)**  
-
-
-
-## 下载软件包
-
-**表 1**  patch获取列表
-
-|软件包（压缩包）|说明|获取地址|
-|--|--|--|
-|dpdk-21.11.7-dumpcap.patch|抓包工具patch|https://gitee.com/openeuler/dpdk/blob/575def3e5f5be8da8662d442c6ecd46e9ec82acf/patch/dpdk-21.11.7-dumpcap.patch|
-
-
 ## 安装依赖包
 
 1.  安装系统依赖。
@@ -90,7 +75,7 @@
 
 >**说明：** 
 >启用K-NET抓包功能才需要参考以下步骤安装，无需抓包可直接跳过以下步骤。
->以下提到的“dpdk-stable-21.11.7”为[步骤3](#step3)中DPDK解压所得目录，其他版本DPDK需自行适配。
+>以下提到的“dpdk-stable-21.11.7”为DPDK解压所得目录，其他版本DPDK需自行适配。
 
 1.  安装抓包工具依赖。
 
@@ -99,7 +84,7 @@
     ```
 
 2.  确保“dpdk-stable-21.11.7/app/dumpcap”目录下只有DPDK示例程序main.c和meson.build。若该目录下有其他文件，建议用户迁移至其他路径。
-3.  请参见[下载软件包](#下载软件包)获取dpdk-21.11.7-dumpcap.patch并上传至“dpdk-stable-21.11.7/app”目录。
+3.  请参见[Gitee](https://gitee.com/openeuler/dpdk/blob/575def3e5f5be8da8662d442c6ecd46e9ec82acf/patch/dpdk-21.11.7-dumpcap.patch)获取dpdk-21.11.7-dumpcap.patch并上传至“dpdk-stable-21.11.7/app”目录。
 4.  进入“dpdk-stable-21.11.7/app”目录，应用patch。
 
     ```

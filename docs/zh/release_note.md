@@ -20,20 +20,20 @@
 ### 软件配套关系
 | 项目       | 版本  |获取地址|
 |------------|-------|-------|
-| Redis  | 6.0.20   |https://github.com/redis/redis/tree/6.0.20|
-| DPDK  |  21.11.7 |https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz|
-| iPerf3  | 3.16  |https://github.com/esnet/iperf/releases/tag/3.16|
-| SockPerf  | 3.10  |https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip|
-| TPerf  | 1.0  |https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip|
+| Redis  | 6.0.20   |[获取链接](https://github.com/redis/redis/tree/6.0.20)|
+| DPDK  |  21.11.7 |[获取链接](https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz)|
+| iPerf3  | 3.16  |[获取链接](https://github.com/esnet/iperf/releases/tag/3.16)|
+| SockPerf  | 3.10  |[获取链接](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
+| TPerf  | 1.0  |[获取链接](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
 
 ## K-NET 1.0.0
 K-NET作为网络协议加速框架，北向提供统一的Socket API，南向提供统一的数据IO抽象层，同时提供配置文件，允许用户通过配置进行协议路由。K-NET加速框架通过规范协议适配接口，同时内部集成了不同的协议栈，当前已经集成了基于以太的用户态TCP/IP协议，未来会继续集成基于RDMA的用户态协议和基于UB的协议栈，来满足和适配大数据、数据库、分布式存储等多个业务场景。
 
 - K-NET框架Framework
-    1. Socket 透明替换：提供Socket透明替换接口支撑业务零侵入修改。
-    2. 提供插件化框架：插件化框架可以基于配置适配不同的协议，如用户态TCP协议栈，RDMA和UB协议等系统。
-    3. 提供协议编排能力：协议编排主要提供基础的协议进行编排，业务在启动时加载协议编排的能力使能业务处理。
-    4. 配置管理：加载协议栈和资源配置信息。
+    - Socket 透明替换：提供Socket透明替换接口支撑业务零侵入修改。
+    - 提供插件化框架：插件化框架可以基于配置适配不同的协议，如用户态TCP协议栈，RDMA和UB协议等系统。
+    - 提供协议编排能力：协议编排主要提供基础的协议进行编排，业务在启动时加载协议编排的能力使能业务处理。
+    - 配置管理：加载协议栈和资源配置信息。
 
 - 协议插件层
-    1. 提供一个用户态TCP/IP协议栈：用户态TCP/IP高性能协议栈，免除内核态和用户态的数据拷贝和系统调用，实现数据面高性能加速。
+    - 提供一个用户态TCP/IP协议栈：用户态TCP/IP高性能协议栈，免除内核态和用户态的数据拷贝和系统调用，实现数据面高性能加速。

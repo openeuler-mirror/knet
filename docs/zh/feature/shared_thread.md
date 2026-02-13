@@ -182,8 +182,9 @@
     ```
 
     开启共线程模式，确定端口范围。
-<a id="step4"></a>
-4.  保证内核协议栈与K-NET端口范围不交叉。
+
+
+4.  保证内核协议栈与K-NET端口范围不交叉。<a id="step4"></a>
     -   查看内核协议栈使用的端口范围。
 
         ```
@@ -207,5 +208,5 @@
 
 5.  启动业务。
 
-    以Tperf为例，参考[已支持应用](feature_overview.md#已支持应用)中的Tperf patch链接使用。
+    以Tperf为例，参考[特性支持](feature_overview.md#已支持应用)中的Tperf patch链接使用。
 
