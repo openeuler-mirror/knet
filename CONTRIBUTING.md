@@ -22,7 +22,7 @@
 💬 提供充分的上下文信息，这有助于维护者快速定位问题。
 
 #### 提交 `Issue`
-- 如果您准备上报Bug或提交需求，为`K-NET`贡献自己的意见或建议，可以在`K-NET`仓库上提交`Issue`（请参考 [Issue 提交指南](https://gitee.com/openeuler/community/blob/master/zh/contributors/issue-submit.md) )。
+- 如果您准备上报Bug或提交需求，为`K-NET`贡献自己的意见或建议，可以在`K-NET`仓库上提交`Issue`（请参考 [Issue 提交指南](https://gitcode.com/openeuler/community/blob/master/zh/contributors/issue-submit.md) )。
 
 #### 处理 `Issue`
 - 如果您愿意处理其中的一个 `Issue`，可以将它分配给自己。只需要在评论框内输入`/assign`或`/assign @yourself`，机器人就会将`Issue`分配给您，您的名字将显示在负责人列表里。
@@ -33,13 +33,13 @@
 - 如果您想参与编码贡献，需要准备`K-NET`的开发环境，请参考README.md内容搭建开发环境并执行示例
 
 #### 下载代码及新建分支
-- 您还需要了解如何在 `Gitee` 下载代码，通过 `PR`（`Pull Request`） 合入代码等。`K-NET` 使用 `Gitee` 代码托管平台，想了解具体的指导，请参考 [Gitee Workflow Guide](https://gitee.com/openeuler/community/blob/master/zh/contributors/Gitee-workflow.md) 。该托管平台的使用方法类似`GitHub`，如果您以前使用过`GitHub`，本节的内容您可以大致了解甚至跳过。
+- 您还需要了解如何在 `Gitcode` 下载代码，通过 `PR`（`Pull Request`） 合入代码等。`K-NET` 使用 `Gitcode` 代码托管平台，想了解具体的指导，请参考 [Gitcode Workflow Guide](https://gitcode.com/openeuler/community/blob/master/zh/contributors/Gitee-workflow.md) 。该托管平台的使用方法类似`GitHub`，如果您以前使用过`GitHub`，本节的内容您可以大致了解甚至跳过。
 
 #### 本地修改及验证
 - 在本地分支完成修改后，参考README.md内容进行构建和本地验证，并将修改推送至远程仓库
 
 #### 提交`PR` (`Pull Request`)
-- 创建并提交一个 `PR`。请参考  [openEuler 社区 PR 提交指导](https://gitee.com/openeuler/community/blob/master/zh/contributors/pull-request.md) 。
+- 创建并提交一个 `PR`。请参考  [openEuler 社区 PR 提交指导](https://gitcode.com/openeuler/community/blob/master/zh/contributors/pull-request.md) 。
 
 ## ❤️ 4. 联系与支持
 

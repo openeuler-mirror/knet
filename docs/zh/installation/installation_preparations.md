@@ -140,9 +140,9 @@
     
         ```
         sh install.sh ../dpdk-stable-21.11.7 build
-        sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+        cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
         ls -l /usr/lib64/librte_net_hinic3.so*
-        sudo ldconfig
+        ldconfig
         ```
 
         >**说明：** 
@@ -418,9 +418,9 @@ sh install.sh ../dpdk-stable-21.11.7 install bifur
     
     ```
     sh install.sh ../dpdk-stable-21.11.7 build
-    sudo cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+    cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
     ls -l /usr/lib64/librte_net_hinic3.so*
-    sudo ldconfig
+    ldconfig
     ```
 
     >**说明：** 

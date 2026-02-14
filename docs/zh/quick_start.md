@@ -33,6 +33,8 @@ $ python build.py debug rpm
 执行以下操作进入构建目录找到rpm包并安装，这里以ARM环境为例
 ```shell
 $ cd ./build/rpmbuild/RPMS
+$ rpm -ivh ./knet-1.0.0.aarch64.rpm
+# 若安装过K-NET可执行以下命令升级
 $ rpm -Uvh ./knet-1.0.0.aarch64.rpm --force --nodeps
 ```
 
