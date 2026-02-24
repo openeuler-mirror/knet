@@ -15,7 +15,11 @@
 #define __KNET_CONFIG_HW_SCAN_H__
 
 #include "knet_types.h"
- 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int KnetCheckCompatibleNic(void);
 int KnetIsEnableNicFlowFun(void);
 
@@ -28,4 +32,8 @@ int KnetIsEnableNicFlowFun(void);
  *         int -1 : 配置非法
  */
 int KnetKernelBondCfgScan(char *bondName, size_t bondLen);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

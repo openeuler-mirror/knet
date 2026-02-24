@@ -15,6 +15,9 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @ingroup  knet_sal_func
  * @brief mem分区ID
@@ -67,4 +70,7 @@ uint32_t KnetRegBind(void);
 uint32_t KnetRegSem(void);
 uint32_t KnetRegDelayCpd(void);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

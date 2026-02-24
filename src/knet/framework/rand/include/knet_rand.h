@@ -15,6 +15,9 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+}
+#endif
 /**
  * @brief 获取随机数
  *
@@ -24,4 +27,7 @@
  */
 int64_t KNET_GetRandomNum(uint8_t *data, uint32_t len);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_KNET_RAND_H

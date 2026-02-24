@@ -13,6 +13,10 @@
 #ifndef K_NET_SAL_INNER_H
 #define K_NET_SAL_INNER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint16_t KnetGetFdirQid(unsigned __int128 queMap, uint16_t *qid);
 
 int KNET_ACC_TxBurst(void *ctx, uint16_t queueId, void **buf, int cnt);
@@ -27,4 +31,8 @@ int KnetSetDpCfg(void);
 int32_t KnetRegWorkderId(void);
 
 int32_t KNET_ACC_WorkerGetSelfId(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_SAL_INNER_H

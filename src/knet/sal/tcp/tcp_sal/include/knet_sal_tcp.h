@@ -15,6 +15,9 @@
 
 #include "knet_init.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @brief Dp资源初始化
  *
@@ -30,4 +33,7 @@ uint32_t KNET_SAL_Init(void);
  */
 int KNET_DpPosixOpsApiInit(struct KNET_PosixApiOps *ops);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_SAL_TCP_H

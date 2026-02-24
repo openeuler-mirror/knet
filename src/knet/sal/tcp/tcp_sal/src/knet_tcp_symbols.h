@@ -38,6 +38,10 @@
 #include "dp_clock_api.h"
 #include "dp_sem_api.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define ARRAY_SIZE(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
 
 #define KNET_ADD_SYMBOL(symbol, member) {#symbol, (void**)&g_##member}
@@ -67,4 +71,7 @@ int KnetInitDpSymbols(void);
  */
 void KnetDeinitDpSymbols(void);
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #endif

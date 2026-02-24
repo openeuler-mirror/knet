@@ -17,6 +17,10 @@
 #include <linux/rtnetlink.h>
 #include "knet_lock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CACHE_LINE 64
 
 typedef struct {
@@ -74,4 +78,8 @@ int32_t KNET_FreeTapGlobal(void);
  * @return int fd > 0：成功；-1：无效
  */
 int KNET_GetIfIndex(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -15,6 +15,10 @@
 #include "dp_mp_api.h"
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t KnetHandleInit(void);
 int32_t KNET_ACC_CreateMbufMemPool(const DP_MempoolCfg_S *cfg, const DP_MempoolAttr_S *attr, DP_Mempool *handler);
 void KNET_ACC_DestroyMbufMemPool(DP_Mempool mp);
@@ -22,4 +26,7 @@ void KNET_ACC_MbufMemPoolFree(DP_Mempool mp, void *ptr);
 void *KNET_ACC_MbufMemPoolAlloc(DP_Mempool mp);
 void *KNET_ACC_MbufConstruct(DP_Mempool mp, void *addr, uint64_t offset, uint16_t len);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_SAL_MP_H

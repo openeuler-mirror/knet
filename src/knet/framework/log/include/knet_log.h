@@ -17,6 +17,10 @@
 #include <syslog.h>
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // 定义输出日志的模块名字，使得在输出日志中统一
 #define KNET_LOG_MODULE_NAME "libknet"
 #define KNET_LIMIT_LOG_DEFAULT_INTERNEL_IN_MS (100) /* 0.1s */
@@ -152,4 +156,7 @@ uint64_t KNET_GetCurrentTimeMillis(void);
         limitTimes##__func__##__LINE__ = 0;                                                                          \
     } while (0)                                                                                                      \
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_LOG_H__

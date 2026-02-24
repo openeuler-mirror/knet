@@ -15,6 +15,10 @@
 #include "rte_flow.h"
 #include "knet_config.h"
 
+#ifdef __cplusplus
+}
+#endif
+
 typedef struct {
     uint16_t portId;
     uint16_t bondPortId;
@@ -56,4 +60,7 @@ int32_t KNET_UninitDpdk(int procType, int processMode);
  */
 void* KNET_GetDelayRxRing(int cpdRingId);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_dpdk_init_H__

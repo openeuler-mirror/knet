@@ -20,6 +20,10 @@
 #include "knet_types.h"
 #include "knet_offload.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define INVALID_IP  0xFFFFFFFF
 #define PORT_MAX 65535U
 #define MAX_CPD_NAME_LEN 32
@@ -128,4 +132,8 @@ int KNET_SetQueIdMapPidTidLcoreInfo(uint32_t queId, uint32_t pid, uint32_t tid, 
  */
 int KNET_ProcessFlowTable(uint32_t startIndex, uint32_t flowCount, struct rte_tel_data *data);
 
+
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_TRANSMISSION_H__

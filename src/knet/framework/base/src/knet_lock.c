@@ -13,9 +13,7 @@
 #include "knet_lock.h"
 
 #ifdef __cplusplus
-#if __cplusplus
 extern "C" {
-#endif
 #endif
 
 static __thread KNET_WaitPolicy g_waitPolicy = KNET_SPIN_WAIT; /* 每个线程的调度等待属性，为线程变量 */
@@ -26,7 +24,5 @@ KNET_WaitPolicy KNET_HalGetWaitPolicy(void)
 }
 
 #ifdef __cplusplus
-#if __cplusplus
 }
-#endif /* __cpluscplus */
 #endif /* __cpluscplus */

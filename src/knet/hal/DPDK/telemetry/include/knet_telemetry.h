@@ -17,6 +17,11 @@
 #include "dp_debug_api.h"
 #include "knet_types.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define MAX_PROCESS_NUM 32
 #define MAX_OUTPUT_LEN 16384 /* 适配DP_ShowStatistics接口维测信息长度 */
 #define KNET_TELEMETRY_MZ_NAME "knet_telemetry_debug_info_mz"
@@ -186,4 +191,8 @@ int32_t KNET_TelemetryStartPersistThread(int procType, int processMode);
  * @brief 退出持久化线程
  */
 void KNET_TelemetrySetPersistThreadExit(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif  // __KNET_TELEMETRY_H__

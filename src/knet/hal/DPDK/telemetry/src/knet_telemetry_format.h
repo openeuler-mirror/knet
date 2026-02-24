@@ -13,6 +13,10 @@
 #ifndef __KNET_TELEMETRY_FORMAT_H__
 #define __KNET_TELEMETRY_FORMAT_H__
 
+#ifdef __cplusplus
+}
+#endif
+
 #define FORMAT_INT_WIDTH 21 // uint64_t 最大20位
 #define FORMAT_SUCCESS(ret, offset) ((ret) < 0 ? (offset) : (offset) + (ret))
 
@@ -32,4 +36,7 @@ int TelemetryPersistInitDpJson(void);
 void TelemetryPersistUninitDpJson(void);
 int TelemetryPersistInitGetDpStatFunc(int32_t runMode);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* __KNET_TELEMETRY_FORMAT_H__ */

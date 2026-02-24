@@ -13,6 +13,10 @@
 #ifndef __KNET_RPC_H__
 #define __KNET_RPC_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define RPC_MESSAGE_SIZE 128
 // 此宏定义为rpc通信时约束的动态申请空间的最大值，理论最大值是配置文件传输MAX_CFG_SIZE
 #define RPC_MESSAGE_SIZE_MAX 8000
@@ -90,4 +94,7 @@ int KNET_RpcRegServer(enum KNET_RpcEventType event, enum KNET_RpcModType mod, Rp
  */
 void KNET_RpcDesServer(enum KNET_RpcEventType event, enum KNET_RpcModType mod);
 
+#ifdef __cplusplus
+}
+#endif
 #endif  // __KNET_RPC_H__

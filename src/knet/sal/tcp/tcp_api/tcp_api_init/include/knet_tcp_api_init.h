@@ -13,6 +13,10 @@
 #ifndef __KNET_TCP_API_INIT_H__
 #define __KNET_TCP_API_INIT_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief 设置协议栈初始化完成
  */
@@ -30,4 +34,7 @@ void KNET_DpExit(void);
 
 extern bool g_tcpInited;
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_TCP_API_INIT_H__

@@ -17,6 +17,9 @@
 
 #include "dp_in_api.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @brief 检查文件描述符是否有效
  *
@@ -56,4 +59,7 @@ ssize_t KNET_DpRead(int sockfd, void *buf, size_t count);
 ssize_t KNET_DpWrite(int sockfd, const void *buf, size_t count);
 int KNET_DpIoctl(int sockfd, unsigned long request, ...);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_TCP_SOCKET_H

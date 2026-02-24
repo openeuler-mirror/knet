@@ -16,6 +16,10 @@
 
 #include "knet_config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_QUEUE_ID_NULL (-1)
 #define KNET_QUEUE_ID_INVALID (-2)
 #define MAX_CORE_NUM 128
@@ -40,4 +44,7 @@ int KnetGetQueueIdFromPool(int requeseQueueId);
 int KnetFreeQueueIdInPool(int index);
 int KnetDelProcessLocalQid(int clientId);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

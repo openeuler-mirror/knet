@@ -16,6 +16,10 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum KNET_ConfModule {
     CONF_COMMON,
     CONF_INTERFACE,
@@ -224,4 +228,8 @@ int KNET_IsQueueIdUsed(int queueId);
  *         int 1 : 需要下发
  */
 int KNET_IsNeedFlowRule(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

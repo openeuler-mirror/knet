@@ -13,6 +13,10 @@
 #ifndef __KNET_BOND_H__
 #define __KNET_BOND_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_BOND_SLAVE_NUM 2
 
 #define KNET_SECONDARY_BOND_PORT_ID 2 // todo: 从进程bond port id打桩为2，后续需要通过进程间通信从主进程获取
@@ -50,4 +54,7 @@ int KNET_BondPortMacCheck(void);
  */
 int KNET_BondUninit(int procType);
 
+#ifdef __cplusplus
+}
+#endif
 #endif  // __KNET_BOND_H__

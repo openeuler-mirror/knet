@@ -15,6 +15,11 @@
 
 #include "rte_ethdev.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum DPDK_PORT_TYPE {
     DPDK_PORT_NORMAL = 0,
     DPDK_PORT_BOND,
@@ -95,4 +100,8 @@ int32_t KNET_GenerateArpFlow(uint16_t portId, uint32_t queueId, struct rte_flow 
 int32_t KNET_DeleteFlowRule(uint16_t portId, struct rte_flow *flow);
 
 uint32_t KNET_GetMaxEntryId(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif
