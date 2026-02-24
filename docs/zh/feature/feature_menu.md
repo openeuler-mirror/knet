@@ -1,6 +1,6 @@
 # 特性指南
 
--   [特性支持和已支持应用](feature_overview.md)
+-   [特性支持](feature_overview.md)
 
 -   [环境配置](preparations.md)
 
