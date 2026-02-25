@@ -666,7 +666,7 @@ int WriteJsonTail(FILE *file, int offset)
     char temp[TEMP_BUFF_LEN + 1] = {0};
     int tempLeftLen = TEMP_BUFF_LEN;
     int tailOffset = offset - 2; // 回退最后的",\n"
-    int len = FormatingInCustom(temp, &tempLeftLen, "\n}\n");
+    int len = FormatingInCustom(temp, &tempLeftLen, "\n}");
     if (len < 0) {
         KNET_ERR("K-NET telemetry persist write json tail failed. Format tail failed");
         return -1;
@@ -734,8 +734,7 @@ int GetSingleProcessDpStatsMulti(char *singleOutput, int *outputLeftLen, int pid
     int processDataOffset = 0;
     /* 提前通知子进程刷新所有统计信息 */
     NotifySubprocessRefreshDpState(pid);
-    /* 存在一种情况:最后一个进程是死的，但是构造Json尾的时候把最后一个进程尾部的'，\n'修改掉
-    导致偏移会有误,因此需要手动矫正，并补充'.\n" */
+    /* 存在一种情况:最后一个进程是死的, 需要处理文件中写好的json尾部, 并添加",\n" */
     if (formatLastTail) {
         FORMAT_FUNC_SUCCESS(FormatingInCustom(singleOutput, outputLeftLen, ",\n"), processDataOffset);
         if (processDataOffset < 0) {
@@ -784,7 +783,11 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
         // 只刷新活的进程，进程的死活通过rpc消息来通知维护
         if (!processInfo[i].alive) {
             offset += processInfo[i].offset; // 偏移到下一个进程尾部
-            if (!BIT_TEST(knetProcessInfo->writeBitMap, i + 1)) { // i+1的位置是0的话,表示这是当前写进文件里的最后一个进程
+            if (!BIT_TEST(knetProcessInfo->writeBitMap, i + 1)) {
+                /* 第i+1位bit是0,表示第i个进程是写入文件里的最后一个进程
+                   最后一个进程是dead进程则当前文件是最后的符号是json的尾部
+                   当有新的进程需要写入时需要处理这个尾部
+                */
                 formatLastTail = true;
             }
             continue;
@@ -797,12 +800,16 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
             offset += processInfo[i].offset; // 偏移到下一个进程开始的地方
             continue;                        // 这个进程刷新失败了，继续刷新下一个进程
         }
-        if (formatLastTail) {
-            offset -= ROLLBACK_STR_LEN; // 需要补充最后一个进程尾部",\n",因此需要向前偏移2字节
-            processDataOffset -= ROLLBACK_STR_LEN;
-        }
         processInfo[i].offset = processDataOffset;
-        ret = WriteDataToFile(file, singleOutput, processDataOffset, offset); // 写入单个进程数据
+        if (formatLastTail) {
+            /* 当前文件是{\n...,\n"pstats0":{}\n} 回退最后两个字符，加上前缀,\n 后面补新进程数据
+               即将写入文件的内容是 ,\n"pstats1":{...},\n
+            */
+            offset -= ROLLBACK_STR_LEN;
+            processInfo[i].offset = processDataOffset - ROLLBACK_STR_LEN; // 多算了一个前缀,\n, 不属于本进程，offset减去
+        }
+        // 写入单个进程数据
+        ret = WriteDataToFile(file, singleOutput, processDataOffset, offset);
         if (ret < 0) {
             KNET_ERR("K-NET telemetry persist write process %d to file failed", processInfo[i].pid);
             offset += processInfo[i].offset; // 偏移到下一个进程开始的地方
