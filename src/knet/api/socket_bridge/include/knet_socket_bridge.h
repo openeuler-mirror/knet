@@ -20,6 +20,10 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 入参同标准posix函数入参描述一致 */
 int KNET_Sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
 sighandler_t KNET_Signal(int signum, sighandler_t handler);
@@ -62,4 +66,7 @@ int KNET_Pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 int KNET_Ioctl(int sockfd, unsigned long request, ...);
 pid_t KNET_Fork(void);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_SOCKET_BRIDGE_H__

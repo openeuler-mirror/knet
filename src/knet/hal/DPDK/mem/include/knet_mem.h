@@ -13,6 +13,10 @@
 #ifndef __KNET_MEM_H__
 #define __KNET_MEM_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define OSALMEM_TYPE "OSAL_MEM"
 
 /**
@@ -44,4 +48,7 @@ void KNET_MemFree(void *ptr);
  * @param
  */
 void KNET_MemSetFlagInSignalQuiting(void);
+#ifdef __cplusplus
+}
+#endif
 #endif

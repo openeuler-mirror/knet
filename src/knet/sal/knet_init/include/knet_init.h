@@ -39,6 +39,10 @@
 #include "knet_types.h"
 #include "knet_lock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct KNET_PosixApiOps {
     int (*socket)(int domain, int type, int protocol);
     int (*listen)(int sockfd, int backlog);
@@ -108,4 +112,8 @@ int KNET_PosixOpsApiInit(struct KNET_PosixApiOps *ops);
  */
 void KNET_AllThreadLock(void);
 void KNET_AllThreadUnlock(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

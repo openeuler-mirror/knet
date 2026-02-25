@@ -16,6 +16,10 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_STK_MP_POOLID 0
 #define KNET_STK_MP_MAX_NUM 1
 
@@ -49,4 +53,7 @@ void *KNET_StkMpAlloc(void);
  */
 void KNET_StkMpFree(void *buf);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

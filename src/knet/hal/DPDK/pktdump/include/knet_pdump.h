@@ -14,6 +14,10 @@
 
 #include <rte_memzone.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_MULTI_PDUMP_MZ "knet_multi_pdump"
 
 /**
@@ -40,4 +44,7 @@ const struct rte_memzone* KNET_MultiPdumpInit(void);
  */
 int32_t KNET_MultiPdumpUninit(const struct rte_memzone *pdumpRequestMz);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

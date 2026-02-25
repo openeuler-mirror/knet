@@ -15,6 +15,10 @@
 
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief 线程创建
  *
@@ -70,4 +74,7 @@ int32_t KNET_JoinThread(uint64_t threadId, void **ret);
  */
 uint64_t KNET_ThreadId(void);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_KNET_THREAD_H

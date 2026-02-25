@@ -168,7 +168,7 @@ struct ConfKeyHandle *g_confHandleMap[CONF_MAX] = {
 
 KNET_STATIC char *g_primaryCfg = NULL; // 用于校验配置文件一致性, 主进程留存启动时配置文件
 
-static int g_needFlowRule = -1; // 用于判断当前cfg配置是否需要下发流表 0代表不需要，1代表需要
+KNET_STATIC int g_needFlowRule = -1; // 用于判断当前cfg配置是否需要下发流表 0代表不需要，1代表需要
 
 KNET_STATIC char *GetKnetCfgContent(const char *fileName)
 {

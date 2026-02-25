@@ -15,6 +15,10 @@
 #include <sys/epoll.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+}
+#endif
+
 #define KNET_EPOLL_MAX_NUM (((uint32_t)0xFFFFFFFF) / sizeof(struct epoll_event))
 
 
@@ -106,4 +110,8 @@ int KNET_DpSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds
 int KNET_DpPSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds, const struct timespec *timeout,
     const sigset_t *sigmask);
 
+
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_TCP_SOCKET_H

@@ -14,6 +14,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define IF_NAME_SIZE 16
 #define INVALID_FD 0xFFFFFFFF
 #define TUN_PRE_NAME "knet_tap"
@@ -45,4 +49,7 @@ int32_t KNET_TapFree(int32_t fd);
  */
 int KNET_TAPCreate(int32_t *fd, int *tapIfIndex);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

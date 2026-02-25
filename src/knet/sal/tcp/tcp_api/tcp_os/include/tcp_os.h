@@ -14,6 +14,10 @@
 #define K_NET_TCP_OS_H
 
 #include "knet_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 /**
  * @brief 判断是否是父进程
  * @return bool 如果是父进程返回true,否则返回false
@@ -42,4 +46,8 @@ int KNET_DpSigaction(int signum, const struct sigaction *act, struct sigaction *
  * @return sighandler_t 原信号处理函数
  */
 sighandler_t KNET_DpSignal(int signum, sighandler_t handler);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_TCP_OS_H

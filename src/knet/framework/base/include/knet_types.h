@@ -23,6 +23,10 @@
 #include <inttypes.h>
 #include <securec.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef __USE_GNU
 typedef void (*sighandler_t)(int);
 #endif
@@ -123,4 +127,7 @@ static KNET_ALWAYS_INLINE void *KnetPtrSub(void *ptr, uintptr_t x)
     return ((void*)((uintptr_t)(ptr) - (uintptr_t)(x)));
 }
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_TYPES_H__

@@ -16,6 +16,10 @@
 #include <stdint.h>
 #include <pthread.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_SPIN_UNLOCKED_VALUE         (0)
 #define KNET_SPIN_LOCKED_VALUE           (1)
 
@@ -173,4 +177,7 @@ static inline void KNET_RwlockWriteUnlock(KNET_RWLock *pstRwlock)
     __atomic_fetch_add(&(pstRwlock)->value, 1, __ATOMIC_RELEASE);
 }
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_KNET_LOCK_H

@@ -18,6 +18,10 @@
 #include <sys/stat.h>
 #include "knet_log.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_CAP_MAX_BITMAP     0x7f
 #define KNET_CAP_MAX_NUM        7
 
@@ -43,4 +47,7 @@ void KNET_GetCap(uint8_t getCapBitmap);
  */
 void KNET_ClearCap(uint8_t clearCapBitmap);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* KNET_CAPBILITY */

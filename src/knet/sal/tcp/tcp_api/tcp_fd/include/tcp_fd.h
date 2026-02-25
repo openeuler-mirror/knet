@@ -18,6 +18,10 @@
 #include "dp_posix_epoll_api.h"
 #include "knet_atomic.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define INVALID_FD (-1)
 #define KNET_INVALID_FD (-1)
 #define KNET_ESTABLISHED_FD (1)
@@ -168,4 +172,7 @@ void KNET_EpHasOsFdSet(int osFd);
 
 bool KNET_EpfdHasOsfdGet(int osFd);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // K_NET_TCP_FDS_H

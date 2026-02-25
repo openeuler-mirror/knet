@@ -17,6 +17,10 @@
 #include "knet_rpc.h"
 #include "knet_config_core_queue.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum ConfigRequestType {
     CONF_REQ_TYPE_GET = 0,
     CONF_REQ_TYPE_FREE,
@@ -36,4 +40,7 @@ int KnetGetQueueIdFromPrimary(void);
 int KnetFreeQueueIdFromPrimary(int index);
 int KnetRegConfigRpcHandler(enum KNET_ProcType procType);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

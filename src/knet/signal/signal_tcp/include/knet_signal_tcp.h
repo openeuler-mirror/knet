@@ -19,6 +19,10 @@
 #include "knet_types.h"
 #include "knet_lock.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Linux下未定义的信号 */
 #define SIGUNKNOWN1 32
 #define SIGUNKNOWN2 33
@@ -137,4 +141,7 @@ extern __thread struct KnetDpSignalFlags g_knetDpSignalFlags;
         }                                                              \
     } while (0)
 
+#ifdef __cplusplus
+}
+#endif
 #endif // KNET_SIGNAL_TCP_H
