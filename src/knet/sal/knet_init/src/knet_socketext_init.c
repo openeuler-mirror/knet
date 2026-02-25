@@ -121,7 +121,9 @@ EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int que
             int epollDpFd = KNET_OsFdToDpFd(osFd);
             int workerId = 0;
             int maxSockFd = 0;
-            DP_EpollDetails_t *sockDetails = KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
+            int sockCount = 0;
+            DP_EpollDetails_t *sockDetails =
+                KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, &sockCount, isSecondary);
             if (sockDetails == NULL) {
                 rte_free(epollDetailCtx);
                 KNET_ERR("K-NET telemetry epoll details callback failed, get epoll sock details failed");
@@ -134,7 +136,8 @@ EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int que
                                               .osFd = osFd,
                                               .dpFd = epollDpFd,
                                               .details = sockDetails,
-                                              .maxSockFd = maxSockFd};
+                                              .maxSockFd = maxSockFd,
+                                              .sockCount = sockCount};
 
             epollDetailCtx[index] = epollctx;
             index++;

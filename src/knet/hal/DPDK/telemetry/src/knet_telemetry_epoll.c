@@ -25,6 +25,8 @@
 #define RESERVED_EPOLL_EVENT_AMOUNT 100
 #define MAX_FD_NUM_LIMIT 256
 #define MAX_TID_LEN 20
+#define FD_STR_LEN 32
+#define SUGGEST_EPOLL_FD_CNT 100
 
 typedef struct {
     uint32_t pid;
@@ -136,7 +138,7 @@ KNET_STATIC DP_EpollDetails_t *SortSockDetailsByOsFd(DP_EpollDetails_t *sockDeta
     return sockDetailsSorted;
 }
 
-DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary)
+DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, int *sockCount, bool isSecondary)
 {
     int expectedSockFdCount = GetEpollDetailsHookHandler(epFd, NULL, 0, workerId);
     if (expectedSockFdCount < 0) {
@@ -160,6 +162,7 @@ DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSoc
         return NULL;
     }
     free(details);
+    *sockCount = detailsFdCount;
     return sortedDetails;
 }
 KNET_STATIC int ProcessPerSockDetail(DP_EpollDetails_t sockDetails, struct rte_tel_data *sockDict)
@@ -168,7 +171,6 @@ KNET_STATIC int ProcessPerSockDetail(DP_EpollDetails_t sockDetails, struct rte_t
     if (rte_tel_data_start_dict(sockDict) != 0) {
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "fd", sockDetails.fd);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "expectEvents", sockDetails.expectEvents);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "readyEvents", sockDetails.readyEvents);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "notifiedEvents", sockDetails.notifiedEvents);
@@ -196,7 +198,7 @@ KNET_STATIC int ProcessSockDetails(DP_EpollDetails_t *sockDetails, struct rte_te
                 KNET_ERR("K-NET telemetry epoll details callback failed, process per sock detail failed");
                 return KNET_ERROR;
             }
-            char keyName[MAX_JSON_KEY_NAME_LEN] = "socket_";
+            char keyName[MAX_JSON_KEY_NAME_LEN] = "fd_";
             (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
                              MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%u", sockDetails[i].fd);
             if (CheckAddContainerToDict(sockDetailDict, keyName, sockDict) != 0) {
@@ -254,6 +256,12 @@ KNET_STATIC int ProcessEpollInfo(TelemetryEpollParams *epollParams, EpollTelemet
         KNET_ERR("K-NET telemetry epoll details callback failed, process per epoll info failed");
         return KNET_ERROR;
     }
+    if ((epollParams->fdCnt > SUGGEST_EPOLL_FD_CNT || epollParams->fdCnt == 0) &&
+        epollctx->sockCount > SUGGEST_EPOLL_FD_CNT) {
+        CHECK_ADD_VALUE_TO_DICT(
+            rte_tel_data_add_dict_string, data, "Attention",
+            "<fd_cnt> recommended range: 1-100. Some values may not display fully.");
+    }
     char keyName[MAX_JSON_KEY_NAME_LEN] = "epoll_";
     (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
                      MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%d", epollctx->osFd);
@@ -291,7 +299,9 @@ KNET_STATIC int ProcessEpollDetailsInfo(TelemetryEpollParams *epollParams, struc
             int epollDpFd = KNET_OsFdToDpFd(osFd);
             int workerId = 0;
             int maxSockFd = 0;
-            DP_EpollDetails_t *sockDetails = KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, isSecondary);
+            int sockCount = 0;
+            DP_EpollDetails_t *sockDetails =
+                KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, &sockCount, isSecondary);
             if (sockDetails == NULL) {
                 KNET_ERR("K-NET telemetry epoll details callback failed, get epoll sock details failed");
                 return KNET_ERROR;
@@ -302,7 +312,8 @@ KNET_STATIC int ProcessEpollDetailsInfo(TelemetryEpollParams *epollParams, struc
                                               .osFd = osFd,
                                               .dpFd = epollDpFd,
                                               .details = sockDetails,
-                                              .maxSockFd = maxSockFd};
+                                              .maxSockFd = maxSockFd,
+                                              .sockCount = sockCount};
             if (ProcessEpollInfo(epollParams, &epollctx, data) != KNET_OK) {
                 free(sockDetails);
                 KNET_ERR("K-NET telemetry epoll details callback failed, process epoll info failed");

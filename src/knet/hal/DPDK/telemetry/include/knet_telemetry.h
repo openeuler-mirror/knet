@@ -67,6 +67,7 @@ typedef struct {
     int dpFd;
     DP_EpollDetails_t *details;
     int maxSockFd;
+    int sockCount;
 } EpollTelemetryContext;
 
 typedef struct {
@@ -168,11 +169,12 @@ int KNET_MaintainQueue2TidPidMp(uint32_t queId);
  * @param epFd epoll的fd
  * @param workerId 工作进程id
  * @param maxSockFd 最大socket fd
+ * @param sockCount epoll监听socket数量
  * @param isSecondary 是否是从进程
  * @return DP_EpollDetails_t* 详细信息
  * @note: 返回的内存需要调用者释放
  */
-DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, bool isSecondary);
+DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, int *sockCount, bool isSecondary);
 
 /**
  * @brief 启动数据持久化线程
