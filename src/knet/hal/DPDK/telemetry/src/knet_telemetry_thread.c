@@ -41,8 +41,9 @@
 #define SINGLE_BLOCK_RESERVE 100 // 单个块保留100字节
 #define TEMP_BUFF_LEN 30         // 临时buffer长度
 #define DUMP_FILE_BUFFER_SIZE 4096
-#define FILE_AUTHORITY 0600      // 文件权限
-#define FILE_AUTHORITY_DUMP 0400 // 转储后的文件权限
+#define CATALOGUE_AUTHORITY 0750 // stats目录权限, 目录访问需要执行权限
+#define FILE_AUTHORITY 0640      // 文件权限
+#define FILE_AUTHORITY_DUMP 0440 // 转储后的文件权限
 #define MAX_DUMP_FILE_NUM 9 // 文件转储前保持9个，转储会新增1个
 #define MAX_COLLECT_DUMP_FILES 50    /* 定义一个足够大的缓冲区来收集转储文件，最多支持50个转储文件 */
 #define DUMP_FILE_PREFIX_LEN 13       // "knet_persist-" 前缀长度
@@ -365,7 +366,7 @@ KNET_STATIC int CleanupOldDumpFiles(void)
  * @param oldFile 指向已打开的旧文件的FILE指针
  * @return int 成功返回0，失败返回-1
  * @note 新文件名格式由SAVE_FILE_DUMP_NAME宏定义，包含当前时间戳
- * @note 转储成功后会设置文件权限为FILE_AUTHORITY_DUMP(0400)
+ * @note 转储成功后会设置文件权限为FILE_AUTHORITY_DUMP(0440)
  * @warning 调用此函数前必须确保oldFile已正确打开
  */
 int StartDumpOldFile(FILE *oldFile)
@@ -411,7 +412,7 @@ int StartDumpOldFile(FILE *oldFile)
         }
     }
     (void)fclose(newFile);
-    /* 设置转储后的文件权限0400 */
+    /* 设置转储后的文件权限0440 */
     if (chmod(dumpName, FILE_AUTHORITY_DUMP) == -1) {
         KNET_ERR("K-NET telemetry statistic persist dump failed. Set dump file authority failed with errno %d", errno);
         return -1;
@@ -438,7 +439,7 @@ int DumpOldFile(void)
             return -1;
         }
         /* 路径不存在，则创建路径 */
-        if (mkdir(SAVE_FILE_PATH, FILE_AUTHORITY) != 0) { // 0600 权限 rw------
+        if (mkdir(SAVE_FILE_PATH, CATALOGUE_AUTHORITY) != 0) { // 0750 权限 rwxr-x---
             KNET_ERR("K-NET telemetry statistic persist mkdir failed with errno %d", errno);
             return -1;
         }
@@ -461,7 +462,7 @@ int DumpOldFile(void)
     if (file != NULL) {
         (void)fclose(file);
     }
-    /* 设置文件的权限为0600 */
+    /* 设置文件的权限为0640 */
     if (chmod(SAVE_FILE_NAME, FILE_AUTHORITY) == -1) {
         KNET_ERR("K-NET telemetry statistic persist set save file authority failed with errno %d", errno);
         return -1;
@@ -531,7 +532,7 @@ FILE *OpenFileWithRWB(const char *filePath, const char *filename)
             return NULL;
         }
         fclose(fp);
-        /* 设置文件的权限为0600 */
+        /* 设置文件的权限为0640 */
         if (chmod(SAVE_FILE_NAME, FILE_AUTHORITY) == -1) {
             KNET_ERR("K-NET open telemetry persist file failed. Set persist file authority failed with errno %d",
                      errno);
