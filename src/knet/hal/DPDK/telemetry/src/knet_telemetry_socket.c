@@ -229,7 +229,7 @@ int KnetTelemetryGetFdCountCallbackMp(const char *cmd, const char *params, struc
 KNET_STATIC KNET_SocketState *GetNetStat()
 {
     int fdMax = KNET_FdMaxGet();
-    KNET_SocketState *sockets = (KNET_SocketState *)calloc(1, sizeof(KNET_SocketState) * fdMax + 1);
+    KNET_SocketState *sockets = (KNET_SocketState *)calloc(1, sizeof(KNET_SocketState) * (fdMax + 1));
     if (sockets == NULL) {
         KNET_ERR("K-NET telemetry get net stat failed, calloc failed");
         return NULL;
@@ -390,9 +390,8 @@ KNET_STATIC int ParseNetStatParams(const char *params, uint32_t *pid, uint32_t *
     *pid = paramsArr[NET_STAT_PARAM_PID];
     *startFd = paramsArr[NET_STAT_PARAM_START_FD];
     *fdCnt = paramsArr[NET_STAT_PARAM_FD_CNT];
-    if (*startFd < 0 || *fdCnt < 0 || *fdCnt > MAX_FD_NUM_LIMIT) {
-        KNET_ERR("K-NET telemetry get net state failed, startFd and fdCnt must be positive,"
-                 "and fd_cnt must be less than 256");
+    if (*fdCnt > MAX_FD_NUM_LIMIT) {
+        KNET_ERR("K-NET telemetry get net state failed, fd_cnt must be less than 256");
         return KNET_ERROR;
     }
     return KNET_OK;

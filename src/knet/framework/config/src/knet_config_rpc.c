@@ -80,10 +80,7 @@ int KnetGetRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, 
         KNET_ERR("Set process local queue id failed, client %d, ret %d", clientId, ret);
         return -1;
     }
-    // 持久化新增进程
-    if (g_telemetryNotifyFunc.addNewProcess != NULL) {
-        g_telemetryNotifyFunc.addNewProcess(clientId, req->pid);
-    }
+
     knetRpcResponse->dataType = RPC_MSG_DATA_TYPE_FIXED_LEN;
     knetRpcResponse->dataLen = sizeof(int);
     ret = memcpy_s(knetRpcResponse->fixedLenData, RPC_MESSAGE_SIZE, &queueId, sizeof(int));
@@ -92,6 +89,10 @@ int KnetGetRequestHandler(int clientId, struct KNET_RpcMessage *knetRpcRequest, 
         KnetDelProcessLocalQid(clientId);
         KNET_ERR("Memcpy failed, client %d, ret %d", clientId, ret);
         return -1;
+    }
+    // 持久化新增进程
+    if (g_telemetryNotifyFunc.addNewProcess != NULL) {
+        g_telemetryNotifyFunc.addNewProcess(clientId, req->pid);
     }
     return 0;
 }

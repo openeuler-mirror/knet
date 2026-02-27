@@ -58,10 +58,8 @@ KNET_STATIC int ParseEpollDetailsParams(const char *params, TelemetryEpollParams
     epollParams->epollFdCnt = paramsArr[PARAM_EPOLL_FD_CNT];
     epollParams->startFd = paramsArr[PARAM_START_FD];
     epollParams->fdCnt = paramsArr[PARAM_FD_CNT];
-    if (epollParams->epollStartFd < 0 || epollParams->epollFdCnt < 0 || epollParams->epollFdCnt > MAX_FD_NUM_LIMIT ||
-        epollParams->startFd < 0 || epollParams->fdCnt < 0 || epollParams->fdCnt > MAX_FD_NUM_LIMIT) {
-        KNET_ERR("K-NET telemetry epoll details callback failed, all params must be greater than 0, and epoll_fd_cnt "
-                 "and fd_cnt must be less than 256");
+    if (epollParams->epollFdCnt > MAX_FD_NUM_LIMIT || epollParams->fdCnt > MAX_FD_NUM_LIMIT) {
+        KNET_ERR("K-NET telemetry epoll details callback failed, epoll_fd_cnt and fd_cnt must be less than 256");
         return KNET_ERROR;
     }
     if (epollParams->pid != (uint32_t)getpid()) {
@@ -85,9 +83,8 @@ KNET_STATIC int ParseEpollDetailsParamsAndGetQueId(const char *params, Telemetry
     epollParams->epollFdCnt = paramsArr[PARAM_EPOLL_FD_CNT];
     epollParams->startFd = paramsArr[PARAM_START_FD];
     epollParams->fdCnt = paramsArr[PARAM_FD_CNT];
-    if (epollParams->epollStartFd < 0 || epollParams->epollFdCnt < 0 || epollParams->epollFdCnt > MAX_FD_NUM_LIMIT ||
-        epollParams->startFd < 0 || epollParams->fdCnt < 0 || epollParams->fdCnt > MAX_FD_NUM_LIMIT) {
-        KNET_ERR("K-NET telemetry epoll details callback failed, all params must be greater than 0");
+    if (epollParams->epollFdCnt > MAX_FD_NUM_LIMIT || epollParams->fdCnt > MAX_FD_NUM_LIMIT) {
+        KNET_ERR("K-NET telemetry epoll details callback failed, epoll_fd_cnt and fd_cnt must be less than 256");
         return KNET_ERROR;
     }
     *queId = KnetGetQueIdByPid(epollParams->pid, telemetryInfo);
@@ -421,6 +418,7 @@ int KnetTelemetryEpollDetailsCallbackMp(const char *cmd, const char *params, str
 
     if (ProcessMultiEpollDetails(&epollParams, telemetryInfo->epollDetailCtx, data) != KNET_OK) {
         KNET_ERR("K-NET telemetry get epoll details failed, process multi epoll details failed");
+        rte_free(telemetryInfo->epollDetailCtx);
         return KNET_ERROR;
     }
 
