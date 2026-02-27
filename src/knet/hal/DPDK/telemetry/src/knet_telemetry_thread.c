@@ -269,6 +269,60 @@ static int ExtractTimestampInt(const char *filePath, long long *timestamp)
 }
 
 /**
+ * @brief 检查进程是否需要跳过（基于telemetry内存zone状态）
+ * @param knetProcessInfo 进程信息结构体指针
+ * @param processIndex 当前进程索引
+ * @param offset 指向当前文件偏移量的指针，函数内部可能修改
+ * @return int 返回值：0表示不需要跳过，1表示需要跳过
+ * @note 即使memZone查找失败也会返回0（不跳过），保持容错性
+ */
+static int CheckProcessSkipByTelemetryState(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset)
+{
+    struct ProcessInfo *processInfo = knetProcessInfo->processInfo;
+    const struct rte_memzone *memZone = rte_memzone_lookup(KNET_TELEMETRY_PERSIST_MZ_NAME);
+    if (memZone == NULL || memZone->addr == NULL) {
+        KNET_ERR("Subprocess couldn't allocate memory for telemetry persist mz");
+        return 0; // 容错：不跳过，继续处理
+    }
+    KNET_TelemetryPersistInfo *telemetryInfo = memZone->addr;
+    if (BIT_TEST(knetProcessInfo->writeBitMap, processIndex) && telemetryInfo->state != KNET_TELE_PERSIST_MSGREADY) {
+        if (processInfo[processIndex].offset > 0) {
+            *offset += processInfo[processIndex].offset;
+            KNET_WARN("K-NET telemetry persist process %d is dead, skip it",
+                      knetProcessInfo->processInfo[processIndex].pid);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * @brief 检查死进程是否需要跳过
+ * @param knetProcessInfo 进程信息结构体指针
+ * @param processIndex 当前进程索引
+ * @param offset 当前的文件偏移量
+ * @param formatLastTail 指向formatLastTail标志的指针，用于输出更新后的值
+ * @return bool true表示需要跳过，false表示不需要跳过
+ */
+static bool ShouldSkipDeadProcess(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset,
+                                  bool *formatLastTail)
+{
+    struct ProcessInfo *processInfo = knetProcessInfo->processInfo;
+    if (!processInfo[processIndex].alive) {
+        if (BIT_TEST(knetProcessInfo->writeBitMap, processIndex)) {
+            *offset += processInfo[processIndex].offset;
+            /* 第processIndex+1位bit是0,表示第processIndex个进程是写入文件里的最后一个进程
+                最后一个进程是dead进程则当前文件是最后的符号是json的尾部
+                当有新的进程需要写入时需要处理这个尾部
+            */
+            *formatLastTail = !BIT_TEST(knetProcessInfo->writeBitMap, processIndex + 1);
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * @brief 从文件列表中找出最旧的文件
  *
  * @param dumpFiles 文件路径数组
@@ -783,17 +837,8 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
             break;
         }
         // 只刷新活的进程，进程的死活通过rpc消息来通知维护
-        if (!processInfo[i].alive) {
-            // 死进程且写过文件，跳过
-            if (BIT_TEST(knetProcessInfo->writeBitMap, i)) {
-                offset += processInfo[i].offset; // 偏移到下一个进程尾部
-                /* 第i+1位bit是0,表示第i个进程是写入文件里的最后一个进程
-                    最后一个进程是dead进程则当前文件是最后的符号是json的尾部
-                    当有新的进程需要写入时需要处理这个尾部
-                */
-                formatLastTail = !BIT_TEST(knetProcessInfo->writeBitMap, i + 1);
-                continue;
-            }
+        if (ShouldSkipDeadProcess(knetProcessInfo, i, &offset, &formatLastTail)) {
+            continue;
         }
         (void)memset_s(singleOutput, SINGLE_BLOCK_SIZE, 0, SINGLE_BLOCK_SIZE);
         outputLeftLen = SINGLE_BLOCK_SIZE - SINGLE_BLOCK_RESERVE;
@@ -802,6 +847,9 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
         if (processDataOffset < 0) {
             offset += processInfo[i].offset; // 偏移到下一个进程开始的地方
             continue;                        // 这个进程刷新失败了，继续刷新下一个进程
+        }
+        if (CheckProcessSkipByTelemetryState(knetProcessInfo, i, &offset)) {
+            continue;  // 需要跳过当前进程
         }
         processInfo[i].offset = processDataOffset;
         if (formatLastTail) {
