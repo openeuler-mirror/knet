@@ -123,6 +123,7 @@ void TelemetrySetNewProcess(int clientID, pid_t pid)
             KNET_ERR("K-NET Telemetry can't find oldest exit process to replace");
         } else {
             InsertNewProcess(oldestExitProc, pid, clientID);
+            g_processInfo.writeBitMap &= ~(1 << oldestExitProc); // 替换时将对应位置的bit清零
         }
     } else {
         /* 如果进程信息没满，添加到没添加过的地方 */
@@ -783,15 +784,16 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
         }
         // 只刷新活的进程，进程的死活通过rpc消息来通知维护
         if (!processInfo[i].alive) {
-            offset += processInfo[i].offset; // 偏移到下一个进程尾部
-            if (!BIT_TEST(knetProcessInfo->writeBitMap, i + 1)) {
+            // 死进程且写过文件，跳过
+            if (BIT_TEST(knetProcessInfo->writeBitMap, i)) {
+                offset += processInfo[i].offset; // 偏移到下一个进程尾部
                 /* 第i+1位bit是0,表示第i个进程是写入文件里的最后一个进程
-                   最后一个进程是dead进程则当前文件是最后的符号是json的尾部
-                   当有新的进程需要写入时需要处理这个尾部
+                    最后一个进程是dead进程则当前文件是最后的符号是json的尾部
+                    当有新的进程需要写入时需要处理这个尾部
                 */
-                formatLastTail = true;
+                formatLastTail = !BIT_TEST(knetProcessInfo->writeBitMap, i + 1);
+                continue;
             }
-            continue;
         }
         (void)memset_s(singleOutput, SINGLE_BLOCK_SIZE, 0, SINGLE_BLOCK_SIZE);
         outputLeftLen = SINGLE_BLOCK_SIZE - SINGLE_BLOCK_RESERVE;
@@ -816,7 +818,6 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
             offset += processInfo[i].offset; // 偏移到下一个进程开始的地方
             continue;
         }
-        formatLastTail = false;
         knetProcessInfo->writeBitMap |= (1 << i); // 标记当前进程已写入文件
         offset += processDataOffset;
     }
