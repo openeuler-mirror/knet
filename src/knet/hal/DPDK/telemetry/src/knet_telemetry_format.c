@@ -360,7 +360,7 @@ int FormatingSingleDpStats(char *output, int *outputLeftLen, cJSON *json)
  *       2. 函数内部会复制默认模板和动态JSON中的值，调用者需负责释放返回的JSON对象
  *       3. 仅替换默认模板中存在于output JSON的字段，其他字段保持不变
  */
-cJSON *GetDpStatsJson(char *output, DP_StatType_t type)
+cJSON *GetDpStatsJson(char *output, DP_StatType_t type, bool msgReady)
 {
     if (type >= DP_STAT_MAX || type < 0) {
         KNET_ERR("K-NET telemetry persist get dp state json by type %d failed.", type);
@@ -371,6 +371,10 @@ cJSON *GetDpStatsJson(char *output, DP_StatType_t type)
     if (defaultJson == NULL) {
         KNET_ERR("K-NET telemetry persist get dp state by type %d failed. Default json is null", type);
         return NULL;
+    }
+    // 如果消息没有准备好，则直接返回默认的json
+    if (!msgReady) {
+        return defaultJson;
     }
     /* 解析统计数据 */
     cJSON *json = cJSON_Parse(output);
@@ -411,7 +415,7 @@ cJSON *GetDpStateByTypeSingle(DP_StatType_t type)
         return NULL;
     }
     g_dpShowStatisticsHookPersist(type, -1, KNET_STAT_OUTPUT_TO_FILE);
-    return GetDpStatsJson(g_knetTeleToFileDpOutput, type);
+    return GetDpStatsJson(g_knetTeleToFileDpOutput, type, true);
 }
 
 cJSON *GetDpStateByTypeMulti(DP_StatType_t type)
@@ -432,8 +436,8 @@ cJSON *GetDpStateByTypeMulti(DP_StatType_t type)
     while (try--) {
         if (telemetryInfo->state == KNET_TELE_PERSIST_ERROR) {
             KNET_ERR("K-NET telemetry persist get dp state json by type failed, pid %d, state %d, type %d",
-                     telemetryInfo->curPid, telemetryInfo->state, telemetryInfo->msgType);
-            return NULL;
+                     telemetryInfo->curPid, telemetryInfo->state, type);
+            break;
         }
         if (telemetryInfo->state == KNET_TELE_PERSIST_MSGREADY) {
             msgReady = true;
@@ -443,11 +447,10 @@ cJSON *GetDpStateByTypeMulti(DP_StatType_t type)
     }
     if (!msgReady) {
         KNET_ERR("K-NET telemetry persist get dp state json by type failed, pid %d, state %d,type %d",
-                 telemetryInfo->curPid, telemetryInfo->state, telemetryInfo->msgType);
-        return NULL;
+                 telemetryInfo->curPid, telemetryInfo->state, type);
     }
     /* 解析统计数据 */
-    return GetDpStatsJson(telemetryInfo->message[type], type);
+    return GetDpStatsJson(telemetryInfo->message[type], type, msgReady);
 }
 
 int FormatEveryDpStats(char *output, int *outputLeftLen)
