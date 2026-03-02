@@ -166,6 +166,20 @@ offloadFailed:
     g_knetDtoeOps.conn_async_offload_done(fd, KNET_ASYNC_OFFLOAD_FAIL);
 }
 
+int knet_thrd_cpu_set(struct knet_thrd_cpu_cfg *cfg)
+{
+    flexda_dtoe_thrd_cpu_cfg_s dtoeCfg = {0};
+    dtoeCfg.enable = cfg->enable;
+    dtoeCfg.cpu_mask_affinity = cfg->cpu_mask_affinity;
+    int ret = flexda_dtoe_thrd_cpu_set(&dtoeCfg);
+    if (ret != 0) {
+        KNET_ERR("Dtoe thrd cpu set failed, ret %d, enable %u", ret, dtoeCfg.enable);
+        return ret;
+    }
+
+    return ret;
+}
+
 KNET_API int knet_init(const char * local_ip)
 {
     KNET_LogInit();
@@ -205,7 +219,7 @@ KNET_API int knet_init(const char * local_ip)
         ret = flexda_dtoe_bind_addr(local_ip, &g_dtoeRes.dev.devSn, &g_dtoeRes.dev.numaId);
         ++times;
         sleep(BIND_INTERVAL);
-        KNET_WARN("Dtoe bind addr failed, local_ip %s, ret %d, times %u",
+        KNET_INFO("Dtoe bind addr failed, local_ip %s, ret %d, times %u",
             (local_ip == NULL) ? "null" : local_ip, ret, times);
     } while (times <= BIND_TIMES && ret != 0);
     if (ret != 0) {
@@ -529,7 +543,7 @@ static void knet_dtoe_receive_notify(void* dtoe_conn, int iov_cnt)
     } else {
         KNET_ERR("sockfd %d, iov_cnt: %d, unknown reason", sock->sockfd, iov_cnt);
     }
-    KNET_DEBUG("recv notify, sockfd %d, iov_cnt %d, nextEventIdx %d, recvEventIndex %d",
+    KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "recv notify, sockfd %d, iov_cnt %d, nextEventIdx %d, recvEventIndex %d",
                     sock->sockfd, iov_cnt, recvChannel->nextEventIdx, sock->recvEventIndex);
 }
 
@@ -607,7 +621,7 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
         }
         return ret;
     }
-    KNET_DEBUG("dtoe send bytes: %d, dtoe fd: %d, send iov_cnt: %d, curr_msn %u",
+    KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "dtoe send bytes: %d, dtoe fd: %d, send iov_cnt: %d, curr_msn %u",
         ret, sockfd, tx_req->iov_cnt, info.tx_out.curr_msn);
 
 #ifndef KNET_REQ_NODE_ATOMIC
@@ -655,7 +669,8 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
             knetRecvChannel->events[knetRecvChannel->nextEventIdx].sockfd = sock->sockfd;
             knetRecvChannel->events[knetRecvChannel->nextEventIdx].iov_cnt = 0;
             knetRecvChannel->events[knetRecvChannel->nextEventIdx].type = KNET_RX_EVENT_LEAK;
-            KNET_DEBUG("recv channel, leak sockfd %d, nextEventIdx %u", sock->sockfd, knetRecvChannel->nextEventIdx);
+            KNET_DEBUG("recv channel, leak sockfd %d, nextEventIdx %u, leakSize %d",
+                sock->sockfd, knetRecvChannel->nextEventIdx, sock->leakSize);
             ++knetRecvChannel->nextEventIdx;
         }
 #ifndef KNET_REQ_NODE_ATOMIC
@@ -686,7 +701,7 @@ int knet_recv(int sockfd, struct knet_iovec *iov, int iov_cnt)
         return ret;
     }
 
-    KNET_DEBUG("dtoe recv bytes: %d, dtoe fd: %d", ret, sockfd);
+    KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "dtoe recv bytes: %d, dtoe fd: %d", ret, sockfd);
 
     return ret;
 }
