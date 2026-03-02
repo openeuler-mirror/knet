@@ -15,6 +15,11 @@
 
 #include <stdint.h>
 
+struct knet_thrd_cpu_cfg {
+    uint32_t enable; // 是否开启亲和性设置：1-开启，0-关闭
+    cpu_set_t cpu_mask_affinity; // CPU集合
+};
+
 /* conn_async_offload_done钩子函数入参 */
 enum knet_async_rsp_type {
     KNET_ASYNC_OFFLOAD_SUCCESS = 0,
@@ -22,7 +27,7 @@ enum knet_async_rsp_type {
 };
 
 struct knet_ulp_ops {
-        void (*close_done)(int sockfd);
+        void (*close_done)(int sockfd); // 约束：close_done回调中会执行close(fd)操作, 用户不能再执行close(fd)
         /* 通知ulp预断链已完成 */
         void (*prepare_close_done)(int sockfd);
         void (*conn_async_offload_done)(int sockfd, uint8_t rsp_status);
@@ -84,7 +89,7 @@ struct knet_tx_req {
     uint32_t iov_cnt;
     uint32_t lkey;
     uint64_t wr_id;
-    knet_tx_req_free_cb_t free_cb;
+    knet_tx_req_free_cb_t free_cb; // 发送请求完成后执行的回调函数
 };
 
 /**
@@ -94,6 +99,13 @@ struct knet_tx_req {
  * @return None
  */
 void knet_ulp_ops_register(struct knet_ulp_ops *ops);
+
+/**
+ * @brief 设置控制面线程绑核
+ * @param cfg 绑核配置 
+ * @return 0-success, others-failed
+ */
+int knet_thrd_cpu_set(struct knet_thrd_cpu_cfg *cfg);
 
 /**
  * @brief K-NET初始化DTOE
@@ -178,6 +190,7 @@ void knet_prepare_close(int sockfd);
 /**
  * @brief 连接上载
  * @param sockfd [IN] 标准socket的fd句柄
+ * @attention 约束：close_done回调中会执行close(fd)操作, 用户不能再执行close(fd)
  */
 void knet_close(int sockfd);
 
