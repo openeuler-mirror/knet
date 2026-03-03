@@ -15,3 +15,4 @@
 - [卸载故障](uninstallation.md)
 - [重启虚拟机失败进入shell界面](troubleshooting/virtua_machine.md)
 - [零拷贝故障](zero_copy.md)
+- [丢包故障](packet_loss.md)

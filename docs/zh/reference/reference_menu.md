@@ -23,5 +23,6 @@
     -   [流分叉故障](troubleshooting/flow_bifurcation.md)
     -   [重启虚拟机失败进入shell界面](troubleshooting/virtua_machine.md)
     -   [零拷贝故障](troubleshooting/zero_copy.md)
+    -   [丢包故障](troubleshooting/packet_loss.md)
     
 -   [FAQs](FAQs/batch_om.md)
