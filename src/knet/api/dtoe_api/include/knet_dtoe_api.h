@@ -13,7 +13,10 @@
 #ifndef __KNET_DTOE_API_H__
 #define __KNET_DTOE_API_H__
 
+#define _GNU_SOURCE
+
 #include <stdint.h>
+#include <sched.h>
 
 struct knet_thrd_cpu_cfg {
     uint32_t enable; // 是否开启亲和性设置：1-开启，0-关闭
