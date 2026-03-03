@@ -20,6 +20,7 @@
 #include "knet_dtoe_fd.h"
 #include "knet_dtoe_events.h"
 #include "knet_dtoe_config.h"
+#include "knet_dtoe_api.h"
 
 _Static_assert(sizeof(struct knet_mr) == sizeof(flexda_dtoe_mr_s), \
     "struct knet_mr must same as dtoe");
