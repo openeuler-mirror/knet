@@ -274,9 +274,11 @@ int EpollCtlNotEstablished(int epfd, int op, int sockfd, struct epoll_event *eve
 int CheckEpollEventData(int epfd, int op, int sockfd, struct epoll_event *event)
 {
     /* 内核的epoll ctl事件data也需要保证不能碰撞到private data，否则会丢osFd的event */
+    // 当epfd非法时，KNET_OsFdToDpFd(epfd)需要判断epfd是否合法，在去输出，否则会访问越界
     if (event != NULL && event->data.u64 == GenPrivateEpollData()) {
-        KNET_ERR("Epoll ctl got unexpected event data, op %d osEpfd %d, dpEpfd %d, osFd %d",
-            op, epfd, KNET_OsFdToDpFd(epfd), sockfd);
+        KNET_ERR("Epoll ctl got unexpected event data, op %d osEpfd %d, dpEpfd %s, %d, osFd %d",
+            op, epfd, KNET_IsFdValid(epfd) ? "valid" : "invalid",
+            KNET_IsFdValid(epfd) ? KNET_OsFdToDpFd(epfd) : -1, sockfd);
         errno = EINVAL;
         return -1;
     }
