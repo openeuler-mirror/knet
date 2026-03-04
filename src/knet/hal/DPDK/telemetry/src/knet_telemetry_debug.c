@@ -510,6 +510,15 @@ int KnetTelemetryFlowTableCallback(const char *cmd, const char *params, struct r
     return KNET_OK;
 }
 
+KNET_STATIC int AddQueuePidTidLcoreInfo(struct rte_tel_data *queueDict, uint32_t pid, uint32_t tid,
+                                        uint32_t lcoreId)
+{
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "pid", pid);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "tid", tid);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "lcoreId", lcoreId);
+    return KNET_OK;
+}
+
 KNET_STATIC int ComposedKeybufAndAddDict(struct rte_tel_data *data, uint32_t pid, uint32_t tid, uint32_t lcoreId,
                                          uint32_t queId)
 {
@@ -523,9 +532,11 @@ KNET_STATIC int ComposedKeybufAndAddDict(struct rte_tel_data *data, uint32_t pid
         rte_tel_data_free(queueDict);
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "pid", pid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "tid", tid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "lcoreId", lcoreId);
+    if (AddQueuePidTidLcoreInfo(queueDict, pid, tid, lcoreId) != KNET_OK) {
+        KNET_ERR("K-NET telemetry queue callback failed, add queue pid tid lcore info failed");
+        rte_tel_data_free(queueDict);
+        return KNET_ERROR;
+    }
     char keyName[MAX_JSON_KEY_NAME_LEN] = "queue";
     (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
                      MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%u", queId);

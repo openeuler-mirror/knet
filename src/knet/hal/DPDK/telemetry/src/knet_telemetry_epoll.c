@@ -135,6 +135,21 @@ KNET_STATIC DP_EpollDetails_t *SortSockDetailsByOsFd(DP_EpollDetails_t *sockDeta
     return sockDetailsSorted;
 }
 
+KNET_STATIC int AddEpollBasicInfo(EpollTelemetryContext *epollctx, struct rte_tel_data *epollDict)
+{
+    if (epollctx->tid == 0) {
+        CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, epollDict, "tid", INVALID_WORKER_TID);
+    } else {
+        char tidStr[MAX_TID_LEN] = {0};
+        (void)snprintf_s(tidStr, MAX_TID_LEN, MAX_TID_LEN - 1, "%u", epollctx->tid);
+        CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, epollDict, "tid", tidStr);
+    }
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, epollDict, "pid", epollctx->pid);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "osFd", epollctx->osFd);
+    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "innerFd", epollctx->dpFd);
+    return KNET_OK;
+}
+
 DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSockFd, int *sockCount, bool isSecondary)
 {
     int expectedSockFdCount = GetEpollDetailsHookHandler(epFd, NULL, 0, workerId);
@@ -224,16 +239,11 @@ KNET_STATIC int ProcessPerEpollInfo(TelemetryEpollParams *epollParams, EpollTele
         KNET_ERR("K-NET telemetry epoll details callback failed, process sock details failed");
         return KNET_ERROR;
     }
-    if (epollctx->tid == 0) {
-        CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, epollDict, "tid", INVALID_WORKER_TID);
-    } else {
-        char tidStr[MAX_TID_LEN] = {0};
-        (void)snprintf_s(tidStr, MAX_TID_LEN, MAX_TID_LEN - 1, "%u", epollctx->tid);
-        CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, epollDict, "tid", tidStr);
+    if (AddEpollBasicInfo(epollctx, epollDict) != KNET_OK) {
+        KNET_ERR("K-NET telemetry epoll details callback failed, add epoll basic info failed");
+        rte_tel_data_free(sockDetailDict);
+        return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, epollDict, "pid", epollctx->pid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "osFd", epollctx->osFd);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "innerFd", epollctx->dpFd);
     if (CheckAddContainerToDict(epollDict, "details", sockDetailDict) != 0) {
         return KNET_ERROR;
     }
@@ -255,9 +265,13 @@ KNET_STATIC int ProcessEpollInfo(TelemetryEpollParams *epollParams, EpollTelemet
     }
     if ((epollParams->fdCnt > SUGGEST_EPOLL_FD_CNT || epollParams->fdCnt == 0) &&
         epollctx->sockCount > SUGGEST_EPOLL_FD_CNT) {
-        CHECK_ADD_VALUE_TO_DICT(
-            rte_tel_data_add_dict_string, data, "Attention",
-            "<fd_cnt> recommended range: 1-100. Some values may not display fully.");
+        int ret = rte_tel_data_add_dict_string(data, "Attention",
+                                               "<fd_cnt> recommended range: 1-100. Some values may not display fully.");
+        if (ret != 0) {
+            KNET_ERR("KNET telemetry failed to add rte_tel_data_add_dict_string ret %d", ret);
+            rte_tel_data_free(epollDict);
+            return KNET_ERROR;
+        }
     }
     char keyName[MAX_JSON_KEY_NAME_LEN] = "epoll_";
     (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
