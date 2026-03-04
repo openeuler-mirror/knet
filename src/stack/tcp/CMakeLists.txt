@@ -27,7 +27,8 @@ set(CMAKE_C_FLAGS
     -freg-struct-return \
     -fPIC \
     -fstack-protector-strong \
-    -fsigned-char"
+    -fsigned-char \
+    -ftrapv"
 )
 #如果Release版本，-O2优化
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -53,7 +54,8 @@ set(CMAKE_SHARED_LINKER_FLAGS
     -Wl,-z,relro,-z,noexecstack \
     -Wl,-z,now \
     -lpthread \
-    -ldl"
+    -ldl \
+    -s"
 )
 
 #如果Release版本
