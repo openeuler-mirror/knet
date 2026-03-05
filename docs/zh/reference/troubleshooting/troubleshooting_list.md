@@ -1,6 +1,5 @@
 # 故障处理
 
-- [动态库缺失故障](lib_not_found.md)
 - [Bond故障](Bond.md)
 - [安装故障](installation.md)
 - [内核流量转发故障](kernel_traffic_forwarding.md)
@@ -13,6 +12,6 @@
 - [telemetry故障](telemetry.md)
 - [流分叉故障](flow_bifurcation.md)
 - [卸载故障](uninstallation.md)
-- [重启虚拟机失败进入shell界面](troubleshooting/virtua_machine.md)
+- [重启虚拟机失败进入shell界面](virtua_machine.md)
 - [零拷贝故障](zero_copy.md)
 - [丢包故障](packet_loss.md)

@@ -11,7 +11,6 @@
     -   [dpdk-telemetry.py网卡统计信息获取脚本](script_reference/dpdk-telemetry.md)
 
 -   [故障处理](troubleshooting/troubleshooting_list.md)
-    -   [动态库缺失故障](troubleshooting/lib_not_found.md)
     -   [Bond故障](troubleshooting/Bond.md)
     -   [内核流量转发故障](troubleshooting/kernel_traffic_forwarding.md)
     -   [时延故障](troubleshooting/latency.md)
