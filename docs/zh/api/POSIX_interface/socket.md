@@ -16,13 +16,12 @@
 |type|通信语义类型|支持SOCK_STREAM、SOCK_DGRAM、SOCK_CLOEXEC (默认支持该type，且不可修改)、SOCK_NONBLOCK。|
 |protocol|协议类型|支持IPPROTO_TCP（type必须为SOCK_STREAM）。支持IPPROTO_UDP（type必须为SOCK_DGRAM）。支持IPPROTO_IP，即设置为0。|
 
-
 ## 返回值
 
 类型：int
 
--   正数：socketfd，表示成功
--   -1：表示失败，并设置errno以指示错误类型
+- 正数：socketfd，表示成功
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -40,5 +39,3 @@
 |ELIBBAD|系统库符号加载失败。|
 |EPERM|信号退出流程中，不允许调用该函数接口。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，导致socket跨worker线程调用。|
-
-

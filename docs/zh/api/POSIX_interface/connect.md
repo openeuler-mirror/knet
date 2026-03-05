@@ -19,13 +19,12 @@
 |*addr|通信对端地址|支持IPv4地址，类型为struct sockaddr_in。|
 |addrlen|地址长度|地址长度，必须与第二个参数的地址长度一致。|
 
-
 ## 返回值
 
 类型：int
 
--   0：成功
--   -1：表示失败，并设置errno以指示错误类型
+- 0：成功
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -48,5 +47,3 @@
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
-
-

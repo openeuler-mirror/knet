@@ -20,13 +20,12 @@
 |len|即将发送的数据长度|调用者保证长度的有效性，待发送数据总长度可设置范围为(0, SSIZE_MAX]。代表buf缓冲区中数据的长度。|
 |flags|指定发送方式|支持MSG_DONTWAIT、MSG_NOSIGNAL（默认支持该flag，且不可修改）标志，其他类型不支持。如果携带有其他flags，直接返回失败。MSG_DONTWAIT：启用非阻塞操作。MSG_NOSIGNAL：防止在发送数据到已关闭连接的socket时触发SIGPIPE信号。|
 
-
 ## 返回值
 
 类型：ssize\_t
 
--   非负数：实际发送的数据长度，表示成功
--   -1：表示失败，并设置errno以指示错误类型
+- 非负数：实际发送的数据长度，表示成功
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -47,5 +46,3 @@
 |ENETDOWN|用于到达目的地的本地网络接口已关闭。|
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
-
-

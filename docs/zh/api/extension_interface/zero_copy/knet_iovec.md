@@ -4,7 +4,7 @@
 
 ## 结构体定义
 
-```
+```c
 typedef void (*knet_iov_free_cb_t)(void *addr, void *opaque);
 
 struct knet_iovec {
@@ -23,5 +23,3 @@ struct knet_iovec {
 |size_t iov_len|用户读写缓冲区长度。|用作读缓冲区时，iov_len必须在knet_mp_alloc申请的内存长度范围内；用作写缓冲区时用户无需填写该字段。|
 |void *opaque|读写缓冲区的释放回调函数的自定义输入参数。|用作读缓冲区时，用户负责填写该字段，可以为空；用作写缓冲区时用户不填该字段。|
 |knet_iov_free_cb_t free_cb|读写缓冲区的自定义释放回调函数。|用作读缓冲区时，用户负责填写该字段，不能为空；用作写缓冲区时用户不填该字段。|
-
-

@@ -14,18 +14,15 @@
 |--|--|--|
 |size|写缓冲区大小|取值范围为[0, zcopy_sge_len]，"zcopy_sge_len"由配置项确定。|
 
-
 ## 返回值
 
 类型：void \*
 
--   非 NULL：表示申请成功
--   NULL：表示申请失败
+- 非 NULL：表示申请成功
+- NULL：表示申请失败
 
 ## 错误码
 
 |错误码|描述|
 |--|--|
 |EINVAL|入参size大于配置"zcopy_sge_len"的值。|
-
-

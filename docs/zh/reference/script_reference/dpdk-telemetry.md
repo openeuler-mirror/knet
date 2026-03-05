@@ -7,20 +7,22 @@
 ## 命令格式
 
 > **说明：** 
->-   普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../../feature/preparations.md)进行设置。
->-   服务端环境关闭或重启后需要重新执行步骤。
->-   通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
->-   退出普通用户再重新切换到该用户需要重新配置。
+>
+>- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../../feature/preparations.md)进行设置。
+>- 服务端环境关闭或重启后需要重新执行步骤。
+>- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
+>- 退出普通用户再重新切换到该用户需要重新配置。
 
 服务端进入工具使用界面：
 
-```
+```bash
 dpdk-telemetry.py -f knet -i 1
 ```
 
 > **说明：** 
->-   -f ：指定knet为DPDK运行时目录提供文件前缀。
->-   -i 1：指定DPDK应用程序实例号为1。
+>
+>- -f ：指定knet为DPDK运行时目录提供文件前缀。
+>- -i 1：指定DPDK应用程序实例号为1。
 
 ## 命令参数
 
@@ -45,16 +47,15 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/stack/epoll_stat,<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>`|所有参数必填|/knet/stack/epoll_stat,12345 0 1 0 1|获取从start_epoll_fd开始的epoll_fd_cnt个epoll实例的详细信息，每个epoll实例中包含从start_socket_fd开始、最多socket_fd_cnt个有效的socket描述符信息。pid取值必须为有效的进程ID。|
 |`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，1表示统计接下来1秒内的的带宽包率，回显输出一条 "0-1s" 的内容。若time 为2，将会输出两条，即 "0-1s"  和 "1-2s" 的内容。|
 
-
 > **说明：** 
 >SP670网卡与TM280网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
 
 ## 使用示例
 
 > **说明：** 
->使用前需要开启该功能，步骤参考[使用前配置](../../feature/OM_features.md#2-网卡统计信息工具dpdk-telemetry)。
+>使用前需要开启该功能，步骤参考[使用前配置](../../feature/OM_features.md#2-遥测工具dpdk-telemetry)。
 
-```
+```ColdFusion
 # dpdk-telemetry.py -f knet -i 1
 Connecting to /var/run/dpdk/rte/dpdk_telemetry.v2
 {"version": "DPDK 21.11.7", "pid": 2631, "max_output_len": 16384}
@@ -104,7 +105,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | q_ibytes   | 各个队列接收到的字节数（一个数组，表示不同队列的接收字节量）。 |
 | q_obytes   | 各个队列发送的字节数（一个数组，表示不同队列的发送字节量）。   |
 | q_errors   | 各个队列的错误数量（一个数组，表示不同队列的错误次数）。       |
-
 
 **表 3**  /knet/stack/tcp\_stat查询字段说明
 
@@ -248,7 +248,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | TcpRcvRstInRfc1337        | TIME WAIT状态下，使能RFC1337配置项收到的RST报文。        |
 | TcpDeferAcceptDrop        | 因重传超过DeferAccept设置的重传次数丢弃的报文。         |
 
-
 **表 4**  /knet/stack/conn\_stat连接状态统计查询字段说明
 
 | 字段名        | 说明                                |
@@ -271,7 +270,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | PATimeWait    | 被动建链TIME_WAIT状态计数。         |
 | ACTimeWait    | 主动建链TIME_WAIT状态计数。         |
 | Abort         | 被动建链接收到RST报文断链状态计数。 |
-
 
 **表 5**  /knet/stack/pkt\_stat协议栈各类报文统计查询字段说明
 
@@ -365,7 +363,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | Icmp6UnReachExthdrErr  | ICMPv6 UNREACH报文内部扩展首部异常统计。                         |
 | Icmp6UnReachNotUdp     | ICMPv6 UNREACH报文内部四层非UDP统计。                            |
 | UdpIcmp6UnReachShort   | ICMPv6 UNREACH报文长度过短统计。                                 |
-
 
 **表 6**  /knet/stack/abn\_stat协议栈异常打点统计查询字段说明
 
@@ -593,7 +590,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | GsoProcErr                    | GSO分片出现异常。                                  |
 | GsoPbufMergeErr               | 发送非GSO PBUF失败，数据长度超过单片PBUF负载长度。 |
 
-
 **表 7**  /knet/stack/mem\_stat协议栈内存使用统计查询字段说明
 
 | 字段名           | 说明                                   |
@@ -643,7 +639,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | UdpInitMem       | UDP层相关的内存分配量。                |
 | UdpFreeMem       | UDP层释放的内存量。                    |
 
-
 **表 8**  /knet/stack/pbuf\_stat协议栈PBUF使用统计查询字段说明
 
 | 字段名         | 说明                                                   |
@@ -653,12 +648,11 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | sendBufPktNum  | 发送缓冲区中数据包的数量。                             |
 | recvBufPktNum  | 接收缓冲区中数据包的数量。                             |
 
-
 **表 9**  /knet/stack/net\_stat,\<pid\> \<start_fd\> \<fd_cnt\>所有连接信息查询字段说明
 
 | 字段名    | 说明                                         |
 | --------- | -------------------------------------------- |
-| osFd_<fd> | 单个连接信息的键名，<fd>为内核fd文件描述符。 |
+| osFd_\<fd> | 单个连接信息的键名，\<fd>为内核fd文件描述符。 |
 | pf        | 协议族。                                     |
 | proto     | 协议类型。                                   |
 | lAddr     | 本地地址。                                   |
@@ -668,7 +662,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | state     | TCP连接状态。                                |
 | tid       | 套接字绑定的线程ID。                         |
 | innerFd   | 内部文件描述符。                             |
-
 
 **表 10**  /knet/stack/socket\_info,[pid] <fd\>对应套接字详细连接信息查询字段说明
 
@@ -804,8 +797,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | delayAckTimeoutTick | 延迟ack定时器超时时间。                    |
 | synRetries         | TCP_SYNCNT选项，TCP 连接建立过程中 SYN 重传的次数。   |
 
-
-**表 11**  /knet/stack/epoll\_stat,\<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>  Epoll连接详细信息查询字段说明
+**表 11**  /knet/stack/epoll\_stat,\<pid> \<start_epoll_fd> \<epoll_fd_cnt> \<start_socket_fd> \<socket_fd_cnt>  Epoll连接详细信息查询字段说明
 
 |字段名|说明|
 |--|--|
@@ -822,8 +814,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 |notifiedEvents|套接字已经上报过的事件（边缘触发模式下有效）。|
 |shoted|套接字上报事件后置为1（one shot模式下有效）。|
 
-
-**表 12**  /knet/flow/list,<start_flow_index> <flow_cnt> 流表信息查询字段说明
+**表 12**  /knet/flow/list,\<start_flow_index> \<flow_cnt> 流表信息查询字段说明
 
 |字段名|说明|
 |--|--|
@@ -846,14 +837,12 @@ Connected to application: "redis-server 192.168.*.*:6379"
 |tid|队列被使用的K-NET的worker线程号。|
 |lcoreId|仅单进程会显示，队列被使用的K-NET的worker逻辑核号。|
 
-
 **表 14**  /knet/ethdev/usage,<port\> <time\> 网卡带宽、包率查询字段说明
 
 |字段名|说明|
 |--|--|
-|<time>-<time+1>s|时间段，例如 "0-1s"。|
+|\<time>-<time+1>s|时间段，例如 "0-1s"。|
 |tx|tx方向的带宽和包率。|
 |rx|rx方向的带宽和包率。|
-
 
 ****

@@ -22,14 +22,13 @@
 |*dest_addr|发送目的地址|-|
 |addrlen|地址长度|-|
 
-
 ## 返回值
 
 类型：ssize\_t
 
--   非负数：实际发送的数据长度，表示成功
+- 非负数：实际发送的数据长度，表示成功
 
--   -1：表示失败，并设置errno以指示错误类型
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -53,5 +52,3 @@
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
 |EINVAL|入参len大于SSIZE_MAX。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
-
-
