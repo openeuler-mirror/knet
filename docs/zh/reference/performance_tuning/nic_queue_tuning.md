@@ -2,13 +2,13 @@
 
 在运行环境查看knet\_comm.log日志：
 
-```
+```bash
 vim /etc/knet/knet_comm.log
 ```
 
 如果观察到如下日志信息：
 
-```
+```ColdFusion
 Tx burst total 0 of cnt 1
 ```
 

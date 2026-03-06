@@ -1,4 +1,5 @@
 # socket选项
+
 以下为K-NET支持的socket选项列举。
 
 # SOL\_SOCKET
@@ -18,15 +19,11 @@
 |SO_PRIORITY|部分支持|int类型[0, 6]。K-NET支持设置，但无实际处理。|
 |SO_RCVLOWAT|支持|unsigned int类型 [0, SO_RCVBUF / 2]。K-NET支持设置。|
 
-
-
 # IPPROTO\_IP
 
 |option name|value|K-NET支持程度|说明|
 |--|--|--|--|
 |IP_TOS|int类型 [0, 0xff]|支持|-|
-
-
 
 # IPPROTO\_TCP
 

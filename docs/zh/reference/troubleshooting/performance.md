@@ -10,25 +10,24 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
 以华为交换机为例，其他交换机命令需根据手册获取对应查询命令：
 
-1.  进入交换机后，查看接口上基于队列的流量统计信息。
+1. 进入交换机后，查看接口上基于队列的流量统计信息。
 
-    ```
+    ```bash
     display qos queue statistics interface interface-type interface-number
     ```
 
     >**说明：** 
-    >-   interface-type表示接口的类型。
-    >-   interface-number表示接口的编号。
+    >- interface-type表示接口的类型。
+    >- interface-number表示接口的编号。
 
     使用示例：
 
-    ```
+    ```bash
     display qos queue statistics interface 100GE 1/0/1
     ```
 
     输出信息描述：
 
-    
     <table><tbody><tr id="row3484194614530"><td class="cellrowborder" valign="top" width="32.53%"><p id="p648444620539">Passed(Packet/Byte)</p>
     </td>
     <td class="cellrowborder" valign="top" width="67.47%"><p id="p8484104615314">通过的包数和字节数。</p>
@@ -54,7 +53,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     回显示例如下：
 
-    ![](../..figures/zh-cn_image_0000002486509776.png)
+    ![](../../figures/zh-cn_image_0000002486509776.png)
 
     Dropped(Packet/Byte)与Drop Rate(pps/bps)不为0，表示交换机已经丢包。
 
@@ -62,21 +61,21 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
 建议查看交换机规格，交换机队列缓存越大，交换机丢包概率越小，TCP单连接性能越稳定。
 
-1.  查看接口的缓存使用情况。
+1. 查看接口的缓存使用情况。
 
     以华为交换机为例，其他交换机命令需根据手册获取对应查询命令：
 
-    ```
+    ```bash
     display qos buffer-usage interface 100GE interface-number
     ```
 
     interface-number表示接口的编号。命令以及回显示例如下：
 
-    ```
+    ```ColdFusion
     display qos buffer-usage interface 100GE 1/0/1
     ```
 
-    ```
+    ```ColdFusion
     Total         : 105102 cells (26275 KBytes)
     Current used  : 0 cells (0 KBytes)
     Remained      : 105102 cells (26275 KBytes)
@@ -100,5 +99,4 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     其中，Total (KBytes\)表示接口的总缓存能力。
 
-2.  尝试调大交换机步骤1的接口的缓存Total (KBytes\)，或者换缓存容量更大的交换机。
-
+2. 尝试调大交换机步骤1的接口的缓存Total (KBytes\)，或者换缓存容量更大的交换机。

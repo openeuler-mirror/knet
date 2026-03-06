@@ -17,13 +17,12 @@
 |fd|需要添加到epoll的文件句柄|不支持将一个fd放入不同的epoll中同时监测。|
 |*event|文件句柄需要感知的事件|支持EPOLLIN、EPOLLOUT、EPOLLERR、EPOLLHUP、EPOLLRDHUP、EPOLLONESHOT。|
 
-
 ## 返回值
 
 类型：int
 
--   0：表示成功
--   -1：表示失败，并设置errno以指示错误类型
+- 0：表示成功
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -37,5 +36,3 @@
 |ENOMEM|内存申请失败。|
 |EFAULT|入参op为EPOLL_CTL_ADD、EPOLL_CTL_MOD时，入参event为空指针。|
 |ELIBBAD|系统符号加载失败。|
-
-

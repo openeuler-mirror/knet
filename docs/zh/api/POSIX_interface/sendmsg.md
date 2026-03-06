@@ -19,14 +19,13 @@
 |*msg|指定发送数据消息指针|会忽略struct msghdr中的msg_flags参数。忽略msg_control，msg_controllen参数。msg_iovlen范围(0, 1024]。待发送数据总长度可设置范围为(0, SSIZE_MAX]。|
 |flags|指定发送方式|flags参数支持MSG_DONTWAIT、MSG_NOSIGNAL（默认支持该flag，且不可修改）、MSG_MORE，其它类型不支持。如果携带有其他flags，直接返回失败。MSG_DONTWAIT：启用非阻塞操作。MSG_NOSIGNAL：防止在发送数据到已关闭连接的socket时触发SIGPIPE信号。MSG_MORE：延迟发送数据。|
 
-
 ## 返回值
 
 类型：ssize\_t
 
--   非负数：实际发送的数据长度，表示成功
+- 非负数：实际发送的数据长度，表示成功
 
--   -1：表示失败，并设置errno以指示错误类型
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -49,5 +48,3 @@
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
-
-

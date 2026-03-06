@@ -1,4 +1,5 @@
 # Bond故障
+
 ## Bond场景下启动业务失败，日志报错“ BondPort 2 wait slaves activate failed”
 
 ### 现象描述
@@ -15,7 +16,7 @@ Bond场景下启动业务失败，日志可以看到“ BondPort 2 wait slaves a
 
 参考[相关业务配置中的步骤2](../../feature/preparations.md#相关业务配置)中提到的取消接管网卡步骤还原网卡，检测网卡状态。
 
-```
+```bash
 ethtool enp125s0f0  # 网卡名根据用户具体使用的网卡进行修改
 ```
 
@@ -23,7 +24,7 @@ ethtool enp125s0f0  # 网卡名根据用户具体使用的网卡进行修改
 
 以上回显说明网卡链路不通，需要先解决组网问题。
 
-## Bond场景下启动业务，长期无本端或者对端进行连接后，报错“XXX: Failed to allocate LACP packet from pool”。
+## Bond场景下启动业务，长期无本端或者对端进行连接后，报错“XXX: Failed to allocate LACP packet from pool”
 
 ### 现象描述
 

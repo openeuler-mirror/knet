@@ -13,4 +13,3 @@ K-NET加速应用，TCP单连接在传输小于最大报文长度（MSS）的报
 ### 处理步骤
 
 在使用TCP socket进行数据收发时，应避免采用write-write-read模式。建议采用write-read或write-write-write模式均可。
-

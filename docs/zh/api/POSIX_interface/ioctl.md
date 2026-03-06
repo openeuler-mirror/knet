@@ -16,13 +16,12 @@
 |request|要设置的选项|支持FIONBIO、FIONREAD、SIOCETHTOOL、SIOCGIFCONF、SIOCGIFFLAGS、SIOCGIFNETMASK、SIOCGIFINDEX、SIOCGIFHWADDR、SIOCGIFBRDADDR，其他不支持。|
 |...|可变参数|实际类型与request相关。|
 
-
 ## 返回值
 
 类型：int
 
--   0：表示成功
--   -1：表示失败，并设置errno以指示错误类型
+- 0：表示成功
+- -1：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 
@@ -33,5 +32,3 @@
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
-
-

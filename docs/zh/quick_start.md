@@ -2,35 +2,46 @@
 
 ## 编译前请确保Glibc版本及ASLR是否开启
 
-#### 检查Glibc版本
+### 检查Glibc版本
+
 ```shell
 $ ldd --version
 ```
+
 Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。这里以2.28版本为例
+
 ```shell
 $ yum update glibc-2.28
 ```
 
-#### 检查ASLR是否开启
+### 检查ASLR是否开启
+
 ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度
+
 ```shell
 $ cat /proc/sys/kernel/randomize_va_space
 ```
+
 若结果不为2，请执行以下命令开启ASLR
+
 ```shell
 $ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 ```
 
 ## 安装依赖
+
 K-NET编译依赖用户态协议栈的实现,当前以一个示例用户态协议栈为依赖编译K-NET。
 
 `K-NET`在代码仓中提供了统一的编译构建脚本build.py，可以直接执行该脚本进行编译构建rpm包，这一步会自动拉取开源securec, cJSON, dpdk
+
 ```shell
 $ python build.py rpm 生成Release版本
 # 若需要调试版本，执行以下命令
 $ python build.py debug rpm  
 ```
+
 执行以下操作进入构建目录找到rpm包并安装，这里以ARM环境为例
+
 ```shell
 $ cd ./build/rpmbuild/RPMS
 $ rpm -ivh ./knet-1.0.0.aarch64.rpm
@@ -63,6 +74,7 @@ $ modprobe vfio-pci
 ## 配置大页内存 
 
 服务端为物理机场景：
+
 ```shell
 $ cat /sys/class/net/ens6f0/device/numa_node # ens6f0根据实际使用的网卡名替换
 # 假设回显所在numa为1
@@ -70,12 +82,16 @@ $ echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
 $ echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 具体node编号根据查询到的网卡所在NUMA进行更改
 # $ echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages # 根据实际配置的大页调整
 ```
+
 服务端为虚拟机场景：
+
 ```shell
 $ echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
 $ echo 2 > /sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages
 ```
+
 确认大页配置成功：
+
 ```shell
 $ grep Huge /proc/meminfo
 # 也可以用dpdk查看当前大页内存配置信息
@@ -111,10 +127,10 @@ $ dpdk-devbind.py -b vfio-pci enp6s0
 ```shell
 $ vim /etc/knet/knet_comm.conf
 ```
+
 mac填绑定网卡的mac。
 ip填绑定网卡的ip。
 ctrl_vcpu_ids 为控制面线程绑核，需要在有效核号内，且需要与数据面分开。数据面绑核见dpdk配置项core_list_global参数。其他配置参数可参考参数[配置参考](configuration_item_reference.md)。
-
 
 ## 服务端中运行redis
 

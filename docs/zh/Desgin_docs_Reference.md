@@ -1,10 +1,13 @@
 # Summary
+
 提供Socket透明替换接口支撑业务零侵入修改；可提供用户态TCP/IP高性能协议栈，实现数据面高性能加速功能。面向存在网络瓶颈的业务。向下接入多种协议栈，向上提供透明POSIX接口。
 
 # Usage Example
+
 API参考POSIX接口
-部署文档参考[README](../README.md)
+部署文档参考[README](../../README.md)
 配置参考如下：
+
 | 配置项 | 说明 | 默认值 | 取值范围 | 约束说明 |
 |--------|------|--------|----------|----------|
 | **mode** | 运行模式<br>• 0：表示单进程模式<br>• 1：表示多进程模式，仅用户态协议栈可用 | 0 | 0, 1 | |
@@ -64,8 +67,8 @@ API参考POSIX接口
 | **huge_dir** | 大页挂载路径 | / | / | / |
 | **base-virtaddr** | dpdk启动基地址 | / | / | / |
 
-
 # Movitvation
+
 作为兼容用户态协议栈的框架式加速库，主要有以下设计走向
 1）资源管理：
     A、提供基础的资源管理能力，如内存、内存池、定时器，配置管理，日志等；
@@ -75,6 +78,7 @@ API参考POSIX接口
 3）协议栈适配层：为协议栈提供基本的资源管理能力；该适配层用于适配协议栈南向接口；
 
 # Design constraints
+
 初始化dpdk控制线程直接走os
 概述：TrafficResourcesInit初始化时，发现是dpdk控制线程，直接返回走os api
 背景/原因：所有线程原先TrafficResourcesInit发现已经在初始化，需要等待初始化完成，然后用dp api。但是bond场景下dpdk控制线程负责bond状态机更新，如果也等待TrafficResourcesInit初始化完成，会导致bond状态机无法更新，所以TrafficResourcesInit初始化线程永远等不到bond状态更新，超时之后bond就初始化失败了。所以修改成TrafficResourcesInit时发现是dpdk控制线程直接走os api
@@ -83,4 +87,5 @@ API参考POSIX接口
 背景/原因：K-NET主动建链时，会随机选择端口与对端建链，并下区间流表，如果不进行端口隔离，即内核使用已经下区间流表的port进行主动建链，内核业务进程将不会收到包，包都经由流表发送给K-NET用户态协议栈。
 
 # Adoption strategy
+
 Redis应用可以无感劫持使用

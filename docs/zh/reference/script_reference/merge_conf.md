@@ -8,15 +8,13 @@
 
 **sh /etc/knet/tools/merge_conf.sh**
 
-
 **使用示例**
 
 更新配置文件
 
-```
+```bash
 sh /etc/knet/tools/merge_conf.sh
 ```
 
 > **须知：** 
 >该过程涉及到文件修改，为防止意外操作导致异常，在执行过程中会屏蔽退出信号（比如“Ctrl+C”），执行完毕之后才会恢复。
-

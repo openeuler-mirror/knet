@@ -13,4 +13,3 @@ DPDK未接管SP670网卡，启动后未产生knet\_tap0设备：
 ## 处理步骤
 
 参照[相关业务配置](../../feature/preparations.md#相关业务配置)接管网卡，正确接管网卡后启动K-NET，能够看到knet\_tap0设备后，方可正常使用K-NET加速。
-

@@ -6,7 +6,7 @@
 
 直接启用抓包获取，出现以下报错信息：
 
-```
+```ColdFusion
 EAL: Multi-process socket /var/run/dpdk/(null)/mp_socket_3884565_28c50010577fe
 EAL: failed to send to (/var/run/dpdk/(null)/mp_socket) due to Connection refused
 EAL: Fail to send request /var/run/dpdk/(null)/mp_socket:bus_vdev_mp
@@ -44,60 +44,60 @@ K-NET未启动。
 
 ### 处理步骤
 
-1.  设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
+1. 设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
 
     > **说明：** 
     >用户名使用KNET\_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
 
     用户可以根据需要选择永久或者临时配置环境变量。如果用户选择临时配置环境变量，需要在每个终端会话执行相关命令。
 
-    -   永久配置环境变量。
+    - 永久配置环境变量。
 
         > **说明：** 
         >配置完成之后重新切换到该用户时无需重新配置环境变量。
 
-        1.  创建环境变量路径。
+        1. 创建环境变量路径。
 
-            ```
+            ```bash
             cd /home/KNET_USER/
             mkdir knet
             ```
 
-        2.  编辑环境变量相关文件。
+        2. 编辑环境变量相关文件。
 
-            ```
+            ```bash
             vi ~/.profile
             ```
 
-        3.  按“i“进入编辑模式，在末尾加上：
+        3. 按“i“进入编辑模式，在末尾加上：
 
-            ```
+            ```bash
             export XDG_RUNTIME_DIR=/home/KNET_USER/knet
             ```
 
-        4.  按“Esc“键退出编辑模式，输入**:wq!**，按“Enter“键保存并退出文件。
+        4. 按“Esc“键退出编辑模式，输入**:wq!**，按“Enter“键保存并退出文件。
 
-            ```
+            ```bash
             sh -c "source ~/.profile" 
             echo $XDG_RUNTIME_DIR #确认是否配置环境变量，如果已配置会显示配置的路径
             ```
 
-    -   临时配置环境变量。
+    - 临时配置环境变量。
 
         >**说明：** 
-        >-   服务端环境关闭或重启后，或者退出普通用户再重新切换到该用户，均需要重新执行步骤。
-        >-   通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
+        >- 服务端环境关闭或重启后，或者退出普通用户再重新切换到该用户，均需要重新执行步骤。
+        >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
 
-        1.  创建环境变量路径。
+        1. 创建环境变量路径。
 
-            ```
+            ```bash
             cd /home/KNET_USER/
             mkdir knet
             ```
 
-        2.  配置环境变量。
+        2. 配置环境变量。
 
-            ```
+            ```bash
             export XDG_RUNTIME_DIR=/home/KNET_USER/knet
             echo $XDG_RUNTIME_DIR #确认是否配置环境变量，如果已配置会显示配置的路径
             ```
@@ -118,17 +118,18 @@ K-NET未启动。
 
 授予驱动和编译抓包程序执行权限。
 
-```
+```bash
 chmod a+s /usr/lib64/librte_net_hinic3.so
 setcap cap_sys_rawio,cap_dac_read_search,cap_sys_admin+ep dumpcap
 ```
+
 ## 抓包混杂模式开启失败
 
 ### 现象描述
 
 抓包程序如果想开启混杂模式，会产生错误输出提醒，出现如下问题：
 
-```
+```ColdFusion
 port X set promiscuous enable failed: xx
 ```
 
@@ -138,7 +139,7 @@ K-NET不会开启混杂模式，抓包出现混杂模式开启失败不用关注
 
 ## 处理步骤
 
-K-NET默认关闭混杂模式，如果用户修改了程序，出现混杂模式开启失败，请将程序复原，复原方法参考[安装抓包工具](../../installation/installation.md#安装抓包工具)。定位数据流无需关心混杂模式未开启收不到的数据包。
+K-NET默认关闭混杂模式，如果用户修改了程序，出现混杂模式开启失败，请将程序复原，复原方法参考[安装抓包工具](../../installation/installation.md#可选安装抓包工具)。定位数据流无需关心混杂模式未开启收不到的数据包。
 
 ## 抓包过滤条件在主进程输出错误代码
 
@@ -164,7 +165,7 @@ K-NET默认关闭混杂模式，如果用户修改了程序，出现混杂模式
 
 关闭抓包后，业务进程输出错误日志。
 
-```
+```ColdFusion
 No existing rx/tx callback for port and queue
 Pdump cbs failed to be set, ret -22
 ```
@@ -177,7 +178,7 @@ Pdump cbs failed to be set, ret -22
 
 重启抓包工具，进入“dpdk-stable-21.11.7/app/dumpcap“目录，示例命令如下：
 
-```
+```bash
 LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默认DPDK接管网口，抓取K-NET业务数据包，写入/home/KNET_USER用户目录下，文件名为tx.pcap
 ```
 
@@ -197,10 +198,8 @@ LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默
 
 赋予驱动和抓包程序访问权限并再次运行抓包程序。
 
-```
+```bash
 chmod a+s /usr/lib64/librte_net_hinic3.so
 setcap cap_sys_rawio,cap_dac_read_search,cap_sys_admin+ep /home/KNET_USER/dumpcap
 LD_PRELOAD=librte_net_hinic3.so /home/KNET_USER/dumpcap -w /home/KNET_USER/tx.pcap
 ```
-
-
