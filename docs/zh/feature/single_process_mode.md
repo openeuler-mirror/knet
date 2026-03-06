@@ -30,8 +30,7 @@ vi /etc/knet/knet_comm.conf
     > **说明：** 
     >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，运行命令如下：
->
-    > ```
+    > ```bash
     > LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.0.1
     >    ```
 
@@ -44,8 +43,7 @@ vi /etc/knet/knet_comm.conf
     > **说明：** 
     >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
     >- root用户下执行时需添加so文件路径，运行命令如下：
->
-    > ```
+    > ```bash
     > LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.0.2 --slaveof 192.168.0.1 6380
     >    ```
 
@@ -98,8 +96,7 @@ vi /etc/knet/knet_comm.conf
     >**说明：** 
     >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，运行命令如下：
->
-    > ```
+    > ```bash
     > LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
     >    ```
 
