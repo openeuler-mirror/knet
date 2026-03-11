@@ -218,11 +218,10 @@ KNET_API int knet_init(const char * local_ip)
     uint8_t times = 0;
     do {
         ret = flexda_dtoe_bind_addr(local_ip, &g_dtoeRes.dev.devSn, &g_dtoeRes.dev.numaId);
-        ++times;
         sleep(BIND_INTERVAL);
         KNET_INFO("Dtoe bind addr failed, local_ip %s, ret %d, times %u",
             (local_ip == NULL) ? "null" : local_ip, ret, times);
-    } while (times <= BIND_TIMES && ret != 0);
+    } while (++times <= BIND_TIMES && ret != 0);
     if (ret != 0) {
         KNET_ERR("Dtoe bind addr failed, local_ip %s, ret %d", (local_ip == NULL) ? "null" : local_ip, ret);
         goto dtoe_free;

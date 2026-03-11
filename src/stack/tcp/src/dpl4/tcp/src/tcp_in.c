@@ -99,7 +99,6 @@ int TcpInitPktInfo(Pbuf_t* pbuf, DP_TcpHdr_t* tcpHdr, TcpPktInfo_t* pi)
     }
 
     pi->dataLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
-
     
     DP_IpHdr_t* ipHdr = (DP_IpHdr_t*)PBUF_GET_L3_HDR(pbuf);
     if ((ipHdr->src == ipHdr->dst) && (tcpHdr->sport == tcpHdr->dport)) {
