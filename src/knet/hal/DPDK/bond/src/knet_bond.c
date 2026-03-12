@@ -211,9 +211,10 @@ int KNET_BondUninit(int procType)
     for (uint16_t i = 0; i < KNET_BOND_SLAVE_NUM; i++) {
         ret = rte_eth_dev_stop(g_slavePortIds[i]);
         if (ret != 0) {
-            KNET_ERR("K-NET uninit dpdk port %d failed, ret %d", i, ret);
+            KNET_ERR("K-NET uninit dpdk port %d failed, ret %d", g_slavePortIds[i], ret);
             flag = 1;
         }
+        (void)rte_eth_dev_close(g_slavePortIds[i]);
     }
 
     ret = rte_eth_dev_stop(KNET_GetNetDevCtx()->bondPortId);
@@ -221,6 +222,7 @@ int KNET_BondUninit(int procType)
         KNET_ERR("K-NET stop bondPort %d failed, ret %d", KNET_GetNetDevCtx()->bondPortId, ret);
         flag = 1;
     }
+    (void)rte_eth_dev_close(KNET_GetNetDevCtx()->bondPortId);
 
     return flag;
 }
