@@ -68,6 +68,9 @@ static KnetThreadInfo g_multiPdumpThread = {.lock = {KNET_SPIN_UNLOCKED_VALUE}, 
 static KnetThreadInfo g_signalBlockMonitorThread = {
     .lock = {KNET_SPIN_UNLOCKED_VALUE}, .threadID = 0, .isCreated = false
 };
+static KnetThreadInfo g_telemetryPersistThread = {
+    .lock = {KNET_SPIN_UNLOCKED_VALUE}, .threadID = 0, .isCreated = false
+};
 static bool g_cfgInit = false;
 
 #define DPDK_EAL_INTR_THREAD_NAME  "eal-intr-thread"
@@ -83,6 +86,7 @@ void KNET_AllThreadLock(void)
     }
     KNET_SpinlockLock(&g_multiPdumpThread.lock);
     KNET_SpinlockLock(&g_signalBlockMonitorThread.lock);
+    KNET_SpinlockLock(&g_telemetryPersistThread.lock);
 
     uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
     for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
@@ -101,6 +105,8 @@ void KNET_AllThreadUnlock(void)
 
     KNET_SpinlockUnlock(&g_signalBlockMonitorThread.lock);
     KNET_SpinlockUnlock(&g_multiPdumpThread.lock);
+    KNET_SpinlockUnlock(&g_telemetryPersistThread.lock);
+
     int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
     for (int i = 0; i < ctrlVcpuNum; i++) {
         KNET_SpinlockUnlock(&g_cpThread[i].lock);
@@ -420,6 +426,23 @@ KNET_STATIC int32_t CreateMultiPdumpThread(void)
     return 0;
 }
 
+KNET_STATIC int32_t CreateTelemetryPersistThread(void)
+{
+    // 多进程下从进程不创建线程，此时为正常情况返回0
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_MULTIPLE &&
+    KNET_GetCfg(CONF_INNER_PROC_TYPE)->intValue == KNET_PROC_TYPE_SECONDARY) {
+        return 0;
+    }
+    g_telemetryPersistThread.threadID = KNET_TelemetryStartPersistThread();
+    if (g_telemetryPersistThread.threadID == 0) {
+        KNET_ERR("K-NET create telemetry persist thread failed");
+        return -1;
+    }
+    g_telemetryPersistThread.isCreated = true;
+
+    return 0;
+}
+
 KNET_STATIC int32_t StartDpThread(void)
 {
     // 开启共线程无需启动数据面线程
@@ -442,6 +465,203 @@ KNET_STATIC int32_t StartDpThread(void)
     return 0;
 }
 
+static bool IsDpdkCtrlThread(void)
+{
+    // dpdk初始化时会置这个全局变量为当前线程tid,-1说明非dpdk线程
+    if (per_lcore__thread_id != -1) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * @attention: 初始化有依赖顺序，勿随意修改顺序
+ */
+void ConfigInit(void)
+{
+    KNET_LogInit();
+
+    int32_t ret = KNET_InitCfg(KNET_PROC_TYPE_SECONDARY);
+    if (ret != 0) {
+        KNET_ERR("K-NET init cfg failed");
+        g_cfgInit = false;
+        return;
+    }
+
+    KNET_LogLevelSetByStr(KNET_GetCfg(CONF_COMMON_LOG_LEVEL)->strValue);
+    KNET_INFO("K-NET start success");
+    if (KNET_GetCfg(CONF_COMMON_COTHREAD)->intValue == 1) {
+        KNET_INFO("K-NET start cothread mode");
+    }
+    g_cfgInit = true;
+}
+
+KNET_STATIC int JoinDpdkAndStackThread(void)
+{
+    // 等待knet线程结束
+    int failedFlag = 0;
+    int ret = 0;
+
+    int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
+    for (int i = 0; i < ctrlVcpuNum; i++) {
+        if (g_cpThread[i].isCreated) {
+            ret = KNET_JoinThread(g_cpThread[i].threadID, NULL);
+            if (ret != 0) {
+                failedFlag = -1;
+                KNET_ERR("K-NET cp thread %d join failed, ret %d", i, ret);
+            }
+        }
+    }
+
+    if (g_multiPdumpThread.isCreated) {
+        ret = KNET_JoinThread(g_multiPdumpThread.threadID, NULL);
+        if (ret != 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET multidump thread join failed, ret %d", ret);
+        }
+    }
+
+    if (g_signalBlockMonitorThread.isCreated) {
+        ret = KNET_JoinThread(g_signalBlockMonitorThread.threadID, NULL);
+        if (ret != 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET signal block monitor thread join failed, ret %d", ret);
+        }
+    }
+
+    if (g_telemetryPersistThread.isCreated) {
+        ret = KNET_JoinThread(g_telemetryPersistThread.threadID, NULL);
+        if (ret != 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET telemetry persist thread join failed, ret %d", ret);
+        }
+    }
+
+    // 等待dpdk线程结束
+    uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
+    for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
+        KNET_DpWorkerInfo *KNET_dpWorkerInfo = KNET_DpWorkerInfoGet(workerId);
+        ret = rte_eal_wait_lcore(KNET_dpWorkerInfo->lcoreId);
+        if (ret < 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET dp thread join failed, ret %d", ret);
+        }
+    }
+
+    return failedFlag;
+}
+
+/**
+ * @brief 手动关闭线程
+ */
+void KNET_SetDpdkAndStackThreadStop(void)
+{
+    g_threadStop = true;
+}
+
+void Uninit(void)
+{
+    static bool uninited = false;
+    if (uninited == true) {
+        return;
+    }
+    
+    if (KNET_DpSignalIsInSigHandler()) {
+        KNET_LogLevelSet(KNET_LOG_EMERG);  /* 在信号流程中退出不能打印syslog，将LOG级别设为0 */
+        KNET_MemSetFlagInSignalQuiting();
+        if (KNET_DpIsForkedParent()) {
+            KNET_DpExit();
+            usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
+            g_threadStop = true;
+            KNET_TelemetrySetPersistThreadExit();
+            usleep(200 * 1000); // 通过延时保证数据面和控制面线程已退出，200 * 1000表示200ms
+            (void)KNET_FreeTapGlobal();
+            KNET_PktBatchFree();
+            return;
+        }
+    }
+
+    /**
+     * @attention
+     * 进程正常退出、exit函数会调用到destructor函数，若存在无法调用到destructor函数的场景，会无法发送RST报文，需再针对性分析和适配
+     *            不可行场景：例如进程未sigaction注册SIGINT信号，则ctrl+c时无法调用到destructor函数
+     * @note 目前redis场景，存在dbg fork，子进程退出会调用destructor，为避免dpdk资源重复释放，采用只让父进程close hijack
+     * fd的方案 HijackFds主要是epollfd、tcp udp
+     * sockfd，截获信号后关闭fd是为了协议栈能通过DP_Close发送RST报文，告知对端本端已经退出
+     */
+    if (KNET_DpIsForkedParent()) {
+        KNET_INFO("All hijack fds close");
+        KNET_DpExit();
+        usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
+
+        g_threadStop = true;        // 置此标志位，控制面和数据面线程才会退出,抓包线程也会退出
+        KNET_TelemetrySetPersistThreadExit();
+        usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
+        int ret = JoinDpdkAndStackThread();
+        if (ret != 0) {
+            KNET_ERR("K-NET join thread failed");
+        }
+        
+        if (!g_tcpInited) {
+            goto END;
+        }
+
+        if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
+            ret = KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_SINGLE);
+        } else {
+            ret = KNET_UninitDpdk(KNET_PROC_TYPE_SECONDARY, KNET_RUN_MODE_MULTIPLE);
+        }
+    }
+
+END:
+    KNET_UninitDp();
+    KNET_UninitCfg();
+    uninited = true;
+}
+
+
+KNET_STATIC int32_t CreateAllThreads(void)
+{
+    int32_t ret;
+
+    /* 创建信号阻塞监控线程 */
+    ret = KnetCreateSignalBlockMonitorThread();
+    if (ret != 0) {
+        KNET_ERR("K-NET create signal block monitor thread failed, ret %d", ret);
+        return ret;
+    }
+
+    /* 创建抓包线程 */
+    ret = CreateMultiPdumpThread();
+    if (ret != 0) {
+        KNET_ERR("K-NET init multidump failed, ret %d", ret);
+        return ret;
+    }
+
+    /* 创建控制面线程 */
+    ret = CreateCpThread();
+    if (ret != 0) {
+        KNET_ERR("K-NET start cp thread failed, ret %d", ret);
+        return ret;
+    }
+
+    /* 启动数据面线程 */
+    ret = StartDpThread();
+    if (ret != 0) {
+        KNET_ERR("K-NET start dp thread failed, ret %d", ret);
+        return ret;
+    }
+
+    /* 创建telemetry持久化线程 */
+    ret = CreateTelemetryPersistThread();
+    if (ret != 0) {
+        return ret; // 函数内部已打印日志
+    }
+
+    return 0;
+}
+
 /**
  * @brief dpdk和协议栈资源初始化
  */
@@ -451,7 +671,7 @@ KNET_STATIC int32_t DpdkStackInit(void)
     int32_t ret = (int32_t)KNET_SAL_Init();
     if (ret != 0) {
         KNET_ERR("K-NET init sal failed, ret %d", ret);
-        return -1;
+        goto err;
     }
 
     if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
@@ -461,7 +681,7 @@ KNET_STATIC int32_t DpdkStackInit(void)
     }
     if (ret < 0) {
         KNET_ERR("K-NET init dpdk failed, ret %d", ret);
-        return -1;
+        goto err;
     }
     KNET_INFO("K-NET init dpdk success");
 
@@ -469,56 +689,22 @@ KNET_STATIC int32_t DpdkStackInit(void)
     ret = KNET_InitDp();
     if (ret < 0) {
         KNET_ERR("K-NET init tcp failed, ret %d", ret);
-        return -1;
+        goto err;
     }
     KNET_INFO("K-NET init tcp success");
 
-    ret = KnetCreateSignalBlockMonitorThread();
+    /* 创建所有工作线程 */
+    ret = CreateAllThreads();
     if (ret != 0) {
-        KNET_ERR("K-NET create signal block monitor thread failed, ret %d", ret);
-        return -1;
-    }
-
-    /* 需要一个抓包线程检查共享内存，拉起抓包线程 */
-    ret = CreateMultiPdumpThread();
-    if (ret != 0) {
-        KNET_ERR("K-NET init multidump failed, ret %d", ret);
-        return -1;
-    }
-
-    /* 拉起控制面线程 */
-    ret = CreateCpThread();
-    if (ret != 0) {
-        KNET_ERR("K-NET start cp thread failed, ret %d", ret);
-        return -1;
-    }
-
-    /* 拉起数据面线程 */
-    ret = StartDpThread();
-    if (ret != 0) {
-        KNET_ERR("K-NET start dp thread failed, ret %d", ret);
-        return -1;
-    }
-
-    ret = KNET_TelemetryStartPersistThread(KNET_GetCfg(CONF_INNER_PROC_TYPE)->intValue,
-                                           KNET_GetCfg(CONF_COMMON_MODE)->intValue);
-    if (ret != 0) {
-        return -1; // 函数内部打印日志
+        goto err;
     }
 
     KNET_SetDpInited();
-
     return 0;
-}
 
-static bool IsDpdkCtrlThread(void)
-{
-    // dpdk初始化时会置这个全局变量为当前线程tid,-1说明非dpdk线程
-    if (per_lcore__thread_id != -1) {
-        return true;
-    }
-
-    return false;
+err:
+    Uninit();
+    return -1;
 }
 
 /**
@@ -581,129 +767,6 @@ int KNET_TrafficResourcesInit(void)
 
     KNET_INFO("K-NET traffic resources init success");
     return 0;
-}
-
-/**
- * @attention: 初始化有依赖顺序，勿随意修改顺序
- */
-void ConfigInit(void)
-{
-    KNET_LogInit();
-
-    int32_t ret = KNET_InitCfg(KNET_PROC_TYPE_SECONDARY);
-    if (ret != 0) {
-        KNET_ERR("K-NET init cfg failed");
-        g_cfgInit = false;
-        return;
-    }
-
-    KNET_LogLevelSetByStr(KNET_GetCfg(CONF_COMMON_LOG_LEVEL)->strValue);
-    KNET_INFO("K-NET start success");
-    if (KNET_GetCfg(CONF_COMMON_COTHREAD)->intValue == 1) {
-        KNET_INFO("K-NET start cothread mode");
-    }
-    g_cfgInit = true;
-}
-
-KNET_STATIC int JoinDpdkAndStackThread(void)
-{
-    // 等待knet线程结束
-    int failedFlag = 0;
-    int ret = 0;
-
-    int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
-    for (int i = 0; i < ctrlVcpuNum; i++) {
-        if (g_cpThread[i].isCreated) {
-            ret = KNET_JoinThread(g_cpThread[i].threadID, NULL);
-            if (ret != 0) {
-                failedFlag = -1;
-                KNET_ERR("K-NET cp thread %d join failed, ret %d", i, ret);
-            }
-        }
-    }
-
-    if (g_multiPdumpThread.isCreated) {
-        ret = KNET_JoinThread(g_multiPdumpThread.threadID, NULL);
-        if (ret != 0) {
-            failedFlag = -1;
-            KNET_ERR("K-NET multidump thread join failed, ret %d", ret);
-        }
-    }
-
-    // 等待dpdk线程结束
-    uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
-    for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
-        KNET_DpWorkerInfo *KNET_dpWorkerInfo = KNET_DpWorkerInfoGet(workerId);
-        ret = rte_eal_wait_lcore(KNET_dpWorkerInfo->lcoreId);
-        if (ret < 0) {
-            failedFlag = -1;
-            KNET_ERR("K-NET dp thread join failed, ret %d", ret);
-        }
-    }
-
-    return failedFlag;
-}
-
-/**
- * @brief 手动关闭线程
- */
-void KNET_SetDpdkAndStackThreadStop(void)
-{
-    g_threadStop = true;
-}
-
-void Uninit(void)
-{
-    if (KNET_DpSignalIsInSigHandler()) {
-        KNET_LogLevelSet(KNET_LOG_EMERG);  /* 在信号流程中退出不能打印syslog，将LOG级别设为0 */
-        KNET_MemSetFlagInSignalQuiting();
-        if (KNET_DpIsForkedParent()) {
-            KNET_DpExit();
-            usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
-            g_threadStop = true;
-            KNET_TelemetrySetPersistThreadExit();
-            usleep(200 * 1000); // 通过延时保证数据面和控制面线程已退出，200 * 1000表示200ms
-            (void)KNET_FreeTapGlobal();
-            KNET_PktBatchFree();
-            return;
-        }
-    }
-
-    /**
-     * @attention
-     * 进程正常退出、exit函数会调用到destructor函数，若存在无法调用到destructor函数的场景，会无法发送RST报文，需再针对性分析和适配
-     *            不可行场景：例如进程未sigaction注册SIGINT信号，则ctrl+c时无法调用到destructor函数
-     * @note 目前redis场景，存在dbg fork，子进程退出会调用destructor，为避免dpdk资源重复释放，采用只让父进程close hijack
-     * fd的方案 HijackFds主要是epollfd、tcp udp
-     * sockfd，截获信号后关闭fd是为了协议栈能通过DP_Close发送RST报文，告知对端本端已经退出
-     */
-    if (KNET_DpIsForkedParent()) {
-        KNET_INFO("All hijack fds close");
-        KNET_DpExit();
-        usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
-
-        g_threadStop = true;        // 置此标志位，控制面和数据面线程才会退出,抓包线程也会退出
-        KNET_TelemetrySetPersistThreadExit();
-        usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
-        int ret = JoinDpdkAndStackThread();
-        if (ret != 0) {
-            KNET_ERR("K-NET join thread failed");
-        }
-        
-        if (!g_tcpInited) {
-            goto END;
-        }
-
-        if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
-            ret = KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_SINGLE);
-        } else {
-            ret = KNET_UninitDpdk(KNET_PROC_TYPE_SECONDARY, KNET_RUN_MODE_MULTIPLE);
-        }
-    }
-
-END:
-    KNET_UninitDp();
-    KNET_UninitCfg();
 }
 
 #ifdef KNET_TEST
