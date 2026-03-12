@@ -114,8 +114,7 @@
     >- 配置2个1G类型内存大页，如果是512M类型推荐配置4个。
     >- 服务端关闭或重启需要重新执行此步骤。
     >- 关闭透明大页会降低Redis的性能，但是性能更稳定，请用户根据实际需要决定透明大页设置。启用透明大页可参考：
->
-    > ```
+    > ```bash
     > echo always > /sys/kernel/mm/transparent_hugepage/enabled
     >    ```
 
@@ -132,11 +131,11 @@
     > **说明：** 
     >用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
     >若为root用户可跳过此步骤。
-
+    
     > **须知：** 
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
-    ```
+    ```bash
     mkdir -p /home/KNET_USER/hugepages
     mount -t hugetlbfs -o pagesize=1G hugetlbfs /home/KNET_USER/hugepages   #将1G类型大页挂载到/home/KNET_USER/hugepages目录下，如果虚拟机关闭或重启需要重新执行
     chown -R KNET_USER:KNET_USER_GROUP /home/KNET_USER/hugepages
@@ -158,8 +157,7 @@
 
     >**说明：** 
     >这里需要注意是否存在其他1G类型大页挂载路径，如果存在的话，可能会造成权限问题影响后续业务运行，需要执行以下命令取消挂载：
->
-    >```
+    >```bash
     >umount /path     # /path为其他1G类型大页挂载路径
     >```
 
@@ -256,8 +254,7 @@
 
         >**说明：** 
         >如果想要取消DPDK接管网卡，执行：
->
-        >```
+        >```bash
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动，如果是使用TM280网卡则为"hns3"，"0000:06:00.0"为BDF号
         >```
 

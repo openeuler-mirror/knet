@@ -122,7 +122,7 @@ vi /etc/knet/knet_comm.conf
     ![](../figures/zh-cn_image_0000002504026624.png)
 
     >**说明：** 
-    >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/perfermance_tuning/bound_same_numa_nic.md)）。
+    >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/bound_same_numa_nic.md)）。
     >- /path/redis-6.0.20/src/redis-benchmark：redis-benchmark是Redis自带的基准测试工具，用于测试Redis的性能，路径根据实际安装Redis的路径填写。
     >- -h 192.168.\*.\*：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
     >- -p 6380：Redis服务器的端口号，这里是步骤1中绑定的端口号。
