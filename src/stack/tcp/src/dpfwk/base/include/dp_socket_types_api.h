@@ -201,14 +201,11 @@ extern "C" {
  */
 #define DP_SO_PROTOCOL 38
 
-
 /**
  * @ingroup sock_types
  * @brief socket userdata选项
  */
 #define DP_SO_USERDATA 10000000
-
-
 
 /**
  * @ingroup sock_types

@@ -370,7 +370,6 @@ static int PreProcIpAddr(Pbuf_t* pbuf, DP_IpHdr_t* ipHdr)
 
 static int IsBroadcastAddress(uint32_t ipAddr, NETDEV_IfAddr_t* broadIfAddr)
 {
-    // 有限广播地址(255.255.255.255)
     if (ipAddr == DP_INADDR_BROADCAST) {
         return 1;
     }

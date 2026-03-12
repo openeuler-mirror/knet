@@ -19,8 +19,8 @@
 #include "knet_log.h"
 #include "knet_lock.h"
 #include "knet_pktpool.h"
-#include "knet_pkt.h"
 #include "knet_config.h"
+#include "knet_pkt.h"
 
 enum KnetPktThreadId {
     PKT_THREAD_ID_UNINITED,

@@ -17,7 +17,6 @@
 #ifndef DP_MEMPOOL_API_H
 #define DP_MEMPOOL_API_H
 
-#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
