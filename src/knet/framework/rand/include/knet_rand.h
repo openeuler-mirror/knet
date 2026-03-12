@@ -16,7 +16,7 @@
 #include "knet_types.h"
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 /**
  * @brief 获取随机数

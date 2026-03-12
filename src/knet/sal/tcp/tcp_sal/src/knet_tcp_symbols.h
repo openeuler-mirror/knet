@@ -72,6 +72,6 @@ int KnetInitDpSymbols(void);
 void KnetDeinitDpSymbols(void);
 
 #ifdef __cplusplus
-}
+extern "C" {
 #endif
 #endif

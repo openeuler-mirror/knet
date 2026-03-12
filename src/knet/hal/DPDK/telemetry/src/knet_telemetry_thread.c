@@ -1007,14 +1007,18 @@ void *KNET_TelemetryPersistThread(void *arg)
     return NULL;
 }
 
-uint64_t KNET_TelemetryStartPersistThread()
+int32_t KNET_TelemetryStartPersistThread(int procType, int processMode)
 {
-    // 创建telemetry持久化线程
-    uint64_t tid;
-    if (KNET_CreateThread(&tid, KNET_TelemetryPersistThread, NULL) != 0) {
-        KNET_ERR("K-NET reg telemetry Persist thread failed, errno %d", errno);
+    // 多进程下从进程不创建线程，此时为正常情况返回0
+    if (processMode == KNET_RUN_MODE_MULTIPLE && procType == KNET_PROC_TYPE_SECONDARY) {
         return 0;
     }
+    // 创建telemetry持久化线程
+    pthread_t tid;
+    if (KNET_CreateThread(&tid, KNET_TelemetryPersistThread, NULL) != 0) {
+        KNET_ERR("K-NET reg telemetry Persist thread failed, errno %d", errno);
+        return KNET_ERROR;
+    }
     KNET_ThreadNameSet(tid, "knetPersist");
-    return tid;
+    return 0;
 }

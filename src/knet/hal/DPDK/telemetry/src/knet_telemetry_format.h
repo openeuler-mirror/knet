@@ -14,7 +14,7 @@
 #define __KNET_TELEMETRY_FORMAT_H__
 
 #ifdef __cplusplus
-extern "C" {
+}
 #endif
 
 #define FORMAT_INT_WIDTH 21 // uint64_t 最大20位
@@ -33,7 +33,6 @@ int FormatEveryDpStats(char *output, int *outputLeftLen);
 int FormatXstatsDataByPortId(char *output, int *outputLeftLen, uint16_t portID);
 int NotifySubprocessRefreshDpState(pid_t pid);
 int TelemetryPersistInitDpJson(void);
-
 void TelemetryPersistUninitDpJson(void);
 int TelemetryPersistInitGetDpStatFunc(int32_t runMode);
 

@@ -183,9 +183,11 @@ DP_EpollDetails_t *KNET_GetEpollSockDetails(int epFd, int *workerId, int *maxSoc
 
 /**
  * @brief 启动数据持久化线程
- * return uint64_t tid, 成功; 0, 失败;
+ * @param procType 主进程 or 从进程
+ * @param processMode 单进程 or 多进程
+ * return int 0, 成功; -1, 失败;
  */
-uint64_t KNET_TelemetryStartPersistThread();
+int32_t KNET_TelemetryStartPersistThread(int procType, int processMode);
 
 /**
  * @brief 退出持久化线程
