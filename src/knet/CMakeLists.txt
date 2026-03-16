@@ -208,7 +208,6 @@ target_link_options(${TARGET_DAEMON} PRIVATE
 target_link_libraries(${TARGET_DAEMON}
     base config log mbuf fmm transmission rpc dpdk_init thread hash capability offload dpdk_utils pktdump tcp_fd
     bond
-    tcp_fd
     telemetry
     rte_telemetry
     libcjson.a
