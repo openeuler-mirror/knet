@@ -205,7 +205,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | TcpRcvErrSackopt          | 收到的带异常SACK选项的报文数量。                         |
 | TcpRcvDataAfterFin        | 收到的FIN之后收到的数据报文数量。                        |
 | TcpRcvAfterClosed         | TCP状态为CLOSED之后收到数据报文数量。                    |
-| TCPCheckDefferAcceptDrops | TCP校验DefferAccept失败拒绝连接的数量。                  |
+| TcpCheckDefferAcceptDrops | TCP校验DefferAccept失败拒绝连接的数量。                  |
 | TcpOverBackLogDrops       | 因达到Server的backlog限制丢弃的连接数量。                |
 | RstPassiveEstOverMaxCb    | Server端因最大TCPCB数量限制丢弃的连接数量。              |
 | TcpSndSyn                 | 发送的SYN报文数。                                        |
@@ -292,7 +292,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | ArpMissResvPkts        | ARP查找失败，缓存报文并返回去保序的报文统计。                    |
 | ArpSearchInPkts        | ARP查找入口报文统计。                                            |
 | ArpHaveNormalPkts      | ARP查找成功报文统计（存在正常ARP）。                             |
-| RcvErrIcmpPkts         | 收到ICMP差错报文，不产生差错报文的个数。                         |
 | RcvIcmpPkts            | 收到ICMP报文的数量统计。                                         |
 | NetBadVersionPkts      | IP版本号错误的报文统计。                                         |
 | NetBadHdrLenPkts       | IP首部长度无效的报文统计。                                       |
@@ -395,32 +394,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | TimerNodeExist                | 定时器已经在链表中。                               |
 | TimerExpiredInval             | 定时器在无效状态下被触发的异常次数。                |
 | TimerActiveExcept             | 激活定时器异常。                                   |
-| ConnedSkRepeat                | 已建链的套接字不能重复建链。                           |
-| ConnRefused                   | 连接被拒绝。                                       |
-| ConnInProgress                | 连接正在进行中。                                   |
-| SetoptParamInval              | 设置TCP选项参数非法。                              |
-| SetoptKpidInval               | 设置TCP选项keepidle参数非法。                      |
-| SetoptKpinInval               | 设置TCP选项keepintvl参数非法。                     |
-| SetoptKpcnInval               | 设置TCP选项keepcnt参数非法。                       |
-| SetoptMaxsegInval             | 设置TCP选项maxseg参数非法。                        |
-| SetoptMaxsegStat              | 设置TCP选项maxseg当前状态异常。                    |
-| SetoptDfacStat                | 设置TCP选项defer accept当前状态异常。              |
-| SetoptCaInval                 | 设置TCP选项caMeth参数非法。                        |
-| SetoptBbrCwndInval            | 设置TCP选项PROBERTT阶段CWND参数非法。              |
-| SetoptBbrTimeoutInval         | 设置TCP选项进入PROBERTT阶段超时时间参数非法。      |
-| SetoptBbrCycleInval           | 设置TCP选项PROBERTT阶段探测时间参数非法。          |
-| SetoptBbrIncrfactorInval      | 设置bbr带宽增加因子参数错误。                      |
-| SetoptNoSupport               | 设置TCP选项opt参数不支持。                         |
-| GetoptInfoInval               | 获取TCP选项TCPInfo参数非法。                       |
-| GetoptParamInval              | 获取TCP选项参数非法。                              |
-| GetoptNoSupport               | 获取TCP选项opt参数不支持。                         |
-| TcpSndConnRefused             | 发送连接已中断。                                   |
-| TcpSndCantSend                | 当前连接不能再发送数据。                           |
-| TcpSndConnClosed              | 当前发送连接被closed。                             |
-| TcpSndNoSpace                 | 发送缓冲区不足。                                   |
-| TcpSndBufNomem                | 发送空间无法写入数据。                             |
-| TcpRcvConnRefused             | 接收连接已中断。                                   |
-| TcpRcvConnClosed              | 当前接收连接被closed。                             |
 | WorkerMissMatch               | 共线程部署模式下，socket/epoll被跨线程使用。       |
 | PortIntervalPutErr            | 端口释放时，查找端口区间失败。                     |
 | PortIntervalCntErr            | 端口区间计数异常。                                 |
@@ -437,17 +410,17 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | NotifyDisconnectedErr         | 老化断链通知事件回调失败。                         |
 | NotifyWriteErr                | 写事件回调失败。                                   |
 | NotifyReadErr                 | 读事件回调失败。                                   |
-| NotifyFreeSockcbErr           | Sock资源即将释放事件回调失败。                     |
+| NotifyFreeSockErr             | Sock资源即将释放事件回调失败。                     |
 | SocketFdErr                   | 创建socket时fd失败。                               |
 | FdMemErr                      | 创建fd时内存申请失败。                             |
 | FdNodeFull                    | 创建fd时无可用node。                               |
 | SocketCreateErr               | 创建socket失败。                                   |
 | SocketDomainErr               | 创建socket时不支持对应domain。                     |
-| SocketNoCreatefn              | 创建socket时无法找到创建钩子。                     |
+| SocketNoCreateFn              | 创建socket时无法找到创建钩子。                     |
 | SocketTypeWithFlags           | 创建socket时type带有flags。                        |
 | SocketTypeErr                 | 创建socket时type不支持。                           |
 | SocketProtoInval              | 创建socket时proto非法。                            |
-| SocketNosupp                  | 创建socket时入参组合不支持。                       |
+| SocketNoSupp                  | 创建socket时入参组合不支持。                       |
 | TcpCreateInval                | 创建TCP socket时proto和domain不对应。                  |
 | TcpCreateFull                 | 创建TCP socket时tcpcb已满。                            |
 | TcpCreateMemErr               | 创建TCP socket时tcpsk申请内存失败。                    |
@@ -456,7 +429,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | UdpCreateMemErr               | 创建UDP socket时udpsk申请内存失败。                    |
 | EpollCreateFull               | 创建epoll socket时数量已满。                       |
 | BindGetSockErr                | Bind时获取套接字失败。                                 |
-| SockGetFdErr                  | 获取fd失败。                                       |
+| SocketGetFdErr                | 获取fd失败。                                       |
 | FdGetInval                    | 因fd非法获取失败。                                 |
 | FdGetClosed                   | 因fd获取node已关闭而失败。                         |
 | FdGetInvalType                | 因获取fd时type不符而失败。                         |
@@ -521,7 +494,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | SendtoBufNull                 | Sendto时buf为空。                                  |
 | SendFlagsInval                | Send时flags不支持。                                |
 | SendGetDatalenFailed          | Send时获取数据长度失败。                           |
-| SendZeroDatalen               | Send时发送数据长度为0。                            |
+| SendGetDataLenZero            | Send时发送数据长度为0。                            |
 | SockCheckMsgNull              | 收发检查时msg为空。                                |
 | SockCheckMsgiovNull           | 收发检查时msg_iov为空。                            |
 | SockCheckMsgiovInval          | 收发检查时msg_iov非法。                            |
@@ -547,7 +520,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | FromMsgBuildPbufFailed        | 由msg构建pbuf时build失败。                         |
 | FromMsgAppendPbufFailed       | 由msg构建pbuf时append失败。                        |
 | SendmsgGetSockErr             | Sendmsg时获取套接字失败。                              |
-| ZsendmsgGetSockErr            | Zsendmsg时获取套接字失败。                             |
+| ZSendmsgGetSockErr            | Zsendmsg时获取套接字失败。                             |
 | RcvfromGetSockErr             | Rcvfrom时获取套接字失败。                              |
 | RcvfromFailed                 | Rcvfrom失败。                                      |
 | RcvfromBufNull                | Rcvfrom时buf为空。                                 |
@@ -562,7 +535,7 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | RcvZcopyGetAddrFailed         | 零拷贝recv时获取目的地址失败。                     |
 | RcvZcopyChainReadFailed       | 零拷贝读取bufchain失败。                           |
 | RcvmsgFailed                  | Rcvmsg失败。                                       |
-| ZrcvmsgFailed                 | 零拷贝rcvmsg失败。                                 |
+| ZRcvmsgFailed                 | 零拷贝rcvmsg失败。                                 |
 | SendIpHookFailed              | 产品注册钩子发送IP报文失败。                       |
 | PbufRefErr                    | PBUF引用计数错误。                                 |
 | InetReassTimeOut              | IPv4重组定时器超时。                               |
@@ -586,9 +559,6 @@ Connected to application: "redis-server 192.168.*.*:6379"
 | CpdFdReadFailed               | Cpd同步内核报文read失败。                          |
 | UtilsTimerErr                 | 基础时钟返回值异常。                               |
 | PbufWidErr                    | PBUF wid与worker id不一致。                        |
-| GsoSegnumErr                  | GSO发送的pbuf分片数量超过设备限制。                |
-| GsoProcErr                    | GSO分片出现异常。                                  |
-| GsoPbufMergeErr               | 发送非GSO PBUF失败，数据长度超过单片PBUF负载长度。 |
 
 **表 7**  /knet/stack/mem\_stat协议栈内存使用统计查询字段说明
 
