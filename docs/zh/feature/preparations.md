@@ -258,7 +258,7 @@
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动，如果是使用TM280网卡则为"hns3"，"0000:06:00.0"为BDF号
         >```
 
-3. 配置K-NET动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。
+3. 配置<term>K-NET</term>动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。
 
     >**说明：** 
     >用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，KNET\_USER需具有命令执行权限。

@@ -6,7 +6,7 @@
 
 ## 接口描述
 
-K-NET共线程worker运行。
+<term>K-NET</term>共线程worker运行。
 
 > **说明：** 
 >

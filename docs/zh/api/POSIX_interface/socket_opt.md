@@ -1,6 +1,6 @@
 # socket选项
 
-以下为K-NET支持的socket选项列举。
+以下为<term>K-NET</term>支持的socket选项列举。
 
 # SOL\_SOCKET
 

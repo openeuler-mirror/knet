@@ -30,9 +30,9 @@ $ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 安装依赖
 
-K-NET编译依赖用户态协议栈的实现,当前以一个示例用户态协议栈为依赖编译K-NET。
+<term>K-NET</term>编译依赖用户态协议栈的实现,当前以一个示例用户态协议栈为依赖编译K-NET。
 
-K-NET在代码仓中提供了统一的编译构建脚本build.py，可以直接执行该脚本进行编译构建RPM包，这一步会自动拉取开源securec、cJSON和dpdk。
+<term>K-NET</term>在代码仓中提供了统一的编译构建脚本build.py，可以直接执行该脚本进行编译构建RPM包，这一步会自动拉取开源securec、cJSON和dpdk。
 
 ```shell
 $ python build.py rpm 生成Release版本
@@ -51,7 +51,7 @@ $ cd ./build/rpmbuild/RPMS
 $ rpm -ivh ./knet-1.0.0.aarch64.rpm
 ```
 
-若安装过K-NET可执行以下命令升级:
+若安装过<term>K-NET</term>可执行以下命令升级:
 
 ```shell
 $ rpm -Uvh ./knet-1.0.0.aarch64.rpm --force --nodeps

@@ -16,7 +16,7 @@ Redis数据库。
 
 ### 功能说明
 
-K-NET通信协议加速：
+<term>K-NET</term>通信协议加速：
 
 - 支持标准POSIX Socket从内核态替换到用户态。
 - 支持高性能用户态TCP/IP协议栈（IPv4）。

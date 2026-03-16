@@ -83,8 +83,8 @@ API参考POSIX接口
 概述：TrafficResourcesInit初始化时，发现是dpdk控制线程，直接返回走os api
 背景/原因：所有线程原先TrafficResourcesInit发现已经在初始化，需要等待初始化完成，然后用dp api。但是bond场景下dpdk控制线程负责bond状态机更新，如果也等待TrafficResourcesInit初始化完成，会导致bond状态机无法更新，所以TrafficResourcesInit初始化线程永远等不到bond状态更新，超时之后bond就初始化失败了。所以修改成TrafficResourcesInit时发现是dpdk控制线程直接走os api
 
-主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉
-背景/原因：K-NET主动建链时，会随机选择端口与对端建链，并下区间流表，如果不进行端口隔离，即内核使用已经下区间流表的port进行主动建链，内核业务进程将不会收到包，包都经由流表发送给K-NET用户态协议栈。
+主动建链时，非<term>K-NET</term>的进程不得使用分配给<term>K-NET</term>使用的随机端口，即与<term>K-NET</term>端口区间不要交叉
+背景/原因：<term>K-NET</term>主动建链时，会随机选择端口与对端建链，并下区间流表，如果不进行端口隔离，即内核使用已经下区间流表的port进行主动建链，内核业务进程将不会收到包，包都经由流表发送给K-NET用户态协议栈。
 
 # Adoption strategy
 

@@ -129,7 +129,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
     patch -p1 -d dumpcap/ < dpdk-21.11.7-dumpcap.patch
     ```
 
-5. 进入dumpcap目录，执行make得到适配K-NET的dumpcap。
+5. 进入dumpcap目录，执行make得到适配<term>K-NET</term>的dumpcap。
 
     ```bash
     cd dumpcap
@@ -191,7 +191,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 命令行安装
 
-1. 下载K-NET源码并编译。
+1. 下载<term>K-NET</term>源码并编译。
 
     ```bash
     git clone https://atomgit.com/openeuler/knet.git
