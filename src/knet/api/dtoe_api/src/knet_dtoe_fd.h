@@ -22,6 +22,16 @@
 #define KNET_INVALID_FD (-1)
 #define KNET_INVALID_EVENT_INDEX (-1)
 
+enum KNET_OFFLOAD_STATUS {
+    KNET_OFFLOAD_INVALID, // 未卸载
+    KNET_OFFLOAD_STARTED,
+    KNET_OFFLOAD_ASYNC_DONE,
+    KNET_OFFLOAD_PREPARE_CLOSING,
+    KNET_OFFLOAD_PREPARE_CLOSED_DONE,
+    KNET_OFFLOAD_CLOSING,
+    KNET_OFFLOAD_CLOSED_DONE,
+};
+
 /* 涉及多线程，成员变更考虑伪共享 */
 struct KNET_Fd {
     void *dtoe_conn;
@@ -44,6 +54,7 @@ struct KNET_Fd {
 
     void *user_data;
     uint32_t recv_sn;
+    uint8_t olStatus; // offload status. see enum KNET_OFFLOAD_STATUS
 };
 
 /**
