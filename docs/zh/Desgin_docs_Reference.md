@@ -4,7 +4,7 @@
 
 # Usage Example
 
-API参考POSIX接口
+API参考<term>POSIX</term>接口
 部署文档参考[README](../../README.md)
 配置参考如下：
 

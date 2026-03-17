@@ -19,7 +19,7 @@
 
         ```bash
         system-view # 进入系统视图
-        inter eth-trunk 0 （创建或者进入trunk 0，确保不和已有trunk编号名称冲突）
+        inter eth-trunk 0 #创建或者进入trunk 0，确保不和已有trunk编号名称冲突
         inter 25GE1/0/1 #进入网口
         eth-trunk 0  #将网卡加入eth-trunk0
         commit #保存配置

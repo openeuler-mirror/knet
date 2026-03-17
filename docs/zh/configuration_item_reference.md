@@ -42,8 +42,8 @@
 
 |  配置项    |   说明 |缺省值 | 取值范围|
 |----------|--------|-----|-----|
-| tso          |  TCP Segmentation Offload使能标志，默认关闭。<li> 0：表示不使能TSO。</li><li> 1：表示使能TSO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>   | 0 |0，1|
-| lro          | Large Receive Offload使能标志，默认关闭。<li> 0：表示不使能LRO。</li><li> 1：表示使能LRO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>  | 0 |0，1|
+| tso          |  TCP Segmentation Offload使能标志，默认关闭。<li> 0：表示不使能<term>TSO</term>。</li><li> 1：表示使能TSO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>   | 0 |0，1|
+| lro          | Large Receive Offload使能标志，默认关闭。<li> 0：表示不使能<term>LRO</term>。</li><li> 1：表示使能LRO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>  | 0 |0，1|
 | tcp_checksum | TCP/IP硬件校验和特性开关，默认关闭。<li> 0：表示关闭。</li><li>  1：表示使能。 </li>| 0 |0，1|
 | bifur_enable | 流量分叉特性开关，默认关闭。<li>0：表示关闭。</li><li> 1：表示使能网卡硬件流量分叉功能。 </li><li>  2：表示使能软件内核流量转发功能。 </li>| 0 |0，1，2|
 

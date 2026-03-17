@@ -21,7 +21,7 @@ Redis数据库。
 - 支持标准POSIX Socket从内核态替换到用户态。
 - 支持高性能用户态TCP/IP协议栈（IPv4）。
 - 支持TSO卸载。
-- 支持LRO卸载。
+- 支持<term>LRO</term>卸载。
 - 支持Checksum卸载（TCP）。
 - 支持抓包。
 - 支持协议栈报文统计信息。
