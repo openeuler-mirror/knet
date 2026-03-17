@@ -126,6 +126,8 @@ static void KnetRegPrepareCloseDown(void *dtoe_conn)
         return;
     }
     KNET_DEBUG("Prepare close down fd %d", fd);
+    
+    KNET_GetFdConnUserData(fd)->olStatus = KNET_OFFLOAD_PREPARE_CLOSED_DONE;
     g_knetDtoeOps.prepare_close_done(fd);
 }
 
@@ -159,6 +161,7 @@ static void KnetRegConnAsyncOffloadDone(void *dtoe_conn, uint8_t rsp_status)
         goto leakResInitFailed;
     }
 
+    KNET_GetFdConnUserData(fd)->olStatus = KNET_OFFLOAD_ASYNC_DONE;
     g_knetDtoeOps.conn_async_offload_done(fd, rsp_status);
     return;
 
@@ -409,6 +412,8 @@ void knet_prepare_close(int sockfd)
         return;
     }
     flexda_dtoe_prepare_close(KNET_GetConnBySock(sockfd));
+    
+    KNET_GetFdConnUserData(sockfd)->olStatus = KNET_OFFLOAD_PREPARE_CLOSING;
 
     KNET_DEBUG("sockfd %d prepare close", sockfd);
 }
@@ -421,6 +426,8 @@ void knet_close(int sockfd)
     }
 
     flexda_dtoe_close(sockfd, KNET_GetConnBySock(sockfd));
+
+    KNET_GetFdConnUserData(sockfd)->olStatus = KNET_OFFLOAD_CLOSING;
     
     KNET_DEBUG("sockfd %d knet close", sockfd);
 }

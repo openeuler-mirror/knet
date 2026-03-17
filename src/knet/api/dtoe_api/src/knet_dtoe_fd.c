@@ -80,6 +80,7 @@ void KNET_SetFdState(int sockfd, struct knet_offload_in *in, flexda_dtoe_offload
     /* send_sn - 1是需要设置comp_sn和last_sn为上一次处理的值，要比send_sn小，所以-1，否则后续complete判断无法通过 */
     g_knetDtoeFdMap[sockfd].send.comp_sn = out->send_sn - 1;
     g_knetDtoeFdMap[sockfd].send.last_sn = out->send_sn - 1;
+    g_knetDtoeFdMap[sockfd].olStatus = KNET_OFFLOAD_STARTED;
 }
 
 int KNET_InitFreeReq(int sockfd)
@@ -197,4 +198,5 @@ void KNET_ResetFdState(int sockfd)
     g_knetDtoeFdMap[sockfd].recvEventIndex = KNET_INVALID_EVENT_INDEX;
     g_knetDtoeFdMap[sockfd].send.comp_sn = KNET_INVALID_SN;
     g_knetDtoeFdMap[sockfd].send.last_sn = KNET_INVALID_SN;
+    g_knetDtoeFdMap[sockfd].olStatus = KNET_OFFLOAD_INVALID;
 }
