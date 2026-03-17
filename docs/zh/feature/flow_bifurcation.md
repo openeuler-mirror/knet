@@ -6,7 +6,7 @@
 >默认支持8队列，队列规格受网卡约束，可通过网卡hinicadm3工具将规格扩展至32队列。
 >开启流量分叉时，支持使用SP670 Bond卸载功能。
 
-流量分叉能使DPDK无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
+流量分叉能使DPDK无需接管网卡即可使用<term>K-NET</term>网络加速特性。使用前需使能网卡的流量分叉功能和<term>K-NET</term>流量分叉配置。
 
 ## 流量分叉基础功能
 
@@ -24,7 +24,7 @@
 
     ![](../figures/zh-cn_image_0000002477573334.png)
 
-2. K-NET启用网卡流量分叉功能。
+2. <term>K-NET</term>启用网卡流量分叉功能。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -37,7 +37,7 @@
     }
     ```
 
-3. 无需DPDK接管网卡，服务端启动iPerf3。
+3. 无需<term>DPDK</term>接管网卡，服务端启动iPerf3。
 
     ```bash
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
@@ -51,7 +51,7 @@
     iperf3 -s -4 -p 10002 --bind 192.168.*.*
     ```
 
-5. 客户端同时向K-NET、内核态iPerf3打流。
+5. 客户端同时向<term>K-NET</term>、内核态iPerf3打流。
 
     ```bash
     iperf3 -c 192.168.*.* -t 0 -p 10001 -b 0 -l 64 -P 1 # K-NET
@@ -59,7 +59,7 @@
     iperf3 -c 192.168.*.* -t 0 -p 10002 -b 0 -l 64 -P 1 # 内核态iPerf3
     ```
 
-    K-NET和内核态iPerf3均有流量。
+    <term>K-NET</term>和内核态iPerf3均有流量。
 
     ![](../figures/zh-cn_image_0000002509653267.png)
 
@@ -91,7 +91,7 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     reboot
     ```
 
-3. 调整K-NET配置文件，启用流量分叉，开启32队列。
+3. 调整<term>K-NET</term>配置文件，启用流量分叉，开启32队列。
 
     ```bash
     modprobe vfio enable_unsafe_noiommu_mode=1
@@ -128,7 +128,7 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
 
-5. 客户端向K-NET打流。
+5. 客户端向<term>K-NET</term>打流。
 
     ```bash
     iperf3 -c 192.168.*.* -t 0 -p 10001 -b 0 -l 64 -P 1
@@ -179,7 +179,7 @@ commit #保存配置
 >**说明：** 
 >服务端和客户端的bond配置需添加lacp\_rate fast，交换机的trunk口配置需添加lacp timeout fast，以实现网口故障快速切换。
 
-1. K-NET启用网卡流量分叉功能。
+1. <term>K-NET</term>启用网卡流量分叉功能。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -192,7 +192,7 @@ commit #保存配置
     }
     ```
 
-2. 无需DPDK接管网卡，服务端启动iPerf3。
+2. 无需<term>DPDK</term>接管网卡，服务端启动iPerf3。
 
     ```bash
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*

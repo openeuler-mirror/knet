@@ -88,7 +88,7 @@
         "bond_enable": 1,  # 0为关闭bond，1为开启bond
         "bond_mode": 4,    # 设置dpdk bond mode为4，目前只支持mode 4
         "bdf_nums": [
-          "0000:01:00.0",  # 填写用来组bond的两张网卡的pci号，跟上述dpdk接管的网卡保持一致
+          "0000:01:00.0",  # 填写用来组bond的网卡的两个网口，跟上述dpdk接管的网卡保持一致
           "0000:01:00.1"
         ],
         "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两张网卡之一的mac

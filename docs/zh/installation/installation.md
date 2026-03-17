@@ -129,7 +129,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
     patch -p1 -d dumpcap/ < dpdk-21.11.7-dumpcap.patch
     ```
 
-5. 进入dumpcap目录，执行make得到适配K-NET的dumpcap。
+5. 进入dumpcap目录，执行make得到适配<term>K-NET</term>的dumpcap。
 
     ```bash
     cd dumpcap
@@ -191,7 +191,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 命令行安装
 
-1. 下载K-NET源码并编译。
+1. 下载<term>K-NET</term>源码并编译。
 
     ```bash
     git clone https://atomgit.com/openeuler/knet.git
@@ -229,11 +229,11 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## Computing ToolKit批量安装
 
-对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/batch_om.md)，将安装命令替换为如下，以ARM环境初次安装K-NET为例：
+对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/FAQs/common_operations.md)，将安装命令替换为如下，以ARM环境初次安装K-NET为例：
 
-    ```bash
-    cd /path; rpm -ivh knet-1.0.0.aarh64.rpm
-    ```
+```bash
+cd /path; rpm -ivh knet-1.0.0.aarh64.rpm
+```
 
-    > **说明：** 
-    >“/path”为用户传输K-NET的RPM包路径，请根据实际填写。
+> **说明：** 
+>“/path”为用户传输K-NET的RPM包路径，请根据实际填写。

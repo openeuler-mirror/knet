@@ -10,7 +10,7 @@
 
 ## 使用示例
 
-更新配置文件
+更新配置文件。
 
 ```bash
 sh /etc/knet/tools/merge_conf.sh
