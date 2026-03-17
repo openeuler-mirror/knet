@@ -564,6 +564,7 @@ void KNET_UninitDp(void)
 {
     if (g_tapFd != INVALID_FD && KNET_GetCfg(CONF_HW_BIFUR_ENABLE)->intValue != BIFUR_ENABLE) {
         KNET_TapFree(g_tapFd);
+        g_tapFd = INVALID_FD;
     }
     KnetDeinitDpSymbols();
 }

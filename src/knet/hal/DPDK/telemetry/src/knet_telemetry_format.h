@@ -14,7 +14,7 @@
 #define __KNET_TELEMETRY_FORMAT_H__
 
 #ifdef __cplusplus
-}
+extern "C" {
 #endif
 
 #define FORMAT_INT_WIDTH 21 // uint64_t 最大20位

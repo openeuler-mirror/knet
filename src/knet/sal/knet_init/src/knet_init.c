@@ -68,6 +68,9 @@ static KnetThreadInfo g_multiPdumpThread = {.lock = {KNET_SPIN_UNLOCKED_VALUE}, 
 static KnetThreadInfo g_signalBlockMonitorThread = {
     .lock = {KNET_SPIN_UNLOCKED_VALUE}, .threadID = 0, .isCreated = false
 };
+static KnetThreadInfo g_telemetryPersistThread = {
+    .lock = {KNET_SPIN_UNLOCKED_VALUE}, .threadID = 0, .isCreated = false
+};
 static bool g_cfgInit = false;
 
 #define DPDK_EAL_INTR_THREAD_NAME  "eal-intr-thread"
@@ -89,6 +92,7 @@ void KNET_AllThreadLock(void)
     }
     KNET_SpinlockLock(&g_multiPdumpThread.lock);
     KNET_SpinlockLock(&g_signalBlockMonitorThread.lock);
+    KNET_SpinlockLock(&g_telemetryPersistThread.lock);
 
     uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
     for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
@@ -107,6 +111,7 @@ void KNET_AllThreadUnlock(void)
 
     KNET_SpinlockUnlock(&g_signalBlockMonitorThread.lock);
     KNET_SpinlockUnlock(&g_multiPdumpThread.lock);
+    KNET_SpinlockUnlock(&g_telemetryPersistThread.lock);
     int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
     for (int i = 0; i < ctrlVcpuNum; i++) {
         KNET_SpinlockUnlock(&g_cpThread[i].lock);
@@ -448,38 +453,78 @@ KNET_STATIC int32_t StartDpThread(void)
     return 0;
 }
 
-/**
- * @brief dpdk和协议栈资源初始化
- */
-KNET_STATIC int32_t DpdkStackInit(void)
+
+KNET_STATIC int JoinDpdkAndStackThread(void)
 {
-    /* 注册tcp协议栈钩子 */
-    int32_t ret = (int32_t)KNET_SAL_Init();
-    if (ret != 0) {
-        KNET_ERR("K-NET init sal failed, ret %d", ret);
-        return -1;
+    // 等待knet线程结束
+    int failedFlag = 0;
+    int ret = 0;
+
+    int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
+    for (int i = 0; i < ctrlVcpuNum; i++) {
+        if (g_cpThread[i].isCreated) {
+            ret = KNET_JoinThread(g_cpThread[i].threadID, NULL);
+            if (ret != 0) {
+                failedFlag = -1;
+                KNET_ERR("K-NET cp thread %d join failed, ret %d", i, ret);
+            }
+            g_cpThread[i].isCreated = false;
+        }
     }
 
-    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
-        ret = KNET_InitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_SINGLE);
-    } else {
-        ret = KNET_InitDpdk(KNET_PROC_TYPE_SECONDARY, KNET_RUN_MODE_MULTIPLE);
+    if (g_multiPdumpThread.isCreated) {
+        ret = KNET_JoinThread(g_multiPdumpThread.threadID, NULL);
+        if (ret != 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET multidump thread join failed, ret %d", ret);
+        }
+        g_multiPdumpThread.isCreated = false;
     }
-    if (ret < 0) {
-        KNET_ERR("K-NET init dpdk failed, ret %d", ret);
+
+    if (g_telemetryPersistThread.isCreated) {
+        ret = KNET_JoinThread(g_telemetryPersistThread.threadID, NULL);
+        if (ret != 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET telemetry persist thread join failed, ret %d", ret);
+        }
+        g_telemetryPersistThread.isCreated = false;
+    }
+
+    // 等待dpdk线程结束
+    uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
+    for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
+        KNET_DpWorkerInfo *KNET_dpWorkerInfo = KNET_DpWorkerInfoGet(workerId);
+        ret = rte_eal_wait_lcore(KNET_dpWorkerInfo->lcoreId);
+        if (ret < 0) {
+            failedFlag = -1;
+            KNET_ERR("K-NET dp thread join failed, ret %d", ret);
+        }
+    }
+
+    return failedFlag;
+}
+
+int CreateTelemetryPersistThread(void)
+{
+    // 多进程下从进程不创建线程，视为正常情况返回0
+    int runMode = KNET_GetCfg(CONF_COMMON_MODE)->intValue;
+    int procType = KNET_GetCfg(CONF_INNER_PROC_TYPE)->intValue;
+    if (runMode == KNET_RUN_MODE_MULTIPLE && procType == KNET_PROC_TYPE_SECONDARY) {
+        return 0;
+    }
+    uint64_t tid = KNET_TelemetryStartPersistThread();
+    if (tid == 0) {
+        KNET_ERR("K-NET create telemetry persist thread failed");
         return -1;
     }
-    KNET_INFO("K-NET init dpdk success");
+    g_telemetryPersistThread.threadID = tid;
+    g_telemetryPersistThread.isCreated = true;
+    return 0;
+}
 
-    /* 初始化tcp协议栈 */
-    ret = KNET_InitDp();
-    if (ret < 0) {
-        KNET_ERR("K-NET init tcp failed, ret %d", ret);
-        return -1;
-    }
-    KNET_INFO("K-NET init tcp success");
-
-    ret = KnetCreateSignalBlockMonitorThread();
+int CreateThreads()
+{
+    int ret = KnetCreateSignalBlockMonitorThread();
     if (ret != 0) {
         KNET_ERR("K-NET create signal block monitor thread failed, ret %d", ret);
         return -1;
@@ -506,15 +551,67 @@ KNET_STATIC int32_t DpdkStackInit(void)
         return -1;
     }
 
-    ret = KNET_TelemetryStartPersistThread(KNET_GetCfg(CONF_INNER_PROC_TYPE)->intValue,
-                                           KNET_GetCfg(CONF_COMMON_MODE)->intValue);
+    ret = CreateTelemetryPersistThread();
     if (ret != 0) {
         return -1; // 函数内部打印日志
+    }
+    return 0;
+}
+
+/**
+ * @brief dpdk和协议栈资源初始化
+ */
+KNET_STATIC int32_t DpdkStackInit(void)
+{
+    /* 注册tcp协议栈钩子 */
+    int32_t ret = (int32_t)KNET_SAL_Init();
+    if (ret != 0) {
+        KNET_ERR("K-NET init sal failed, ret %d", ret);
+        return -1;
+    }
+
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
+        ret = KNET_InitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_SINGLE);
+    } else {
+        ret = KNET_InitDpdk(KNET_PROC_TYPE_SECONDARY, KNET_RUN_MODE_MULTIPLE);
+    }
+    if (ret < 0) {
+        KNET_ERR("K-NET init dpdk failed, ret %d", ret);
+        KNET_UninitDp();
+        return -1;
+    }
+    KNET_INFO("K-NET init dpdk success");
+
+    /* 初始化tcp协议栈 */
+    ret = KNET_InitDp();
+    if (ret < 0) {
+        KNET_ERR("K-NET init tcp failed, ret %d", ret);
+        goto uninitdpdk;
+    }
+    KNET_INFO("K-NET init tcp success");
+
+    ret = CreateThreads();
+    if (ret != 0) {
+        goto jointhreads;
     }
 
     KNET_SetDpInited();
 
     return 0;
+
+jointhreads:
+    g_threadStop = true;
+    KNET_TelemetrySetPersistThreadExit();
+    usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
+    JoinDpdkAndStackThread();
+uninitdpdk:
+    if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
+        KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_SINGLE);
+    } else {
+        KNET_UninitDpdk(KNET_PROC_TYPE_SECONDARY, KNET_RUN_MODE_MULTIPLE);
+    }
+    KNET_UninitDp();
+    return -1;
 }
 
 static bool IsDpdkCtrlThread(void)
@@ -611,44 +708,6 @@ void ConfigInit(void)
     g_cfgInit = true;
 }
 
-KNET_STATIC int JoinDpdkAndStackThread(void)
-{
-    // 等待knet线程结束
-    int failedFlag = 0;
-    int ret = 0;
-
-    int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
-    for (int i = 0; i < ctrlVcpuNum; i++) {
-        if (g_cpThread[i].isCreated) {
-            ret = KNET_JoinThread(g_cpThread[i].threadID, NULL);
-            if (ret != 0) {
-                failedFlag = -1;
-                KNET_ERR("K-NET cp thread %d join failed, ret %d", i, ret);
-            }
-        }
-    }
-
-    if (g_multiPdumpThread.isCreated) {
-        ret = KNET_JoinThread(g_multiPdumpThread.threadID, NULL);
-        if (ret != 0) {
-            failedFlag = -1;
-            KNET_ERR("K-NET multidump thread join failed, ret %d", ret);
-        }
-    }
-
-    // 等待dpdk线程结束
-    uint32_t maxWorkerId = KNET_DpMaxWorkerIdGet();
-    for (uint32_t workerId = 0; workerId < maxWorkerId; ++workerId) {
-        KNET_DpWorkerInfo *KNET_dpWorkerInfo = KNET_DpWorkerInfoGet(workerId);
-        ret = rte_eal_wait_lcore(KNET_dpWorkerInfo->lcoreId);
-        if (ret < 0) {
-            failedFlag = -1;
-            KNET_ERR("K-NET dp thread join failed, ret %d", ret);
-        }
-    }
-
-    return failedFlag;
-}
 
 /**
  * @brief 手动关闭线程
