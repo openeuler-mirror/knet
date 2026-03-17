@@ -1019,6 +1019,6 @@ int32_t KNET_TelemetryStartPersistThread(int procType, int processMode)
         KNET_ERR("K-NET reg telemetry Persist thread failed, errno %d", errno);
         return KNET_ERROR;
     }
-    KNET_ThreadNameSet(tid, "knetPersist");
+    KNET_ThreadNameSet(tid, "knet_persist");
     return 0;
 }

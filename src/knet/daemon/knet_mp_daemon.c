@@ -30,6 +30,11 @@
 #define KNET_VERSION "0"
 #endif
 
+bool KNET_IsMpDaemonInit(void)
+{
+    return true;
+}
+
 int DaemonInitPublicResource(void)
 {
     int ret;
