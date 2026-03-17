@@ -68,7 +68,7 @@
     
     cat /proc/net/bonding/bond0 # 查看bond0配置，可以看到有两个port
     
-    cat /sys/class/net/bond0/speed # 查看bond0口速率，值应该为两张网卡速率之和
+    cat /sys/class/net/bond0/speed # 查看bond0口速率，值应该为两个网口速率之和
     ```
 
     （可选）后续不需要使用Bond时可通过以下命令取消bond0口：
@@ -81,17 +81,17 @@
 
 3. 配置服务端环境。
 
-    参考[环境配置](preparations.md)，注意执行DPDK接管网卡时Bond场景需要接管两张网卡，另外配置文件做以下修改：
+    参考[环境配置](preparations.md)，注意执行DPDK接管网卡时Bond场景需要接管两个网口，另外配置文件做以下修改：
 
     ```json
     "interface": {
         "bond_enable": 1,  # 0为关闭bond，1为开启bond
         "bond_mode": 4,    # 设置dpdk bond mode为4，目前只支持mode 4
         "bdf_nums": [
-          "0000:01:00.0",  # 填写用来组bond的网卡的两个网口，跟上述dpdk接管的网卡保持一致
+          "0000:01:00.0",  # 填写用来组bond的网卡的两个网口，跟上述dpdk接管的网口保持一致
           "0000:01:00.1"
         ],
-        "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两张网卡之一的mac
+        "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两个网口之一的mac
         "ip": "192.168.*.*",  #根据组网规划填写
         ...
       },
