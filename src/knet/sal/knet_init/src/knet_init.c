@@ -75,6 +75,12 @@ static bool g_cfgInit = false;
 #define KNET_SIGQUIT_WAIT (10 * 1000)
 #define KNET_NO_KERNELFORWARD_FREQ 10000
 
+// 定义为weak函数，默认返回fasle，即不进行daemon初始化
+__attribute__((weak)) bool KNET_IsMpDaemonInit(void)
+{
+    return false;
+}
+
 void KNET_AllThreadLock(void)
 {
     int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
@@ -716,6 +722,11 @@ END:
 
 KNET_STATIC KNET_INIT_API void KnetInit(void)
 {
+    // 如果KNET_IsMpDaemonInit函数返回值为true，即为daemon在执行，便不执行默认的构造函数
+    if (KNET_IsMpDaemonInit()) {
+        return;
+    }
+
     KNET_INFO("K-NET start");
     ConfigInit();
     KNET_DpSignalRegAll();
@@ -723,6 +734,11 @@ KNET_STATIC KNET_INIT_API void KnetInit(void)
 
 KNET_STATIC KNET_UNINIT_API void KnetUninit(void)
 {
+    // 如果KNET_IsMpDaemonInit函数返回值为true，即为daemon在执行，便不执行默认的析构函数
+    if (KNET_IsMpDaemonInit()) {
+        return;
+    }
+
     Uninit();
     KNET_INFO("K-NET stop");
 }

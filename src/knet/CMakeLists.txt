@@ -206,9 +206,7 @@ target_link_options(${TARGET_DAEMON} PRIVATE
 
 # 根据找到的库设置daemon的链接选项
 target_link_libraries(${TARGET_DAEMON}
-    base config log mbuf fmm transmission rpc dpdk_init thread hash capability offload dpdk_utils pktdump tcp_fd
-    bond
-    telemetry
+    ${TARGET_FRAME}
     rte_telemetry
     libcjson.a
     ${SECURE_C}
