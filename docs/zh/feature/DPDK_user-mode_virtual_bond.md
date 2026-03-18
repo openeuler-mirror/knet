@@ -20,12 +20,12 @@
         ```bash
         system-view # 进入系统视图
         inter eth-trunk 0 #创建或者进入trunk 0，确保不和已有trunk编号名称冲突
-        inter 25GE1/0/1 #进入网口
-        eth-trunk 0  #将网卡加入eth-trunk0
+        inter 25GE1/0/1 #进入网口1
+        eth-trunk 0  #将网口加入eth-trunk0
         commit #保存配置
         
-        inter 25GE1/0/2  #进入网口
-        eth-trunk 0  #将网卡加入网口1的eth-trunk0
+        inter 25GE1/0/2  #进入网口2
+        eth-trunk 0  #将网口加入网口1的eth-trunk0
         commit #保存配置
         
         inter eth-trunk 0  #进入trunk 0口
@@ -39,7 +39,7 @@
         dis interface brief
         ```
 
-    3. 如果回显包含如下，Eth-Trunk口和网卡网口状态为up，并且下面包含前面配置加入trunk的网口，即为配置成功：<a id="dpdk-li2"></a>
+    3. 如果回显包含如下，Eth-Trunk口和网口状态为up，并且下面包含前面配置加入trunk的网口，即为配置成功：<a id="dpdk-li2"></a>
 
         ```ColdFusion
         Eth-Trunk0                up       up           0%     0%          0          0
@@ -51,7 +51,7 @@
 
 2. 客户端网卡组Bond。
 
-    以客户端两张网卡为enp1s0f0、enp1s0f1为例。
+    以客户端两个网口为enp1s0f0、enp1s0f1为例。
 
     ```bash
     ip link set dev enp1s0f0 down
@@ -62,7 +62,7 @@
     echo 4 > /sys/class/net/bond0/bonding/mode
     ifconfig bond0 up
     
-    ifenslave bond0 enp1s0f0 enp1s0f1 # 添加网卡
+    ifenslave bond0 enp1s0f0 enp1s0f1 # 添加网口
     echo 1 > /sys/class/net/bond0/bonding/xmit_hash_policy
     ip addr add 192.168.*.*/24 dev bond0 
     

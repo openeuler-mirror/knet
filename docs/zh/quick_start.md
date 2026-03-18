@@ -84,10 +84,10 @@ modprobe vfio-pci
 服务端为物理机场景：
 
 ```shell
-cat /sys/class/net/ens6f0/device/numa_node # ens6f0根据实际使用的网卡名替换
+cat /sys/class/net/ens6f0/device/numa_node # ens6f0根据实际使用的网口替换
 # 假设回显所在NUMA为1
 echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
-echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 具体node编号根据查询到的网卡所在NUMA进行更改
+echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 具体node编号根据查询到的网口所在NUMA进行更改
 echo 1024 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages # 根据实际配置的大页调整
 ```
 
