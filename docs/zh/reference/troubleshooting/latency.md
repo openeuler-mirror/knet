@@ -4,7 +4,7 @@
 
 ### 现象描述
 
-K-NET加速应用，TCP单连接在传输小于最大报文长度（MSS）的报文时出现较大时延，可能是write-write-read模式导致的延迟确认（Delay Ack）超时问题。
+K-NET加速应用，TCP单连接在传输小于最大报文长度（<term>MSS</term>）的报文时出现较大时延，可能是write-write-read模式导致的延迟确认（Delay Ack）超时问题。
 
 ### 原因
 

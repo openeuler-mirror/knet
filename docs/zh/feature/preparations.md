@@ -174,7 +174,7 @@
             ![](../figures/zh-cn_image_0000002478201084.png)
 
             ```bash
-            ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网卡名为"enp6s0"
+            ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
             ```
 
             ![](../figures/zh-cn_image_0000002478361074.png)
@@ -215,9 +215,9 @@
                 "dpdk": {
                     "core_list_global": "1",  # 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
                     ...
-                    "socket_mem": "--socket-mem=0,1024", # 服务端为物理机时：以步骤[8](配置大页内存.md#zh-cn_topic_0000002294361093_zh-cn_topic_0000002164378656_li1215702335016)中查到的网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
+                    "socket_mem": "--socket-mem=0,1024", # 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
                     ...
-                    "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 大页挂载文件夹路径,参考步骤[10](配置大页内存.md#zh-cn_topic_0000002294361093_zh-cn_topic_0000002164378656_li1320520493575)挂载大页的路径
+                    "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 大页挂载文件夹路径
                 }
             ```
 
@@ -228,7 +228,7 @@
     >**说明：** 
     >服务端环境关闭或重启后需要重新执行当前步骤。
 
-    1. 关闭网卡enp6s0（该网卡后续会使用DPDK接管）。
+    1. 关闭网口enp6s0（该网口后续会使用DPDK接管）。
 
         ```bash
         ip link set dev enp6s0 down

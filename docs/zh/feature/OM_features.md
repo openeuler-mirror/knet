@@ -378,11 +378,11 @@ tail <option> /var/log/knet/knet\_comm.log
 
         处理方式：参照[配置大页内存](preparations.md#配置大页内存)配置大页内存并接管网卡。
 
-    - 网卡BDF号不正确，通常在“/etc/knet/knet\_comm.conf”编辑BDF配置时可能配置了不可用网卡，请再次检查填入被DPDK接管网卡的BDF号。
+    - 网口的BDF号不正确，通常在“/etc/knet/knet\_comm.conf”编辑BDF配置时可能配置了网卡的不可用网口，请再次检查填入被DPDK接管网口的BDF号。
 
         ![](../figures/zh-cn_image_0000002504028410.png)
 
-        处理方式：编辑  “/etc/knet/knet\_comm.conf” 配置文件，配置正确网卡BDF号。
+        处理方式：编辑  “/etc/knet/knet\_comm.conf” 配置文件，配置正确网口的BDF号。
 
     - “/etc/knet/knet\_comm.conf ”配置不符合json字符串，可能存在符号错误，如未加逗号，引号等，请检查后再次运行K-NET，并检查knet\_comm.log是否还存在报错。
 

@@ -10,19 +10,19 @@ Bond场景下启动业务失败，日志可以看到“ BondPort 2 wait slaves a
 
 ### 原因
 
-被接管的网卡至少有一张链路不通，导致Bond等待slave端口唤醒过程超时，程序退出。
+被接管的网口至少有一个链路不通，导致Bond等待slave端口唤醒过程超时，程序退出。
 
 ### 处理步骤
 
-参考[相关业务配置中的步骤2](../../feature/preparations.md#相关业务配置)中提到的取消接管网卡步骤还原网卡，检测网卡状态。
+参考[相关业务配置中的步骤2](../../feature/preparations.md#相关业务配置)中提到的取消接管网卡步骤还原网口，检测网口状态。
 
 ```bash
-ethtool enp125s0f0  # 网卡名根据用户具体使用的网卡进行修改
+ethtool enp125s0f0  # 网口名根据用户具体使用的网口进行修改
 ```
 
 ![](../../figures/zh-cn_image_0000002504028422.png)
 
-以上回显说明网卡链路不通，需要先解决组网问题。
+以上回显说明网口链路不通，需要先解决组网问题。
 
 ## Bond场景下启动业务，长期无本端或者对端进行连接后，报错“XXX: Failed to allocate LACP packet from pool”
 

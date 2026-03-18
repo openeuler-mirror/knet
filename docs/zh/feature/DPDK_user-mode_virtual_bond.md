@@ -19,13 +19,13 @@
 
         ```bash
         system-view # 进入系统视图
-        inter eth-trunk 0 （创建或者进入trunk 0，确保不和已有trunk编号名称冲突）
-        inter 25GE1/0/1 #进入网口
-        eth-trunk 0  #将网卡加入eth-trunk0
+        inter eth-trunk 0 #创建或者进入trunk 0，确保不和已有trunk编号名称冲突
+        inter 25GE1/0/1 #进入网口1
+        eth-trunk 0  #将网口1加入eth-trunk0
         commit #保存配置
         
-        inter 25GE1/0/2  #进入网口
-        eth-trunk 0  #将网卡加入网口1的eth-trunk0
+        inter 25GE1/0/2  #进入网口2
+        eth-trunk 0  #将网口2加入网口1的eth-trunk0
         commit #保存配置
         
         inter eth-trunk 0  #进入trunk 0口
@@ -39,7 +39,7 @@
         dis interface brief
         ```
 
-    3. 如果回显包含如下，Eth-Trunk口和网卡网口状态为up，并且下面包含前面配置加入trunk的网口，即为配置成功：<a id="dpdk-li2"></a>
+    3. 如果回显包含如下，Eth-Trunk口和网口状态为up，并且下面包含前面配置加入trunk的网口，即为配置成功：<a id="dpdk-li2"></a>
 
         ```ColdFusion
         Eth-Trunk0                up       up           0%     0%          0          0
@@ -51,7 +51,7 @@
 
 2. 客户端网卡组Bond。
 
-    以客户端两张网卡为enp1s0f0、enp1s0f1为例。
+    以客户端两个网口为enp1s0f0、enp1s0f1为例。
 
     ```bash
     ip link set dev enp1s0f0 down
@@ -62,13 +62,13 @@
     echo 4 > /sys/class/net/bond0/bonding/mode
     ifconfig bond0 up
     
-    ifenslave bond0 enp1s0f0 enp1s0f1 # 添加网卡
+    ifenslave bond0 enp1s0f0 enp1s0f1 # 添加网口
     echo 1 > /sys/class/net/bond0/bonding/xmit_hash_policy
     ip addr add 192.168.*.*/24 dev bond0 
     
     cat /proc/net/bonding/bond0 # 查看bond0配置，可以看到有两个port
     
-    cat /sys/class/net/bond0/speed # 查看bond0口速率，值应该为两张网卡速率之和
+    cat /sys/class/net/bond0/speed # 查看bond0口速率，值应该为两个网口速率之和
     ```
 
     （可选）后续不需要使用Bond时可通过以下命令取消bond0口：
@@ -81,17 +81,17 @@
 
 3. 配置服务端环境。
 
-    参考[环境配置](preparations.md)，注意执行DPDK接管网卡时Bond场景需要接管两张网卡，另外配置文件做以下修改：
+    参考[环境配置](preparations.md)，注意执行DPDK接管网卡时Bond场景需要接管两个网口，另外配置文件做以下修改：
 
     ```json
     "interface": {
         "bond_enable": 1,  # 0为关闭bond，1为开启bond
         "bond_mode": 4,    # 设置dpdk bond mode为4，目前只支持mode 4
         "bdf_nums": [
-          "0000:01:00.0",  # 填写用来组bond的网卡的两个网口，跟上述dpdk接管的网卡保持一致
+          "0000:01:00.0",  # 填写用来组bond的网卡的两个网口，跟上述dpdk接管的网口保持一致
           "0000:01:00.1"
         ],
-        "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两张网卡之一的mac
+        "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两个网口之一的mac
         "ip": "192.168.*.*",  #根据组网规划填写
         ...
       },
@@ -115,7 +115,7 @@
         >- -p：指定服务器端口。
         >- -B：指定服务端绑定的IP地址。用户根据实际DPDK接管的网卡IP地址进行填写。
 
-        回显如下，可以看到两个网卡成功处于up状态：
+        回显如下，可以看到两个网口成功处于up状态：
 
         ![](../figures/zh-cn_image_0000002478211054.png)
 

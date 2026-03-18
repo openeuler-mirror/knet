@@ -35,7 +35,7 @@
     ![](../figures/zh-cn_image_0000002503752648.png)
 
     >**说明：** 
-    >SMMU是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
+    ><term>SMMU</term>是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
 
 ### 升级BIOS（仅TM280网卡涉及）
 
