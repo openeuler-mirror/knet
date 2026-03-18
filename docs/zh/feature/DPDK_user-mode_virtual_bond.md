@@ -21,11 +21,11 @@
         system-view # 进入系统视图
         inter eth-trunk 0 #创建或者进入trunk 0，确保不和已有trunk编号名称冲突
         inter 25GE1/0/1 #进入网口1
-        eth-trunk 0  #将网口加入eth-trunk0
+        eth-trunk 0  #将网口1加入eth-trunk0
         commit #保存配置
         
         inter 25GE1/0/2  #进入网口2
-        eth-trunk 0  #将网口加入网口1的eth-trunk0
+        eth-trunk 0  #将网口2加入网口1的eth-trunk0
         commit #保存配置
         
         inter eth-trunk 0  #进入trunk 0口
