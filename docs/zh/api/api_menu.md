@@ -39,11 +39,11 @@
     -   [sigaction](./POSIX_interface/sigaction.md)
     -   [fork](./POSIX_interface/fork.md)
 
--   [共线程接口](./shared_thread/share_api_menu.md)
-    -   [knet\_init](./shared_thread/knet_init.md)
-    -   [knet\_worker\_init](./shared_thread/knet_worker_init.md)
-    -   [knet\_worker\_run](./shared_thread/knet_worker_run.md)
-    -   [knet\_is\_worker\_thread](./shared_thread/knet_is_worker_thread.md)
+-   [共线程接口](./cothread/share_api_menu.md)
+    -   [knet\_init](./cothread/knet_init.md)
+    -   [knet\_worker\_init](./cothread/knet_worker_init.md)
+    -   [knet\_worker\_run](./cothread/knet_worker_run.md)
+    -   [knet\_is\_worker\_thread](./cothread/knet_is_worker_thread.md)
 
 -   [零拷贝接口](./zero_copy/zero_api_menu.md)
     -   [knet\_iovec](./zero_copy/knet_iovec.md)

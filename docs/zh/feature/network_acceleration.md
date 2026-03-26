@@ -12,4 +12,4 @@
 
 - [零拷贝功能](zero_copy.md)
 
-- [共线程功能](shared_thread.md)
+- [共线程功能](cothread.md)
