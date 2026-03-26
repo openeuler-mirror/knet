@@ -6,7 +6,7 @@
 -   [内存故障](memory.md)
 -   [多进程故障](multi-process_mode.md)
 -   [网络故障](network.md)
--   [共线程故障](shared_thread.md)
+-   [共线程故障](cothread.md)
 -   [性能波动故障](performance.md)
 -   [抓包故障](packet_capture.md)
 -   [telemetry故障](telemetry.md)

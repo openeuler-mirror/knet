@@ -9,5 +9,5 @@
     -   [使用DPDK用户态虚拟Bond功能](./DPDK_user-mode_virtual_bond.md)
     -   [内核流量转发功能](./kernel_traffic_forwarding.md)
     -   [零拷贝功能](./zero_copy.md)
-    -   [共线程功能](./shared_thread.md)
+    -   [共线程功能](./cothread.md)
 -   [运维特性](./OM_features.md)

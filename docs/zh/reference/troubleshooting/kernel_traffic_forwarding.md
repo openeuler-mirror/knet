@@ -30,4 +30,4 @@
 
 ### 处理步骤
 
-方案参考[共线程功能中的步骤4](../../feature/shared_thread.md)。
+方案参考[共线程功能中的步骤4](../../feature/cothread.md)。
