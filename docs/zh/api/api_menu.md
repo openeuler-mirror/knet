@@ -39,7 +39,7 @@
     -   [sigaction](./POSIX_interface/sigaction.md)
     -   [fork](./POSIX_interface/fork.md)
 
--   [共线程接口](./cothread/share_api_menu.md)
+-   [共线程接口](./cothread/cothread_api_menu.md)
     -   [knet\_init](./cothread/knet_init.md)
     -   [knet\_worker\_init](./cothread/knet_worker_init.md)
     -   [knet\_worker\_run](./cothread/knet_worker_run.md)
