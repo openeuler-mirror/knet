@@ -126,6 +126,9 @@ void KNET_UninitFreeReq(int sockfd)
     while (!TAILQ_EMPTY(&g_knetDtoeFdMap[sockfd].send.unack_req)) {
         KnetReqNode* n = TAILQ_FIRST(&g_knetDtoeFdMap[sockfd].send.unack_req);
         TAILQ_REMOVE(&g_knetDtoeFdMap[sockfd].send.unack_req, n, node);
+        if (likely(n->freeCb != NULL)) {
+            n->freeCb(n->sockfd, n->wr_id);
+        }
         free(n);
     }
     KNET_SpinlockUnlock(&g_knetDtoeFdMap[sockfd].send_lock);

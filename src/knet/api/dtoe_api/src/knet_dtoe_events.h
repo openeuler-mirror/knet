@@ -41,7 +41,7 @@ typedef struct KnetReqNode {
     uint64_t wr_id;     // 用户透传id
     int sockfd;
     uint16_t send_sn;   // dtoe_send时出参的curr_msn
-} __attribute__((packed)) KnetReqNode;
+} KnetReqNode;
 
 TAILQ_HEAD(KnetReqListHead, KnetReqNode);
 
