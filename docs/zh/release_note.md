@@ -4,7 +4,7 @@
 
 |  产品名称      |   软件名称   | 软件版本 |
 |------------|-------------|-------------|
-| Data Acceleration Kit | 网络加速套件（K-NET）   | 26.0.RC1 |
+| Data Acceleration Kit | 网络加速套件（K-NET）   | [26.0.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.0.rc1-0331) |
 
 ## 版本配套关系
 
