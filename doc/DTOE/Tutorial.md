@@ -82,17 +82,16 @@ yum install -y libboundscheck
     ```
 
 2. 安装K-NET。
-    - 鲲鹏架构：
-        ```bash
-        rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
-        ```
+    ```bash
+    rpm -ivh build/rpmbuild/RPMS/ubs-knet-1.0.0.aarch64.rpm
+    ```
 
 ## 业务适配
 ### 业务适配API接口
 根据API接口描述修改对应的业务代码，具体接口描述见[knet_dtoe_api](../../src/knet/api/dtoe_api/include/knet_dtoe_api.h)。
 
 ### 业务编译
-- 添加编译选项：指定头文件搜索路径与链接的库名称，以iPerf3为例
+- 添加编译选项：指定头文件搜索路径与链接的库名称，以iPerf3为例。
     ```bash
     // Makefile.am
     libiperf_la_LIBADD = -lknet_frame
@@ -117,7 +116,7 @@ $ vim /etc/knet/knet_comm.conf
 | 配置项 | 说明 | 默认值 | 取值范围 | 约束说明 |
 |--------|------|--------|----------|----------|
 | **log_level** | 日志级别 | "WARNING" | "ERROR", "WARNING", "INFO", "DEBUG" | 支持大小写混写 |
-| **channel_num** | 通道个数 | 1 | 64 | tx和rx通道个数各有channel_num个 |
+| **channel_num** | 通道个数 | 1 | 1-64 | tx和rx通道个数各有channel_num个 |
 
 ## K-NET日志
 
