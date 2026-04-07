@@ -1,4 +1,4 @@
 {
-    "depends" : "base, log, dpdk, securec, config, rpc",
+    "depends" : "log, dpdk, securec, config, rpc",
     "description" : "knet fmm module"
 }

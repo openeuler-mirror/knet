@@ -1,4 +1,4 @@
 {
-    "depends"     : "dpfwk_pmgr,dpitf_fd, dpfwk_worker, dpfwk_pbuf,dpfwk_netdev,dpfwk_tbm,dpfwk_ns,dpfwk_shm,dpitf_socket,dpfwk_base,dpfwk_utils,dpfwk_pbuf",
-    "description" : "The module provides the function of dpl2 eth."
+    "depends" : "dpfwk_worker, dpfwk_shm, dpfwk_ns, dpitf_fd, dpfwk_pbuf, dpfwk_netdev",
+    "description" : "The module provides the function of dpitf socket."
 }

@@ -13,7 +13,7 @@ endmacro()
 #spec依赖文件处理
 macro(ADD_MODULE_DEPENDS spec_file)
     execute_process(
-        COMMAND python3 -B ${PROJECT_SOURCE_DIR}/cmake/depends_parse.py ${spec_file} ${CMAKE_CURRENT_BINARY_DIR}/pkg_depends.cmake
+        COMMAND python3 -B ${CMAKE_SPEC_DIR}/depends_parse.py ${spec_file} ${CMAKE_CURRENT_BINARY_DIR}/pkg_depends.cmake
         RESULT_VARIABLE PKG_DEPENDS_RESULT
     )
     if(NOT "${PKG_DEPENDS_RESULT}" STREQUAL "0")

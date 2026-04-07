@@ -1,4 +1,4 @@
 {
-    "depends" : "securec, dpdk, base, log, config, dpdk_init, rpc, offload, dpdk_utils,tcp, sal_tcp,sal  , dp",
+    "depends" : "securec, dpdk, log, config, dpdk_init, rpc, offload, tcp, sal_tcp, dp",
     "description" : "knet transmission module"
 }

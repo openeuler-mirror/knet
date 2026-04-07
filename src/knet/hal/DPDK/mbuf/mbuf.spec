@@ -1,4 +1,4 @@
 {
-    "depends" : "securec, dpdk, base, log, mem, config",
+    "depends" : "securec, dpdk, mem",
     "description" : "knet mbuf module"
 }

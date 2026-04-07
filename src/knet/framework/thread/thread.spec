@@ -1,4 +1,4 @@
 {
-    "depends" : "base, securec, log",
+    "depends" : "log, securec",
     "description" : "knet thread module"
 }

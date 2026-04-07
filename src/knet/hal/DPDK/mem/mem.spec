@@ -1,4 +1,4 @@
 {
-    "depends" : "dpdk, base, log, securec, config",
+    "depends" : "dpdk, log, securec, config",
     "description" : "knet mem module"
 }

@@ -1,4 +1,4 @@
 {
-    "depends" : "base, log, config, capability, securec",
+    "depends" : "log, config, capability, securec",
     "description" : "knet tun module"
 }
