@@ -16,6 +16,10 @@
 #include "rte_mbuf.h"
 #include "knet_types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @ingroup knet_pkt
  * @brief 非法报文池ID
@@ -213,4 +217,7 @@ void KNET_PktBatchFree(void);
  */
 void KNET_MbufAttachExtBuf(struct rte_mbuf *pkt, void *addr, uint64_t iova, uint16_t len, void *shinfo);
 
+#ifdef __cplusplus
+}
+#endif
 #endif // __KNET_PKT_H__

@@ -16,6 +16,10 @@
 #include "knet_types.h"
 #include "knet_config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define KNET_FMM_POOL_MAX_NUM          256
 #define KNET_FMM_POOL_NAME_LEN         32   // DPDK中的限制
 #define KNET_FMM_ERROR                 1
@@ -119,5 +123,9 @@ static inline uint32_t KNET_FmmNormalizeCacheSize(uint32_t eltNum, uint32_t cach
  
     return cacheSize;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
