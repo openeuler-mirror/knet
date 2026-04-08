@@ -23,6 +23,7 @@ int (*g_dPProcIfreq)(DP_Netdev_t* dev, int request, struct DP_Ifreq* ifreq);
 DP_Netdev_t* (*g_dPCreateNetdev)(DP_NetdevCfg_t* cfg);
 int (*g_dPRtCfg)(DP_RtOpt_t op, DP_RtInfo_t* msg, DP_TbmAttr_t* attrs[], int attrCnt);
 int (*g_dPInit)(int slave);
+void (*g_dPDeinit)(int slave);
 int (*g_dPCpdInit)(void);
 int (*g_dPCpdRunOnce)(int cpdId);
 void (*g_dPRunWorkerOnce)(int wid);
@@ -88,6 +89,7 @@ static struct KnetSymbolsInfo g_tcp[] = {
     KNET_ADD_SYMBOL(DP_CreateNetdev, dPCreateNetdev),
     KNET_ADD_SYMBOL(DP_RtCfg, dPRtCfg),
     KNET_ADD_SYMBOL(DP_Init, dPInit),
+    KNET_ADD_SYMBOL(DP_Deinit, dPDeinit),
     KNET_ADD_SYMBOL(DP_CpdInit, dPCpdInit),
     KNET_ADD_SYMBOL(DP_CpdRunOnce, dPCpdRunOnce),
     KNET_ADD_SYMBOL(DP_RunWorkerOnce, dPRunWorkerOnce),
@@ -163,6 +165,11 @@ int DP_RtCfg(DP_RtOpt_t op, DP_RtInfo_t* msg, DP_TbmAttr_t* attrs[], int attrCnt
 int DP_Init(int slave)
 {
     return g_dPInit(slave);
+}
+
+void DP_Deinit(int slave)
+{
+    g_dPDeinit(slave);
 }
 
 int DP_CpdInit(void)

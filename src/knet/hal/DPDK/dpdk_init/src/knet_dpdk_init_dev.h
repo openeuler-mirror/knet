@@ -19,9 +19,17 @@
 #include "knet_bond.h"
 #include "knet_offload.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t KnetGetPktPoolId(void);
 
 int32_t KnetInitDpdkPort(uint16_t portId, int procType, int dpdkPortType);
 int32_t KnetGetDpdkPortIdAndInit(const char *devName, uint16_t *portId, int procType);
 int32_t KnetUninitUnbondDpdkPort(uint16_t portId, int procType);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

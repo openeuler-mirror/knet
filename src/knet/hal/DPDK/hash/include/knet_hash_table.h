@@ -16,6 +16,10 @@
 #include "knet_types.h"
 #include "knet_config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef uint32_t (*KNET_HASH_FUNC)(uint8_t *key, uint32_t keyLen);
 
 typedef struct tagHashTblCfg {
@@ -160,4 +164,8 @@ int KNET_InitHash(enum KNET_ProcType procType);
  * @return int Hash模块的RPC服务注销结果。成功返回0，失败返回-1。
  */
 int KNET_UninitHash(enum KNET_ProcType procType);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // KNET_HASH_TABLE_H

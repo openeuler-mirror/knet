@@ -16,7 +16,7 @@
 #include <stdint.h>
 
 #ifdef __cplusplus
-}
+extern "C" {
 #endif
 
 #define KNET_EPOLL_MAX_NUM (((uint32_t)0xFFFFFFFF) / sizeof(struct epoll_event))
