@@ -1,6 +1,10 @@
-# 安装K-NET
+# 快速入门
 
-## 编译前请确保Glibc版本及ASLR是否开启
+K-NET（K-Network，网络加速套件）旨在打造一款网络加速套件，提供统一的软件框架，发挥软硬件协同优势，释放网卡硬件性能，详细介绍请参见[产品描述](./introduct/introduct_menu.md)。
+
+## 1、安装K-NET前置准备
+
+编译前请确保Glibc版本及ASLR是否开启。
 
 ### 检查Glibc版本
 
@@ -28,9 +32,9 @@ cat /proc/sys/kernel/randomize_va_space
 bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 ```
 
-## 安装依赖
+### 安装依赖
 
-<term>K-NET</term>编译依赖用户态协议栈的实现,当前以一个示例用户态协议栈为依赖编译K-NET。
+<term>K-NET</term>编译依赖用户态协议栈的实现，当前以一个示例用户态协议栈为依赖编译K-NET。
 
 <term>K-NET</term>在代码仓中提供了统一的编译构建脚本build.py，可以直接执行该脚本进行编译构建RPM包，这一步会自动拉取开源securec、cJSON和dpdk。
 
@@ -57,7 +61,7 @@ rpm -ivh ./knet-1.0.0.aarch64.rpm
 rpm -Uvh ./knet-1.0.0.aarch64.rpm --force --nodeps
 ```
 
-## Redis安装
+### Redis安装
 
 上传源码，解压并进入源码目录。
 
@@ -66,11 +70,11 @@ cd redis-6.0.20
 make && make install
 ```
 
-# 运行环境配置
+## 2、配置运行环境
 
 使用用户态协议栈需要配置相关环境, 比如大页等。
 
-## 加载vfio驱动
+### 加载vfio驱动
 
 硬直通模式：
 
@@ -79,7 +83,7 @@ modprobe vfio enable_unsafe_noiommu_mode=1
 modprobe vfio-pci
 ```
 
-## 配置大页内存 
+### 配置大页内存 
 
 服务端为物理机场景：
 
@@ -106,7 +110,7 @@ grep Huge /proc/meminfo
 dpdk-hugepages.py -s
 ```
 
-## 配置动态库查找路径环境变量
+### 配置动态库查找路径环境变量
 
 ```shell
 echo "/<K-NET path>/opensource/dpdk/output/lib64" >> /etc/ld.so.conf
@@ -117,9 +121,9 @@ echo "/usr/lib" >> /etc/ld.so.conf
 ldconfig
 ```
 
-## DPDK接管网卡
+### DPDK接管网卡
 
-如果是mlx网卡硬直通场景不需要执行dpdk-devbind。
+如果是mlx网卡硬直通场景不需要执行dpdk-devbind。DPDK的安装请参见[安装DPDK](./installation/installation.md#dpdk安装)。
 
 以华为SP670网口enp6s0为例，具体以网口function名为准。
 
@@ -128,18 +132,18 @@ ip link set dev enp6s0 down
 dpdk-devbind.py -b vfio-pci enp6s0
 ```
 
-# 修改K-NET配置文件
+## 3、修改K-NET配置文件并试用单进程加速能力
 
-## K-NET配置
+### K-NET配置
 
 ```shell
 vim /etc/knet/knet_comm.conf
 ```
 
 MAC填绑定网卡的MAC地址。IP填绑定网卡的IP地址。
-ctrl_vcpu_ids为控制面线程绑核，需要在有效核号内，且需要与数据面分开。数据面绑核见dpdk配置项core_list_global参数。其他配置参数可参考参数[配置参考](./configuration_item_reference.md)。
+ctrl_vcpu_ids为控制面线程绑核，需要在有效核号内，且需要与数据面分开。数据面绑核见dpdk配置项core_list_global参数。其他配置参数可参考[配置参考](./configuration_item_reference.md)。
 
-## 服务端中运行Redis
+### 服务端中运行Redis
 
 ```shell
 LD_PRELOAD=/usr/lib64/libknet_frame.so redis-server /usr/local/redis/redis.conf --port 6380 --bind 192.168.1.6
@@ -148,7 +152,7 @@ LD_PRELOAD=/usr/lib64/libknet_frame.so redis-server /usr/local/redis/redis.conf 
 >说明：
 >bind的ip 192.168.1.6 替换为具体网卡配置的IP地址。
 
-## 客户端运行Redis
+### 客户端运行Redis
 
 ```shell
 taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
@@ -158,7 +162,7 @@ taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -
 >说明：
 >bind的ip 192.168.1.6 替换为具体网卡配置的IP地址。
 
-## 清理set数据，提升get性能
+### 清理set数据，提升get性能
 
 ```shell
 redis-cli -h 192.168.1.6 -p 6380 flushall
@@ -166,3 +170,6 @@ redis-cli -h 192.168.1.6 -p 6380 flushall
 
 >说明：
 >bind的ip 192.168.1.6 替换为具体网卡配置的IP地址。
+
+关于K-NET的安装详情请参见[安装](./installation/install_menu.md)。
+K-NET更多特性详细使用方式请参见[特性指南](./feature/feature_menu.md)。

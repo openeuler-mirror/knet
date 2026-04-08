@@ -24,4 +24,5 @@
     -   [零拷贝故障](troubleshooting/zero_copy.md)
     -   [丢包故障](troubleshooting/packet_loss.md)
     
--   [Common Operations](FAQs/common_operations.md)
+-   [常用操作](common_operations/common_menu.md)
+    -    [批量运维](common_operations/batch_operation.md)
