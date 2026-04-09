@@ -392,7 +392,10 @@ static void DpdkResourceCheck(void)
         KNET_INFO("Socket %d: total_size: %zu, total_used: %zu, total_free: %zu, greatest_free_size:%zu",
             sock, sockStats.heap_totalsz_bytes, sockStats.heap_allocsz_bytes, sockStats.heap_freesz_bytes,
             sockStats.greatest_free_size);
-
+        if(sockStats.heap_totalsz_bytes == 0) {  
+            KNET_WARN("Heap total size is zero.");
+            continue;
+        }
         double memUsage = (double)sockStats.heap_allocsz_bytes / (double)sockStats.heap_totalsz_bytes;
         if (memUsage > MEMORY_THRESHOLD_RATIO) {
             KNET_WARN("Socket %d, Memory usage is too high %lf", sock, memUsage);
