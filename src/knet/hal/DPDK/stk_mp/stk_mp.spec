@@ -1,4 +1,4 @@
 {
-    "depends" : "base, securec, log, config, dpdk",
+    "depends" : "log, securec, config, dpdk",
     "description" : "knet stack mempool module"
 }

@@ -1,4 +1,4 @@
 {
-    "depends" : "base, log, securec, config",
+    "depends" : "log, securec, config",
     "description" : "knet osapi module"
 }

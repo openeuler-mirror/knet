@@ -186,39 +186,6 @@ def build_securec():
         return 0
     return 1
 
-def build_dpstack():
-    os.chdir(f"{KNET_SOURCE_DIR}/src/stack/tcp")
-    # build
-
-    # 获取原始 LD_LIBRARY_PATH
-    original_ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
-
-    # 设置 LD_LIBRARY_PATH
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/dpdk/output/lib64:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/cJSON/build:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/secure_c/lib:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-
-    cmd = ["cmake", f"{KNET_SOURCE_DIR}/src/stack/tcp", "-B", f"{KNET_SOURCE_DIR}/build/tcp"]
-
-    output = subprocess.run(cmd, shell=False)
-    if output.returncode != 0:
-        logging.error(f"exec cmd fail. [{cmd}]")
-        return 1
-
-    cmd = ["make", "-C", f"{KNET_SOURCE_DIR}/build/tcp", "-j"]
-    output = subprocess.run(cmd, shell=False)
-    if output.returncode != 0:
-        logging.error(f"exec cmd fail. [{cmd}]")
-        return 1
-
-    # 将 LD_LIBRARY_PATH 还原为原始值
-    os.environ["LD_LIBRARY_PATH"] = original_ld_library_path
-
-    return 0
-
 def build_knet(debug, test, sdv, fuzz):
     os.chdir(f"{KNET_SOURCE_DIR}")
     # build
@@ -356,10 +323,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     ret = build_securec()
-    if ret != 0:
-        sys.exit(1)
-
-    ret = build_dpstack()
     if ret != 0:
         sys.exit(1)
 

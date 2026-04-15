@@ -1,4 +1,4 @@
 {
-    "depends"     : "dpitf_socket,dpitf_poll,dpitf_epoll, dpfwk_base, dpfwk_utils",
+    "depends" : "dpitf_poll, dpitf_epoll",
     "description" : "The module provides the function of dpitf posix."
 }

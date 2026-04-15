@@ -1,4 +1,4 @@
 {
-    "depends" : "base, securec, tcp, log",
+    "depends" : "log, securec, tcp",
     "description" : "knet capability module"
 }

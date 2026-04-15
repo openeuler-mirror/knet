@@ -1,4 +1,4 @@
 {
-    "depends" : "securec, dpdk, base, log, config",
+    "depends" : "dpdk, log, securec, config",
     "description" : "knet packet dump module"
 }

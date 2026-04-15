@@ -24,6 +24,8 @@ set(PROJIECT_OUT_LIB_DIR ${PROJECT_BINARY_DIR}/lib)
 
 set(LIBRARY_OUTPUT_PATH ${PROJIECT_OUT_LIB_DIR})
 
+set(CMAKE_SPEC_DIR ${PROJECT_SOURCE_DIR}/cmake)
+
 if (${KNET_BUILD_TYPE} STREQUAL "Debug")
     add_compile_options(-g -O0)
     add_compile_definitions(KNET_DEBUG_BUILD=1)

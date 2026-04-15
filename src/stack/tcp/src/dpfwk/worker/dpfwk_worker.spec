@@ -1,4 +1,4 @@
 {
-    "depends"     : "dpfwk_utils, securec,dpfwk_base",
+    "depends" : "dpfwk_utils",
     "description" : "The module provides the function of dpfwk worker."
 }

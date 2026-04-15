@@ -1,4 +1,4 @@
 {
-    "depends" : "base, log, securec",
+    "depends" : "log, securec",
     "description" : "knet rpc module"
 }

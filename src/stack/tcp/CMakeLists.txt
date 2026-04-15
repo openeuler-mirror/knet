@@ -1,11 +1,9 @@
 cmake_minimum_required(VERSION 3.14.1)
-
 project(DP LANGUAGES C)
 
-set(CMAKE_SKIP_RPATH TRUE)
-
-set(TARGET_DP dpstack)
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_SKIP_RPATH TRUE)
+set(TARGET_DP dpstack)
 set(DP_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(KNET_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../)
 
@@ -57,12 +55,12 @@ set(CMAKE_SHARED_LINKER_FLAGS
     -ldl \
     -s"
 )
-
+message("project: ${PROJECT_SOURCE_DIR}")
 #如果Release版本
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -g")
 endif()
-include(${DP_SRC_DIR}/cmake/knet.cmake)
+include(${KNET_SRC_DIR}/cmake/knet.cmake)
 
 # 获取knet.spec文件中的Version号
 set(VERSION_REGEX "Version:[ \t]+(.+)")
