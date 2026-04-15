@@ -65,7 +65,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
     ```bash
     yum install -y gcc # 安装编译工具
-    yum install -y meson ninja-build numactl-devel python3-pyelftools libnl3 libnl3-devel# DPDK依赖
+    yum install -y meson ninja-build numactl-devel python3-pyelftools libnl3 libnl3-devel # DPDK依赖
     ```
 
 2. 按照[版本配套关系](../release_note.md)获取DPDK软件包。
