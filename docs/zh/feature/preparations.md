@@ -86,7 +86,43 @@
 
     ![](../figures/zh-cn_image_0000002535717537.png)
 
-8. 配置大页内存。从此步骤开始，如果要在虚拟机中运行业务，那就在虚拟机中操作，如果是在物理机中运行业务，则在物理机操作。
+8. 执行命令，确认要用的网卡。<a id="确认所用网卡"></a>
+    - SP670网卡：
+
+        ```bash
+        # 虚拟机场景
+        lspci |grep 375f
+        ```
+
+        ```bash
+        # 物理机场景
+        lspci |grep 0222
+        ```
+
+        以虚拟机场景为例：
+
+        ![](../figures/zh-cn_image_0000002478201084.png)
+
+        ```bash
+        ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
+        ```
+
+        ![](../figures/zh-cn_image_0000002478361074.png)
+
+        ```bash
+        ip a  #可以查询到网卡的IP地址以及MAC地址
+        ```
+
+        ![](../figures/zh-cn_image_0000002510321009.png)
+
+    - TM280网卡：
+
+        在服务器BMC界面可以查询到TM280网卡pci号，后续查询网络接口和网卡的IP地址以及MAC地址步骤与上述SP670网卡操作相同。
+
+        ![](../figures/zh-cn_image_0000002510201037.png)
+
+
+9. 配置大页内存。从此步骤开始，如果要在虚拟机中运行业务，那就在虚拟机中操作，如果是在物理机中运行业务，则在物理机操作。
 
     - 服务端为物理机场景：
 
@@ -118,7 +154,7 @@
     > echo always > /sys/kernel/mm/transparent_hugepage/enabled
     >    ```
 
-9. 确认是否配置成功。
+10. 确认是否配置成功。
 
     ```bash
     dpdk-hugepages.py -s # 回显说明在node0节点配置了2个1G类型
@@ -126,7 +162,7 @@
 
     ![](../figures/zh-cn_image_0000002535677583.png)
 
-10. 挂载大页。
+11. 挂载大页。
 
     > **说明：** 
     >用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
@@ -141,7 +177,7 @@
     chown -R KNET_USER:KNET_USER_GROUP /home/KNET_USER/hugepages
     ```
 
-11. 查看大页挂载情况。
+12. 查看大页挂载情况。
 
     ```bash
     mount | grep huge
@@ -164,33 +200,7 @@
 ## 相关业务配置
 
 1. 修改配置文件。
-    1. 执行命令，确认要用的网卡。
-        - SP670网卡：
-
-            ```bash
-            lspci |grep 375f  # 可以筛选出SP670网卡配置的VF设备，如果要筛选出SP670网卡PF设备，执行 lspci |grep 0222
-            ```
-
-            ![](../figures/zh-cn_image_0000002478201084.png)
-
-            ```bash
-            ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
-            ```
-
-            ![](../figures/zh-cn_image_0000002478361074.png)
-
-            ```bash
-            ip a  #可以查询到网卡的IP地址以及MAC地址
-            ```
-
-            ![](../figures/zh-cn_image_0000002510321009.png)
-
-        - TM280网卡：
-
-            在服务器BMC界面可以查询到TM280网卡pci号，后续查询网络接口和网卡的IP地址以及MAC地址步骤与上述SP670网卡操作相同。
-
-            ![](../figures/zh-cn_image_0000002510201037.png)
-
+    1. 参考[配置大页内存 步骤8](#确认所用网卡)确认要用的网卡。
     2. 修改knet\_comm.conf文件。
         1. 打开文件。
 
@@ -206,18 +216,18 @@
                     ...
                     "bdf_nums": [
                        "0000:06:00.0"
-                    ], # 填写获取的BDF号
-                    "mac": "52:54:00:2e:1b:a0", # 填写绑定网卡的MAC地址 
-                    "ip": "192.168.1.6",        # 填写绑定网卡的IP地址
+                    ], # 1. 填写获取的BDF号
+                    "mac": "52:54:00:2e:1b:a0", # 2. 填写绑定网卡的MAC地址 
+                    "ip": "192.168.1.6",        # 3. 填写绑定网卡的IP地址
                     ...
                 },
             #dpdk配置项
                 "dpdk": {
-                    "core_list_global": "1",  # 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
+                    "core_list_global": "1",  # 4. 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
                     ...
-                    "socket_mem": "--socket-mem=0,1024", # 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
+                    "socket_mem": "--socket-mem=0,1024", # 5. 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
                     ...
-                    "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 大页挂载文件夹路径
+                    "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 6. 大页挂载文件夹路径
                 }
             ```
 

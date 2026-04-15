@@ -19,6 +19,66 @@ vi /etc/knet/knet_comm.conf
 
 # Redis业务加速
 
+## 单实例加速
+
+> **说明：** 
+>服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，按照[配置大页内存](preparations.md#配置大页内存)进行环境配置。
+
+1. 服务端中运行Redis服务端。
+
+    >**说明：** 
+    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 若为root用户，执行时需添加so文件路径，运行命令如下：
+    > ```bash
+    > LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+    >    ```
+
+    ```bash
+    LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+    ```
+
+    ![](../figures/zh-cn_image_0000002503866790.png)
+
+    >**说明：** 
+    >- --port：Redis Server侦听的端口，请用户根据实际情况替换。且绑定端口后，请勿再使用此端口运行其他业务。
+    >- --bind：Redis Server侦听的IP地址，为具体网卡配置的IP地址，请用户根据实际情况替换。
+    >- redis-server和redis.conf的路径根据实际安装Redis的路径填写。
+
+2. 客户端主机中运行redis-benchmark进行测试。
+
+    ```bash
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
+    ```
+
+    回显如下，这里以set测试为例：
+
+    ![](../figures/zh-cn_image_0000002504026624.png)
+
+    >**说明：** 
+    >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/bound_same_numa_nic.md)）。
+    >- /path/redis-6.0.20/src/redis-benchmark：redis-benchmark是Redis自带的基准测试工具，用于测试Redis的性能，路径根据实际安装Redis的路径填写。
+    >- -h 192.168.\*.\*：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
+    >- -p 6380：Redis服务器的端口号，这里是步骤1中绑定的端口号。
+    >- -c 1000：并发连接数，即同时向Redis服务器发送请求的客户端数量。
+    >- -n 10000000：总请求数，即客户端向Redis服务器发送的请求总数。
+    >- -r 100000：配置指定数据的key，对SET/GET/INCR使用随机key，对SADD使用随机value，对ZADD使用随机成员和分数。
+    >- -t set：测试类型，set对应测试类型为set操作，如果是-t get表示测试类型为get操作。
+    >- --threads 15：线程数，即每个客户端使用的线程数。同一个客户端可以使用多个线程来发送请求，从而提高并发量和吞吐量。
+
+3. 客户端清理set数据。
+
+    ```bash
+    redis-cli -h 192.168.*.* -p 6380 flushall
+    ```
+
+    ![](../figures/zh-cn_image_0000002535826607.png)
+
+4. 客户端主机中运行redis-benchmark进行get测试。
+
+    ```bash
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
+    ```
+
 ## 虚拟机VF硬直通对Redis业务主从场景加速
 
 >**说明：** 
@@ -85,66 +145,6 @@ vi /etc/knet/knet_comm.conf
 
     >**说明：** 
     >-p 6379：从服务端运行redis命令没有指定端口号，因此其绑定端口号为redis配置文件默认值6379。
-
-## 虚拟机VF硬直通对Redis业务单实例加速
-
-> **说明：** 
->服务端组网参考[虚拟机组网规划](../installation/installation_planning.md)，按照[配置大页内存](preparations.md#配置大页内存)进行环境配置。
-
-1. 服务端虚拟机中运行Redis服务端。
-
-    >**说明：** 
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
-    >- 若为root用户，执行时需添加so文件路径，运行命令如下：
-    > ```bash
-    > LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
-    >    ```
-
-    ```bash
-    LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
-    ```
-
-    ![](../figures/zh-cn_image_0000002503866790.png)
-
-    >**说明：** 
-    >- --port：Redis Server侦听的端口，请用户根据实际情况替换。且绑定端口后，请勿再使用此端口运行其他业务。
-    >- --bind：Redis Server侦听的IP地址，为具体网卡配置的IP地址，请用户根据实际情况替换。
-    >- redis-server和redis.conf的路径根据实际安装Redis的路径填写。
-
-2. 客户端主机中运行redis-benchmark进行测试。
-
-    ```bash
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
-    ```
-
-    回显如下，这里以set测试为例：
-
-    ![](../figures/zh-cn_image_0000002504026624.png)
-
-    >**说明：** 
-    >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/bound_same_numa_nic.md)）。
-    >- /path/redis-6.0.20/src/redis-benchmark：redis-benchmark是Redis自带的基准测试工具，用于测试Redis的性能，路径根据实际安装Redis的路径填写。
-    >- -h 192.168.\*.\*：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
-    >- -p 6380：Redis服务器的端口号，这里是步骤1中绑定的端口号。
-    >- -c 1000：并发连接数，即同时向Redis服务器发送请求的客户端数量。
-    >- -n 10000000：总请求数，即客户端向Redis服务器发送的请求总数。
-    >- -r 100000：配置指定数据的key，对SET/GET/INCR使用随机key，对SADD使用随机value，对ZADD使用随机成员和分数。
-    >- -t set：测试类型，set对应测试类型为set操作，如果是-t get表示测试类型为get操作。
-    >- --threads 15：线程数，即每个客户端使用的线程数。同一个客户端可以使用多个线程来发送请求，从而提高并发量和吞吐量。
-
-3. 客户端清理set数据。
-
-    ```bash
-    redis-cli -h 192.168.*.* -p 6380 flushall
-    ```
-
-    ![](../figures/zh-cn_image_0000002535826607.png)
-
-4. 客户端主机中运行redis-benchmark进行get测试。
-
-    ```bash
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
-    ```
 
 ## 虚拟机VF硬直通对Redis业务集群场景加速
 
