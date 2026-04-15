@@ -52,7 +52,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
     - CTyunos操作系统下：
     请参考[https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md](https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md)。
 
-## （可选）安装DPDK
+## 安装DPDK
 
 >**说明：** 
 >如果已经安装21.11.7版本的DPDK，且不需要抓包功能，可跳过此章节。
