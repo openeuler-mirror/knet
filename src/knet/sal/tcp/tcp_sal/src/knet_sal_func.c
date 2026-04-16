@@ -318,8 +318,7 @@ uint32_t KnetRegRand(void)
 
 int32_t KnetRegWorkderId(void)
 {
-    DP_WorkerGetSelfIdHook pHook;
-    pHook = KNET_ACC_WorkerGetSelfId;
+    DP_WorkerGetSelfIdHook pHook = KNET_ACC_WorkerGetSelfId;
     return DP_RegGetSelfWorkerIdHook(pHook);
 }
 
