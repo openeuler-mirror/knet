@@ -29,8 +29,10 @@ set(CMAKE_C_FLAGS
     -ftrapv"
 )
 #如果Release版本，-O2优化
-if (CMAKE_BUILD_TYPE STREQUAL "Release")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FORTIFY_SOURCE=2 -O2")
+if (${KNET_BUILD_TYPE} STREQUAL "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FORTIFY_SOURCE=2 -O2 -s")
+elseif (${KNET_BUILD_TYPE} STREQUAL "Debug")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0")
 endif()
 
 #设置头文件依赖路径
@@ -52,8 +54,7 @@ set(CMAKE_SHARED_LINKER_FLAGS
     -Wl,-z,relro,-z,noexecstack \
     -Wl,-z,now \
     -lpthread \
-    -ldl \
-    -s"
+    -ldl"
 )
 message("project: ${PROJECT_SOURCE_DIR}")
 #如果Release版本
