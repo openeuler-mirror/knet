@@ -36,11 +36,12 @@ elseif (${KNET_BUILD_TYPE} STREQUAL "Release")
         -D_FORTIFY_SOURCE=2 \
         -fPIE \
         -fPIC \
-        -fstack-protector-strong"
+        -fstack-protector-strong \
+        -s"
     )
 # Debug编译选项默认从项目CMake统一添加
 elseif (${KNET_BUILD_TYPE} STREQUAL "Debug")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall -g -O0")
 endif()
 
 
@@ -123,13 +124,11 @@ endif()
 
 # knet_core链接选项
 target_link_options(${TARGET_CORE} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
 )
 
 # 根据找到的库设置链接选项
@@ -164,13 +163,11 @@ endif()
 
 # knet_frame链接选项
 target_link_options(${TARGET_FRAME} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
 )
 
 target_link_libraries(${TARGET_FRAME}
@@ -194,13 +191,11 @@ endif()
 
 # knet_daemon链接选项
 target_link_options(${TARGET_DAEMON} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
     -pie
 )
 
