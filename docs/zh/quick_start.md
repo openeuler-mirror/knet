@@ -169,25 +169,41 @@ dpdk-devbind.py -b "hisdk3" 0000:06:00.0
 
 2. 按“i“进入编辑模式，参考[确认要使用的网卡](#确认要使用的网卡)与[确认网卡numa与cpu](#确认网卡numa与cpu)修改配置项，示例如下：
 
+    填写获取的网卡信息。
+
     ```json
-    #interface配置项
-        "interface": {
-            ...
-            "bdf_nums": [
-                "0000:06:00.0"
-            ], # 1. 填写获取的BDF号
-            "mac": "52:54:00:2e:1b:a0", # 2. 填写绑定网卡的MAC地址 
-            "ip": "192.168.1.6",        # 3. 填写绑定网卡的IP地址
-            ...
+    "interface": {
+        ...
+        "bdf_nums": [
+            "0000:06:00.0"
+        ], # 1. 填写获取的BDF号
+        "mac": "52:54:00:2e:1b:a0", # 2. 填写绑定网卡的MAC地址 
+        "ip": "192.168.1.6",        # 3. 填写绑定网卡的IP地址
+        ...
         },
-    #dpdk配置项
+    ```
+
+    >**说明**
+    >1. 填写获取的BDF号：根据接管网卡实际填写。
+    >2. 填写绑定网卡的MAC地址：根据接管网卡实际MAC填写。
+    >3. 填写绑定网卡的IP地址：用户可以填写预期的网段IP。
+
+    填写dpdk配置项。
+
+    ```json
         "dpdk": {
-            "core_list_global": "1",  # 4. 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。如需要提升性能，改为网卡所在CPU。
+            "core_list_global": "1",  # 4. 数据面绑核。
             ...
-            "socket_mem": "--socket-mem=0,1024", # 5. 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
+            "socket_mem": "--socket-mem=0,1024", # 5. 配置每个socket大页内存。
             ...
         }
     ```
+
+    >**说明**
+    >4. 数据面绑核：以1为例，表示K-NET使用1号核进行报文收发，需要确保与ctrl_vcpu_ids绑定的核不同。用户可配置为网卡所在CPU。
+    >5. 配置每个socket大页内存：服务端为物理机时，以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存；服务端为虚拟机时，使用默认配置"socket_mem" : "--socket-mem=1024"即可。
+
+如想查看更多配置说明，可参见[配置项参考](./configuration_item_reference.md)。
 
 3. 按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -317,8 +333,8 @@ taskset -c 0-31 /path/redis-server /path/redis.conf --port 6380 --bind 192.168.1
 
 以测试内核性能set 176956.69 rps，get 199952 rps为例，K-NET对其有具有明显提升效果。
 
-## 更多特性
+# 更多特性
 K-NET更多特性详细使用方式请参见[特性指南](./feature/feature_menu.md)。
 
-## 性能调优
-如需性能调优请参见[性能调优](./reference/performance_tuning/tuning_menu.md)。
+# 性能调优
+K-NET性能调优请参见[性能调优](./reference/performance_tuning/tuning_menu.md)。
