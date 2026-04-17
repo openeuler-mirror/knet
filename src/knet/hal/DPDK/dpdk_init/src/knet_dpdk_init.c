@@ -566,22 +566,23 @@ int DelayCpdRingInit(int procType, int processMode)
 int32_t DpdkPortInitNoBifur(void)
 {
     int32_t ret = 0;
+    if (KNET_GetCfg(CONF_HW_BIFUR_ENABLE)->intValue == BIFUR_ENABLE) {
+        return 0;
+    }
     // 使用sp网卡流量分叉vf方案，若K-NET bifur_enable = 0且在模板3 需要校验是否bind配置文件中的bdf网口
     // 否则在物理机驱动会分配一个vf，等同于bind，逻辑错误
-    if (KNET_GetCfg(CONF_HW_BIFUR_ENABLE)->intValue != BIFUR_ENABLE) {
-        if (KNET_GetCfg(CONF_INTERFACE_BOND_ENABLE)->intValue == 0) {
-            ret = CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[0]);
-        } else {
-            if (CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[0]) != 0 ||
-                CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[1]) != 0) {
-                ret = -1;
-            }
+    if (KNET_GetCfg(CONF_INTERFACE_BOND_ENABLE)->intValue == 0) {
+        ret = CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[0]);
+    } else {
+        if (CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[0]) != 0 ||
+            CheckDpdkDevBind(KNET_GetCfg(CONF_INTERFACE_BDF_NUMS)->strValueArr[1]) != 0) {
+            ret = -1;
         }
+    }
 
-        if (ret != 0) {
-            KNET_ERR("bifur_enable is not set 1 and bdf is not bind, ret %d", ret);
-            return -1;
-        }
+    if (ret != 0) {
+        KNET_ERR("bifur_enable is not set 1 and bdf is not bind, ret %d", ret);
+        return -1;
     }
 
     return 0;
