@@ -1,0 +1,23 @@
+# 卸载K-NET
+
+## 命令行卸载
+
+```bash
+rpm -e knet-1.0.0-1.ctl2.aarch64
+```
+
+## Computing ToolKit批量卸载
+
+对于Computing ToolKit方式的卸载方法，请参见[批量运维](../Reference/Common_Operations/Batch_OM.md)，将卸载命令替换为如下。
+
+- 鲲鹏架构：
+
+    ```bash
+    rpm -e knet-1.0.0.aarch64
+    ```
+
+- x86架构：
+
+    ```bash
+    rpm -e knet-1.0.0.x86_64
+    ```
