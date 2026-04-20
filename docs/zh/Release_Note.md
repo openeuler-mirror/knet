@@ -1,4 +1,4 @@
-# Release Notes
+# Release Note
 
 ## 产品版本信息
 

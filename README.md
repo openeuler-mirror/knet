@@ -20,7 +20,7 @@
 
 ## 版本说明
 
-K-NET版本说明包含版本配套关系和每个版本的特性变更说明，具体请参见[Release Notes](./docs/zh/Release_Note.md)。
+K-NET版本说明包含版本配套关系和每个版本的特性变更说明，具体请参见[Release Note](./docs/zh/Release_Note.md)。
 
 ## 源码下载
 
