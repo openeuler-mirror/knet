@@ -325,15 +325,14 @@ taskset -c 0-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-server /p
     ```
 
 3. 服务端运行内核协议栈Redis-server。
-
-    ```bash
-    taskset -c 0-31 /path/redis-server /path/redis.conf --port 6380 --bind 192.168.1.6
-    ```
-
     >**说明**：
     >taskset -c 0-31：根据网卡实际所在CPU范围进行填，请参考[确认网卡numa与cpu](#确认网卡numa与cpu)。
     >bind的ip 192.168.1.6: 替换为具体K-NET配置文件的IP地址。
     >/path/redis-server与path/redis.conf：根据实际路径进行填写。
+
+    ```bash
+    taskset -c 0-31 /path/redis-server /path/redis.conf --port 6380 --bind 192.168.1.6
+    ```
 
 4. 客户端运行Redis-benchmark。
     
