@@ -1,0 +1,16 @@
+# 故障处理
+
+-   [Bond故障](./Bond.md)
+-   [内核流量转发故障](./Kernel_Traffic_Forwarding.md)
+-   [时延故障](./Latency.md)
+-   [内存故障](./Memory.md)
+-   [多进程故障](./Multi-process_Model.md)
+-   [网络故障](./Network.md)
+-   [共线程故障](./Cothread.md)
+-   [性能波动故障](./Performance_Fluctuation.md)
+-   [抓包故障](./Packet_Capture.md)
+-   [telemetry故障](./Telemetry.md)
+-   [流分叉故障](./Flow_Bifurcation.md)
+-   [重启虚拟机失败进入shell界面](./VM_Restart.md)
+-   [零拷贝故障](./Zero_Copy.md)
+-   [丢包故障](./Packet_Loss.md)
