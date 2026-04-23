@@ -1,0 +1,30 @@
+# 附录
+
+- [性能调优](./performance_tuning/tuning_menu.md)
+    - [绑核与网卡所在NUmA一致](./performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)
+    - [网卡队列调优](./performance_tuning/network_queue_tuning.md)
+    - [bIoS调优](./performance_tuning/bios_tuning.md)
+
+- [脚本参考](./script_reference/script_menu.md)
+    - [collect.sh（运维信息收集脚本）](./script_reference/collect.md)
+    - [merge_conf.sh（配置文件合并脚本）](./script_reference/merge_configuration.md)
+    - [dpdk-telemetry.py网卡统计信息获取脚本](./script_reference/dpdk_telemetry.md)
+
+- [故障处理](./troubleshooting/troubleshooting_menu.md)
+    - [bond故障](./troubleshooting/bond.md)
+    - [内核流量转发故障](./troubleshooting/kernel_traffic_forwarding.md)
+    - [时延故障](./troubleshooting/latency.md)
+    - [内存故障](./troubleshooting/memory.md)
+    - [多进程故障](./troubleshooting/multi_process_model.md)
+    - [网络故障](./troubleshooting/network.md)
+    - [共线程故障](./troubleshooting/cothread.md)
+    - [性能波动故障](./troubleshooting/performance_fluctuation.md)
+    - [抓包故障](./troubleshooting/packet_capture.md)
+    - [telemetry故障](./troubleshooting/telemetry.md)
+    - [流分叉故障](./troubleshooting/flow_bifurcation.md)
+    - [重启虚拟机失败进入shell界面](./troubleshooting/vm_restart.md)
+    - [零拷贝故障](./troubleshooting/zero_copy.md)
+    - [丢包故障](./troubleshooting/packet_loss.md)
+    
+- [常用操作](./common_operations/common_menu.md)
+    - [批量运维](./common_operations/batch_om.md)
