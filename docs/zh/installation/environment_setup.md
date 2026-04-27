@@ -194,7 +194,7 @@
 2. 安装虚拟机参考[《QEMU-KVM虚拟机 安装指南（openEuler 22.03）》](https://www.hikunpeng.com/document/detail/zh/kunpengcpfs/ecosystemEnable/QEMU-KVM/kunpengqemukvm_03_0002.html)，但是需要将里面的openEuler 22.03 SP3换成[版本配套关系](../release_note.md)中要求的系统版本。
 3. 系统安装完成后按照安装界面的指示重启，然后连接虚拟机。_以虚拟机名为vm\_perf\_2203_为例。
 
-    若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../reference/troubleshooting/vm_restart.md)进行恢复。
+    若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../troubleshooting/vm_restart.md)进行恢复。
 
     - Arm环境连接到虚拟机。
 

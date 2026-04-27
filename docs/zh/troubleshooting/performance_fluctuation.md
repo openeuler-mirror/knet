@@ -53,7 +53,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     回显示例如下：
 
-    ![](../../figures/zh-cn_image_0000002486509776.png)
+    ![](../figures/zh-cn_image_0000002486509776.png)
 
     Dropped(Packet/Byte)与Drop Rate(pps/bps)不为0，表示交换机已经丢包。
 

@@ -6,7 +6,7 @@
 
 iPerf3适配零拷贝后启动断流：
 
-![](../../figures/zh-cn_image_0000002535748377.png)
+![](../figures/zh-cn_image_0000002535748377.png)
 
 现有日志无明显ERR报错，设置日志级别为DEBUG级别后仅可以看到如下报错，无其他报错日志：
 
@@ -32,7 +32,7 @@ K-NET zero copy writev failed, osFd *** dpFd * DP_ZWritev ret -1,errno 11, Resou
 
 `EAL: eal\_memalloc\_alloc\_seg\_bulk\(\): couldn't find suitable memseg\_list`
 
-![](../../figures/zh-cn_image_0000002529061135.png)
+![](../figures/zh-cn_image_0000002529061135.png)
 
 ### 原因
 

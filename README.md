@@ -79,7 +79,11 @@ API接口说明请参见[API接口](./docs/zh/api/api_menu.md)。
 
 ## Reference
 
-附录参考请参见[参考](./docs/zh/reference/reference_menu.md)。
+附录参考请参见[附录](./docs/zh/reference/reference_menu.md)。
+
+## 故障处理
+
+故障处理详情请参见[故障处理](./docs/zh/troubleshooting/troubleshooting_menu.md)
 
 ## License
 

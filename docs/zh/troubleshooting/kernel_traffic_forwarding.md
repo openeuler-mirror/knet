@@ -14,7 +14,7 @@
     netstat -ntap
     ```
 
-    ![](../../figures/zh-cn_image_0000002503868586.png)
+    ![](../figures/zh-cn_image_0000002503868586.png)
 
 2. 查看K-NET使用端口范围：
 
@@ -30,4 +30,4 @@
 
 ### 处理步骤
 
-方案参考[共线程功能中的步骤4](../../feature_guide/cothread.md)。
+方案参考[共线程功能中的步骤4](../feature_guide/cothread.md)。

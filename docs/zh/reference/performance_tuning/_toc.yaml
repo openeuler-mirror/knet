@@ -1,0 +1,11 @@
+isManual: true
+label: "性能调优"
+sections:
+  - label: BIOS调优
+    href: ./bios_tuning.md
+  - label: 绑核与网卡所在NUMA一致
+    href: ./cpu_core_pinning_consistent_with_nic_numa_node.md
+  - label: 网卡队列调优
+    href: ./network_queue_tuning.md
+  - label: 性能调优
+    href: ./tuning_menu.md

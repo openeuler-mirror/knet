@@ -1,0 +1,81 @@
+isManual: true
+label: "posix接口"
+sections:
+  - label: accept
+    href: ./accept.md
+  - label: accept4
+    href: ./accept4.md
+  - label: bind
+    href: ./bind.md
+  - label: close
+    href: ./close.md
+  - label: connect
+    href: ./connect.md
+  - label: epoll\_create
+    href: ./epoll_create.md
+  - label: epoll\_create1
+    href: ./epoll_create1.md
+  - label: epoll\_ctl
+    href: ./epoll_ctl.md
+  - label: epoll\_pwait
+    href: ./epoll_pwait.md
+  - label: epoll\_wait
+    href: ./epoll_wait.md
+  - label: fcntl
+    href: ./fcntl.md
+  - label: fcntl64
+    href: ./fcntl64.md
+  - label: fork
+    href: ./fork.md
+  - label: getpeername
+    href: ./getpeername.md
+  - label: getsockname
+    href: ./getsockname.md
+  - label: getsockopt
+    href: ./getsockopt.md
+  - label: ioctl
+    href: ./ioctl.md
+  - label: listen
+    href: ./listen.md
+  - label: poll
+    href: ./poll.md
+  - label: POSIX接口
+    href: ./posix_menu.md
+  - label: ppoll
+    href: ./ppoll.md
+  - label: pselect
+    href: ./pselect.md
+  - label: read
+    href: ./read.md
+  - label: readv
+    href: ./readv.md
+  - label: recv
+    href: ./recv.md
+  - label: recvfrom
+    href: ./recvfrom.md
+  - label: recvmsg
+    href: ./recvmsg.md
+  - label: select
+    href: ./select.md
+  - label: send
+    href: ./send.md
+  - label: sendmsg
+    href: ./sendmsg.md
+  - label: sendto
+    href: ./sendto.md
+  - label: setsockopt
+    href: ./setsockopt.md
+  - label: shutdown
+    href: ./shutdown.md
+  - label: sigaction
+    href: ./sigaction.md
+  - label: signal
+    href: ./signal.md
+  - label: socket
+    href: ./socket.md
+  - label: socket选项
+    href: ./socket_opt.md
+  - label: write
+    href: ./write.md
+  - label: writev
+    href: ./writev.md
