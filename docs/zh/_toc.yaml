@@ -27,3 +27,5 @@ sections:
         - href: ./reference/_toc.yaml
   - label: 执行UT用例
     href: ./ut_test.md
+  - label: 接口使用参考
+    href: ./desgin_docs_reference.md
