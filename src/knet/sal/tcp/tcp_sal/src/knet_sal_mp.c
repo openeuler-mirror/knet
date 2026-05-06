@@ -18,6 +18,7 @@
 #include "knet_fmm.h"
 #include "knet_stk_mp.h"
 #include "knet_sal_mp.h"
+#include "knet_sal_func.h"
 
 #define KNET_MEM_POOL_ID_OFFSET 32
 
@@ -41,7 +42,8 @@
 enum {
     KNET_MBUF_POOL_ID_OFFSET = 0,
     KNET_FMM_POOL_ID_OFFSET = KNET_MBUF_POOL_ID_OFFSET + KNET_PKTPOOL_POOL_MAX_NUM,
-    KNET_STK_POOL_ID_OFFSET = KNET_FMM_POOL_ID_OFFSET + KNET_FMM_POOL_MAX_NUM,
+    KNET_EBUF_POOL_ID_OFFSET = KNET_FMM_POOL_ID_OFFSET + KNET_PKTPOOL_POOL_MAX_NUM,
+    KNET_STK_POOL_ID_OFFSET = KNET_EBUF_POOL_ID_OFFSET + KNET_FMM_POOL_MAX_NUM,
     KNET_POOL_ID_MAX = KNET_STK_POOL_ID_OFFSET + KNET_STK_MP_MAX_NUM,
 };
 
@@ -166,6 +168,8 @@ static int32_t MbufPoolCfg(KNET_PktPoolCfg *stPktpoolCfg, const char *name)
     return ret;
 }
 
+static uint32_t g_pbufPoolId;
+
 static uint32_t PbufMpCreate(const DP_MempoolCfg_S *cfg, uint32_t *poolId)
 {
     int32_t ret;
@@ -181,6 +185,8 @@ static uint32_t PbufMpCreate(const DP_MempoolCfg_S *cfg, uint32_t *poolId)
         KNET_ERR("Pbuf mempool create failed, pkt pool create failed, ret %d", ret);
         return KNET_ERROR;
     }
+
+    g_pbufPoolId = *poolId;
 
     return KNET_OK;
 }
@@ -229,9 +235,9 @@ static void KnetMbufDefaultFreeCb(void *addr, void *opaque)
         return;
     }
 
-    struct KNET_ExtBufFreeInfo *freeInfo = (struct KNET_ExtBufFreeInfo *)opaque;
-    if (freeInfo->freeCb != NULL) {
-        freeInfo->freeCb(freeInfo->addr, freeInfo->opaque);
+    struct KNET_ExtBuf *ebuf = (struct KNET_ExtBuf *)opaque;
+    if (ebuf->freeCb != NULL) {
+        ebuf->freeCb(ebuf->addr, ebuf->opaque);
     }
 }
 
@@ -252,7 +258,7 @@ static void *PbufMpConstruct(uint32_t poolId, void *addr, uint64_t offset, uint1
     struct KNET_ExtBuf *ebuf = KnetPtrSub(addr, sizeof(struct KNET_ExtBuf));
     struct rte_mbuf_ext_shared_info *shinfo = (struct rte_mbuf_ext_shared_info *)ebuf;
     shinfo->free_cb = KnetMbufDefaultFreeCb;
-    shinfo->fcb_opaque = &(ebuf->freeInfo);
+    shinfo->fcb_opaque = ebuf;
     uint64_t iova = rte_mempool_virt2iova(ebuf) + (uint64_t)sizeof(struct KNET_ExtBuf) + offset;
 
     // 将 mbuf attach 到外部缓冲区
@@ -339,13 +345,11 @@ static int32_t EbufPoolCfg(KNET_FmmPoolCfg *stFmmpoolCfg, const char *name, cons
 
     size_t nameLen = strlen(stFmmpoolCfg->name);
     stFmmpoolCfg->name[nameLen] = '\0';
-    stFmmpoolCfg->eltSize   = (uint32_t)KNET_GetCfg(CONF_TCP_SGE_LEN)->intValue
-        + (uint32_t)sizeof(struct KNET_ExtBuf);
-    stFmmpoolCfg->eltNum    = (uint32_t)KNET_GetCfg(CONF_TCP_SGE_NUM)->intValue;
+    stFmmpoolCfg->eltSize = (uint32_t)KNET_GetCfg(CONF_TCP_SGE_LEN)->intValue + (uint32_t)sizeof(struct KNET_ExtBuf);
+    stFmmpoolCfg->eltNum = (uint32_t)KNET_GetCfg(CONF_TCP_SGE_NUM)->intValue;
     stFmmpoolCfg->cacheSize = KNET_MEM_DEFAULT_CACHESIZE;
-    stFmmpoolCfg->socketId  = KNET_SOCKET_ANY;
-    stFmmpoolCfg->objInit   = NULL;
-
+    stFmmpoolCfg->socketId = KNET_SOCKET_ANY;
+    stFmmpoolCfg->objInit = NULL;
     return ret;
 }
 
@@ -375,37 +379,74 @@ static uint32_t EbufMpDestroy(uint32_t poolId)
 
 static void *EbufMpAlloc(uint32_t poolId)
 {
-    void *ptr = NULL;
-    uint32_t ret = KNET_FmmAlloc(poolId, &ptr);
-    if (unlikely(ret != KNET_OK)) {
+    struct KNET_ExtBuf* ebuf = NULL;
+    uint32_t ret = KNET_FmmAlloc(poolId, (void**)&ebuf);
+    if (unlikely(ebuf == NULL)) {
         KNET_ERR("Extern buffer mempool alloc failed, ret %u, poolId %u", ret, poolId);
         return NULL;
     }
 
 /* 编译期检测 KNET_MbufExtSharedInfo 与 rte_mbuf_ext_shared_info 布局一致 */
-    RTE_BUILD_BUG_ON(sizeof(struct KNET_MbufExtSharedInfo) != sizeof(struct rte_mbuf_ext_shared_info));
-    RTE_BUILD_BUG_ON(offsetof(struct KNET_MbufExtSharedInfo, freeCb) !=
+    RTE_BUILD_BUG_ON(offsetof(struct KNET_ExtBuf, freeCb) !=
                     offsetof(struct rte_mbuf_ext_shared_info, free_cb));
-    RTE_BUILD_BUG_ON(offsetof(struct KNET_MbufExtSharedInfo, opaque) !=
+    RTE_BUILD_BUG_ON(offsetof(struct KNET_ExtBuf, opaque) !=
                     offsetof(struct rte_mbuf_ext_shared_info, fcb_opaque));
-    RTE_BUILD_BUG_ON(offsetof(struct KNET_MbufExtSharedInfo, refcnt) !=
+    RTE_BUILD_BUG_ON(offsetof(struct KNET_ExtBuf, refcnt) !=
                     offsetof(struct rte_mbuf_ext_shared_info, refcnt));
 
-    struct rte_mbuf_ext_shared_info *shinfo = (struct rte_mbuf_ext_shared_info *)ptr;
-    rte_mbuf_ext_refcnt_set(shinfo, 0);
-
-    return KnetPtrAdd(ptr, sizeof(struct KNET_ExtBuf));
+    void *ptr = KnetPtrAdd(ebuf, sizeof(struct KNET_ExtBuf));
+    uint32_t offset = 0;
+    uint32_t idx = 0;
+    for (; idx < ((uint32_t)KNET_GetCfg(CONF_TCP_SGE_LEN)->intValue + PER_EBUF_MBUF_SIZE - 1) / PER_EBUF_MBUF_SIZE; ++idx) {
+        struct rte_mbuf* mbuf = KNET_PktAlloc(poolId);
+        if (unlikely(mbuf == NULL)) {
+            KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "knet acc mbuf mem pool alloc null, poolId %u", g_pbufPoolId);
+            return NULL;
+        }
+        struct rte_mbuf_ext_shared_info* shinfo = (struct rte_mbuf_ext_shared_info*)ebuf;
+        uint16_t len = offset + PER_EBUF_MBUF_SIZE <= (uint32_t)KNET_GetCfg(CONF_TCP_SGE_LEN)->intValue ?
+        PER_EBUF_MBUF_SIZE : (uint32_t)KNET_GetCfg(CONF_TCP_SGE_LEN)->intValue - offset;
+        uint64_t iova = rte_mempool_virt2iova(ebuf) + (uint64_t)sizeof(struct KNET_ExtBuf) + offset;
+        KNET_MbufAttachExtBuf(mbuf, ptr + offset, iova, len, shinfo);
+        ebuf->bufs[idx] = mbuf;
+        offset += PER_EBUF_MBUF_SIZE;
+    }
+    ebuf->totalBufCnt = idx;
+    ebuf->addr = ptr;
+    return ptr;
 }
 
 static void EbufMpFree(uint32_t poolId, void *ptr)
 {
+    // 以下仅在tx没有设置用户自定义freecb时才会调用
     if (KNET_UNLIKELY(ptr == NULL)) {
         KNET_ERR("Extern buffer free failed, input ptr is null");
         return;
     }
 
-    void *ebuf = KnetPtrSub(ptr, sizeof(struct KNET_ExtBuf));
+    struct KNET_ExtBuf* ebuf = KnetPtrSub(ptr, sizeof(struct KNET_ExtBuf));
+    // avoid dpdk free, keep KNET_ExtBuf dpdk consist with ebuf
+    rte_mbuf_ext_refcnt_set((struct rte_mbuf_ext_shared_info*)ebuf, ebuf->totalBufCnt + 2);
+    for (int i = 0; i < ebuf->totalBufCnt; i++) {
+        KNET_PktFree(ebuf->bufs[i]);
+    }
     (void)KNET_FmmFree(poolId, ebuf);
+}
+
+static void *EbufMpConstruct(uint32_t poolId, void *addr, uint64_t offset, uint16_t len)
+{
+    if (addr == NULL) {
+        return NULL;
+    }
+
+    DP_Pbuf_t* pkt = NULL;
+    struct rte_mbuf* mbuf = KNET_PktAlloc(poolId);
+    if (unlikely(mbuf == NULL)) {
+        return NULL;
+    }
+    pkt = KNET_Mbuf2Pkt(mbuf);
+    DP_PbufRawReset(pkt, mbuf->buf_addr, mbuf->buf_len);
+    return pkt;
 }
 
 /* ref pbuf pool 操作集合 */
@@ -511,7 +552,7 @@ KnetSalMpOpEntry g_knetSalentryable[DP_MEMPOOL_TYPE_MAX] = {
     [DP_MEMPOOL_TYPE_FIXED_MEM] = {KNET_FMM_POOL_ID_OFFSET,
         FixedMpCreate, FixedMpDestroy, FixedMpAlloc, FixedMpFree, MpConstructNULL},
     [DP_MEMPOOL_TYPE_EBUF] = {KNET_FMM_POOL_ID_OFFSET,
-        EbufMpCreate, EbufMpDestroy, EbufMpAlloc, EbufMpFree, MpConstructNULL},
+        EbufMpCreate, EbufMpDestroy, EbufMpAlloc, EbufMpFree, EbufMpConstruct},
     [DP_MEMPOOL_TYPE_REF_PBUF] = {KNET_STK_POOL_ID_OFFSET,
         RefPbufMpCreate, RefPbufMpDestroy, RefPbufMpAlloc, RefPbufMpFree, RefPbufMpConstruct},
 };

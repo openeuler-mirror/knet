@@ -86,7 +86,7 @@ int SOCK_Ioctl(Sock_t* sk, int request, void* arg);
 
 int SOCK_Fcntl(Sock_t* sk, int cmd, int val);
 
-ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags);
+ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags, ssize_t totalLen);
 
 ssize_t SOCK_Sendto(
     Sock_t* sk, const void* buf, size_t len, int flags, const struct DP_Sockaddr* dstAddr, DP_Socklen_t addrlen);

@@ -106,7 +106,10 @@ DP_Hooks_t* UTILS_GetBaseFunc(void);
 #define MEMPOOL_ALLOC(mempool) DP_MempoolAlloc((mempool))
 #define MEMPOOL_CONSTRUCT(mempool, addr, offset, len) DP_MempoolConstruct( \
     (mempool), (addr), (offset), (len))
-
+#define EBUF_GETNEXTPBUF(ebuf, len, idx) DP_EbufGetNextPbuf((ebuf), (len), (idx))
+#define EBUF_REFCNTUPDATE(ptr, value) DP_EbufRefCntUpdate((ptr), (value))
+#define EBUF_CALLBACK(ptr) DP_EbufCallback((ptr))
+#define EBUF_SETREFCNT(ptr, value) DP_EbufSetRefCnt((ptr), (value))
 /** 模块ID信息 */
 enum {
     MOD_INIT,    /**< 初始化 */

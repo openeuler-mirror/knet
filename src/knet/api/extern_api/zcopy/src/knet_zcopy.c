@@ -88,26 +88,6 @@ static ssize_t KnetZWritevNotHijackPath(int sockfd, const struct knet_iovec *iov
     return ret;
 }
 
-static void KnetSetIovFreeInfo(const struct knet_iovec *iov, int iovcnt)
-{
-    // 将释放回调信息写入申请得到的定长内存的头部
-    if (iov == NULL) {
-        return;
-    }
-
-    struct KNET_ExtBuf *ebuf = NULL;
-    for (int i = 0; i < iovcnt; ++i) {
-        if (iov[i].iov_base == NULL) {
-            continue;
-        }
-
-        ebuf = KnetPtrSub(iov[i].iov_base, sizeof(struct KNET_ExtBuf));
-        ebuf->freeInfo.addr = iov[i].iov_base;
-        ebuf->freeInfo.freeCb = iov[i].free_cb;
-        ebuf->freeInfo.opaque = iov[i].opaque;
-    }
-}
-
 ssize_t knet_zwritev(int sockfd, const struct knet_iovec *iov, int iovcnt)
 {
     if (!g_tcpInited) {
@@ -120,10 +100,22 @@ ssize_t knet_zwritev(int sockfd, const struct knet_iovec *iov, int iovcnt)
         return KnetZWritevNotHijackPath(sockfd, iov, iovcnt);
     }
 
-    KnetSetIovFreeInfo(iov, iovcnt);
+    ssize_t totalLen = 0;
+    struct KNET_ExtBuf *ebuf = NULL;
+    for (int i = 0; i < iovcnt; ++i) {
+        if (iov[i].iov_base == NULL) {
+            continue;
+        }
+
+        ebuf = KnetPtrSub(iov[i].iov_base, sizeof(struct KNET_ExtBuf));
+        ebuf->addr = iov[i].iov_base;
+        ebuf->freeCb = iov[i].free_cb;
+        ebuf->opaque = iov[i].opaque;
+        totalLen += iov[i].iov_len;
+    }
     
     BEFORE_DPFUNC();
-    ssize_t ret = DP_ZWritev(KNET_OsFdToDpFd(sockfd), (const struct DP_ZIovec *)iov, iovcnt);
+    ssize_t ret = DP_ZWritev(KNET_OsFdToDpFd(sockfd), (const struct DP_ZIovec *)iov, iovcnt, totalLen);
     AFTER_DPFUNC();
     if (ret < 0 && errno != EAGAIN) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, osFd %d dpFd %d DP_ZWritev ret %zd,"

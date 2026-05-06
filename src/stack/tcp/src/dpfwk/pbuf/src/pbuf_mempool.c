@@ -41,7 +41,19 @@ static void PbufMpFree(void* mp, Pbuf_t* pbuf)
     while (cur != NULL) {
         next = cur->next;
         cur->ref = ref;
-        MEMPOOL_FREE(mp, cur);
+        if ((cur->flags & DP_PBUF_FLAGS_EXTERNAL) == DP_PBUF_FLAGS_EXTERNAL) {
+            if (EBUF_REFCNTUPDATE(cur, -1) == 1) {
+                EBUF_CALLBACK(cur);
+            }
+        } else if ((cur->flags & DP_PBUF_FLAGS_EXT_HEAD) == DP_PBUF_FLAGS_EXT_HEAD) {
+            // 偏移掉mbuf头大小，mbuf头大小192
+            *(void**)((uintptr_t)cur - 192) = NULL;
+            cur->next = NULL;
+            MEMPOOL_FREE(mp, cur);
+        }
+        else {
+            MEMPOOL_FREE(mp, cur);
+        }
         cur = next;
     }
 }
@@ -78,6 +90,7 @@ static Pbuf_t* PbufMpAlloc(void* mp, uint32_t payload)
     DP_PBUF_SET_TOTAL_LEN(ret, 0);
     DP_PBUF_SET_OFFSET(ret, 0);
     DP_PBUF_SET_VPNID(ret, 0);
+    DP_PBUF_SET_SEG_LEN(ret, 0);
     ret->flags = 0;
 
     allocedLen += DP_PBUF_GET_PAYLOAD_LEN(ret);
@@ -98,6 +111,7 @@ static Pbuf_t* PbufMpAlloc(void* mp, uint32_t payload)
         DP_PBUF_SET_TOTAL_LEN(nxt, 0);
         DP_PBUF_SET_OFFSET(nxt, 0);
         DP_PBUF_SET_VPNID(ret, 0);
+        DP_PBUF_SET_SEG_LEN(ret, 0);
         nxt->flags = 0;
         allocedLen += DP_PBUF_GET_PAYLOAD_LEN(nxt);
     }

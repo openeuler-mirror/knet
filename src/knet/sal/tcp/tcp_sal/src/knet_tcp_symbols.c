@@ -57,7 +57,7 @@ int (*g_dPPosixPoll)(struct pollfd *fds, nfds_t nfds, int timeout);
 int (*g_dPPosixIoctl)(int fd, int request, void* arg);
 void* (*g_dPZcopyAlloc)(size_t size);
 void (*g_dPZcopyFree)(void *addr);
-ssize_t (*g_dPZWritev)(int fd, const struct DP_ZIovec *iov, int iovcnt);
+ssize_t (*g_dPZWritev)(int fd, const struct DP_ZIovec *iov, int iovcnt, ssize_t totalLen);
 ssize_t (*g_dPZReadv)(int fd, const struct DP_ZIovec *iov, int iovcnt);
 uint32_t (*g_dPDebugShowHookReg)(DP_DebugShowHook hook);
 int (*g_dPAddrHooksReg)(DP_AddrHooks_t* addrHooks);
@@ -326,9 +326,9 @@ void DP_ZcopyFree(struct DP_ZIovec *iov)
     return g_dPZcopyFree(iov);
 }
 
-ssize_t DP_ZWritev(int fd, const struct DP_ZIovec *iov, int iovcnt)
+ssize_t DP_ZWritev(int fd, const struct DP_ZIovec *iov, int iovcnt, ssize_t totalLen)
 {
-    return g_dPZWritev(fd, iov, iovcnt);
+    return g_dPZWritev(fd, iov, iovcnt, totalLen);
 }
 
 ssize_t DP_ZReadv(int fd, struct DP_ZIovec *iov, int iovcnt)

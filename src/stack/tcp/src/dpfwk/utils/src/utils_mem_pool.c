@@ -58,6 +58,10 @@ uint32_t DP_MempoolHookReg(DP_MempoolHooks_S* pHooks)
     g_dpMpFns.mpFree = pHooks->mpFree;
     g_dpMpFns.mpDestroy = pHooks->mpDestroy;
     g_dpMpFns.mpConstruct = pHooks->mpConstruct;
+    g_dpMpFns.ebufGetseg = pHooks->ebufGetseg;
+    g_dpMpFns.ebufRefCntUpdate = pHooks->ebufRefCntUpdate;
+    g_dpMpFns.ebufCallback = pHooks->ebufCallback;
+    g_dpMpFns.ebufSetRefCnt = pHooks->ebufSetRefCnt;
 
     return 0;
 }
@@ -65,6 +69,36 @@ uint32_t DP_MempoolHookReg(DP_MempoolHooks_S* pHooks)
 DP_MempoolHooks_S *UTILS_GetMpFunc(void)
 {
     return &g_dpMpFns;
+}
+
+void* DP_EbufGetNextPbuf(void* ebuf, uint32_t len, uint16_t idx)
+{
+    if (g_dpMpFns.ebufGetseg != NULL) {
+        return g_dpMpFns.ebufGetseg(ebuf, len, idx);
+    }
+    return NULL;
+}
+
+uint16_t DP_EbufRefCntUpdate(void* ptr, int16_t value)
+{
+    if (g_dpMpFns.ebufRefCntUpdate != NULL) {
+        return g_dpMpFns.ebufRefCntUpdate(ptr, value);
+    }
+    return -1;
+}
+
+void DP_EbufCallback(void* ptr)
+{
+    if (g_dpMpFns.ebufCallback != NULL) {
+        g_dpMpFns.ebufCallback(ptr);
+    }
+}
+
+void DP_EbufSetRefCnt(void* ptr, uint16_t cnt)
+{
+    if (g_dpMpFns.ebufSetRefCnt != NULL) {
+        g_dpMpFns.ebufSetRefCnt(ptr, cnt);
+    }
 }
 
 int32_t DP_MempoolCreate(const DP_MempoolCfg_S* cfg, const DP_MempoolAttr_S* attr, DP_Mempool* handler)

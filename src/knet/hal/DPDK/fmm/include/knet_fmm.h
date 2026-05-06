@@ -34,22 +34,17 @@ typedef struct {
 
 typedef void (*KNET_ExtBufFreeCb_t)(void *addr, void *opaque);
 
-struct KNET_MbufExtSharedInfo {
-    KNET_ExtBufFreeCb_t freeCb;
-    void *opaque;
-    uint16_t refcnt;
-};
-
-struct KNET_ExtBufFreeInfo {
-    KNET_ExtBufFreeCb_t freeCb;     // 用户自定义的释放回调函数
-    void *addr;                     // extern buffer 的起始地址
-    void *opaque;                   // 用户自定义的释放回调函数所需的输入参数
-};
-
+#define EBUF_SEG_MAX_MBUF 9
 /* extern buffer 首部结构体 */
 struct KNET_ExtBuf {
-    struct KNET_MbufExtSharedInfo shinfo;
-    struct KNET_ExtBufFreeInfo freeInfo;
+    KNET_ExtBufFreeCb_t freeCb;     // 用户自定义的释放回调函数
+    void *opaque;                   // 用户自定义的释放回调函数所需的输入参数
+    uint16_t refcnt;
+    uint16_t totalBufCnt;
+    uint8_t padding1[4];
+    void* addr;                     // extern buffer 的起始地址
+    uint8_t padding2[24];
+    struct rte_mbuf* bufs[EBUF_SEG_MAX_MBUF];
 };
 
 /**

@@ -118,6 +118,12 @@ int FD_Close(int fd);
  */
 int FD_GetFileLimit(void);
 
+/**
+ * @brief 返回零拷贝路径file
+ *
+ */
+Fd_t* FD_GetFileOpt(int fd);
+
 static inline int FD_GetFdOffset(void)
 {
     return g_fdOffset;
