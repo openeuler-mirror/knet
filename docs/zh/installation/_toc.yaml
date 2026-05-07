@@ -1,0 +1,13 @@
+isManual: true
+label: "安装指南"
+sections:
+  - label: 搭建环境
+    href: ./environment_setup.md
+  - label: 安装
+    href: ./installation.md
+  - label: 安装指南
+    href: ./installation_menu.md
+  - label: 安装规划
+    href: ./installation_planning.md
+  - label: 卸载K-NET
+    href: ./uninstallation.md

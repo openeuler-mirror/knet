@@ -1,0 +1,11 @@
+isManual: true
+label: "脚本参考"
+sections:
+  - label: collect.sh（运维信息收集脚本）
+    href: ./collect.md
+  - label: dpdk-telemetry.py遥测信息获取脚本
+    href: ./dpdk_telemetry.md
+  - label: merge_conf.sh（配置文件合并脚本）
+    href: ./merge_configuration.md
+  - label: 脚本参考
+    href: ./script_menu.md

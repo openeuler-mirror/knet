@@ -1,0 +1,13 @@
+isManual: true
+label: "产品描述"
+sections:
+  - label: K-NET 产品描述
+    href: ./descritions_menu.md
+  - label: 特性和功能
+    href: ./features_and_functions.md
+  - label: 产品定位和特点
+    href: ./product_positioning_and_highlights.md
+  - label: 方案架构
+    href: ./solution_architecture.md
+  - label: 典型应用场景
+    href: ./typical_application_scenarios.md

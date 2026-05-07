@@ -1,0 +1,27 @@
+isManual: true
+label: "特性指南"
+sections:
+  - label: 共线程功能
+    href: ./cothread.md
+  - label: 环境配置
+    href: ./environment_configuration.md
+  - label: 特性指南
+    href: ./feature_menu.md
+  - label: 特性支持
+    href: ./feature_overview.md
+  - label: 内核流量转发功能
+    href: ./kernel_traffic_forwarding.md
+  - label: 多进程模式加速
+    href: ./multi_process_model_acceleration.md
+  - label: 网络加速功能验证
+    href: ./network_acceleration_verification.md
+  - label: 运维特性
+    href: ./om_features.md
+  - label: 单进程模式加速
+    href: ./single_process_model_acceleration.md
+  - label: 流量分叉功能
+    href: ./traffic_bifurcation.md
+  - label: 使用DPDK用户态虚拟Bond功能
+    href: ./using_dpdk_user_space_virtual_bonding.md
+  - label: 零拷贝功能
+    href: ./zero_copy.md

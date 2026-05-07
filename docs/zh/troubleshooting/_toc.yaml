@@ -1,0 +1,33 @@
+isManual: true
+label: "故障处理"
+sections:
+  - label: Bond故障
+    href: ./bond.md
+  - label: 共线程故障
+    href: ./cothread.md
+  - label: 流分叉故障
+    href: ./flow_bifurcation.md
+  - label: 内核流量转发故障
+    href: ./kernel_traffic_forwarding.md
+  - label: 时延故障
+    href: ./latency.md
+  - label: 内存故障
+    href: ./memory.md
+  - label: 多进程故障
+    href: ./multi_process_model.md
+  - label: 网络故障
+    href: ./network.md
+  - label: 抓包故障
+    href: ./packet_capture.md
+  - label: 丢包故障
+    href: ./packet_loss.md
+  - label: 性能波动故障
+    href: ./performance_fluctuation.md
+  - label: telemetry故障
+    href: ./telemetry.md
+  - label: 故障处理
+    href: ./troubleshooting_menu.md
+  - label: 重启虚拟机失败进入shell界面
+    href: ./vm_restart.md
+  - label: 零拷贝故障
+    href: ./zero_copy.md
