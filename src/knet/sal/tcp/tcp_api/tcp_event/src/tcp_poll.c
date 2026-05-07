@@ -32,120 +32,89 @@
 #include "knet_init.h"
 #include "knet_signal_tcp.h"
 #include "knet_tcp_api_init.h"
+#include "tcp_event_inner.h"
 #include "tcp_event.h"
 
-#define DEFAULT_EVENT_NUM 512
-static uint32_t g_epollEvents[] = {
-    EPOLLIN, EPOLLOUT, EPOLLERR, EPOLLHUP, EPOLLPRI, EPOLLRDHUP, EPOLLRDNORM, EPOLLRDBAND, EPOLLWRNORM, EPOLLWRBAND
-    };
-static uint32_t g_pollEvents[] = {
-    POLLIN, POLLOUT, POLLERR, POLLHUP, POLLPRI, POLLRDHUP, POLLRDNORM, POLLRDBAND, POLLWRNORM, POLLWRBAND
-    };
-static uint32_t g_eventNUms = sizeof(g_pollEvents) / sizeof(g_pollEvents[0]);
-
-static uint32_t PollEvent2Epoll(short int events)
+static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    uint32_t epollEvents = 0;
+    struct pollfd osPollFds[nfds];
+    struct pollfd dpPollFds[nfds];
+    int osPollNfds = 0;
+    int dpPollNfds = 0;
+    int dpPollIdx2FdsIdx[nfds]; // dp轮询到的事件，映射到fds的索引
+    int osPollIdx2FdsIdx[nfds]; // os轮询到的事件，映射到fds的索引
 
-    for (uint32_t idx = 0; idx < g_eventNUms; idx++) {
-        if ((g_pollEvents[idx] & (uint32_t)events) && g_pollEvents[idx] != POLLPRI) {
-            epollEvents |= g_epollEvents[idx];
+    // 区分os轮询和dp轮询的fd
+    struct pollfd *curPollFd = NULL;
+    for (int i = 0; i < nfds; ++i) {
+        if (fds[i].fd < 0) {
+            continue;
         }
-    }
-    if ((uint32_t)events & POLLPRI) {
-        // epollEvents |= EPOLLPRI; // tcp协议栈不支持
-        KNET_DEBUG("EPOLLPRI is not support");
-    }
 
-    return epollEvents;
-}
-
-static short int EpollEvent2Poll(uint32_t events)
-{
-    unsigned short int pollEvents = 0;
-    for (uint32_t idx = 0; idx < g_eventNUms; idx++) {
-        if (g_epollEvents[idx] & (uint32_t)events) {
-            pollEvents |= g_pollEvents[idx];
-        }
-    }
-
-    return (short int)pollEvents;
-}
-
-KNET_STATIC int TraversePollEvenet2Epoll(struct pollfd *fds, const nfds_t nfds, int epfd)
-{
-    struct epoll_event ev = { 0 };
-    for (nfds_t i = 0; i < nfds; i++) {
-        ev.events = PollEvent2Epoll(fds[i].events);
-        ev.data.fd = fds[i].fd;
-        if (epoll_ctl(epfd, EPOLL_CTL_ADD, fds[i].fd, &ev) == -1) {
-            KNET_ERR("Poll calls epoll_ctl failed, epfd %d, errno %d, %s", epfd, errno, strerror(errno));
-            close(epfd);
-            return -1;
-        }
-    }
-    return 0;
-}
-
-static int PollHelper(struct pollfd *fds, const nfds_t nfds, int timeout)
-{
-    int epfd = KNET_DpEpollCreate(nfds);
-    if (epfd == -1) {
-        KNET_ERR("Poll call epoll_create ret fd %d, errno %d, %s", epfd, errno, strerror(errno));
-        return -1;
-    }
-
-    /* 遍历转换poll为epoll事件 */
-    if (TraversePollEvenet2Epoll(fds, nfds, epfd) == -1) {
-        /* 异常情况已经打印日志、关闭epfd，返回异常值，直接一路传回异常值 */
-        return -1;
-    }
-
-    struct epoll_event *events = calloc(nfds, sizeof(struct epoll_event));
-    if (events == NULL) {
-        KNET_ERR("Malloc events failed");
-        close(epfd);
-        errno = ENOMEM;
-        return -1;
-    }
-
-    int numEvents = KNET_DpEpollWait(epfd, events, nfds, timeout);
-    if (numEvents < 0) {
-        KNET_ERR("Poll call epoll_wait epfd %d, ret %d, errno %d, %s", epfd, numEvents, errno, strerror(errno));
-        free(events);
-        close(epfd);
-        return -1;
-    } else if (numEvents == 0 && timeout == -1) {
-        KNET_ERR("Poll get no events, nfds %d, timeout %d", nfds, timeout);
-    }
-
-    for (nfds_t i = 0; i < nfds; ++i) {
-        fds[i].revents = 0; // 与内核行为一致，用户无需置revents = 0，没有event时内核会将revents置0
-        for (int j = 0; j < numEvents; ++j) {
-            if (fds[i].fd == events[j].data.fd) {
-                fds[i].revents = EpollEvent2Poll(events[j].events);
-                break;
+        if (KNET_GetFdType(fds[i].fd) == KNET_FD_TYPE_SOCKET) { // 默认前提：只有hijack fd才能设置为FD_TYPE_SOCKET
+            curPollFd = &dpPollFds[dpPollNfds];
+            curPollFd->fd = KNET_OsFdToDpFd(fds[i].fd);
+            curPollFd->events = fds[i].events;
+            curPollFd->revents = 0;
+            dpPollIdx2FdsIdx[dpPollNfds] = i;
+            ++dpPollNfds;
+            if (KNET_GetEstablishedFdState(fds[i].fd) != KNET_ESTABLISHED_FD) {
+                curPollFd = &osPollFds[osPollNfds];
+                curPollFd->fd = fds[i].fd;
+                curPollFd->events = fds[i].events;
+                curPollFd->revents = 0;
+                osPollIdx2FdsIdx[osPollNfds] = i;
+                ++osPollNfds;
             }
+        } else {
+            curPollFd = &osPollFds[osPollNfds];
+            curPollFd->fd = fds[i].fd;
+            curPollFd->events = fds[i].events;
+            curPollFd->revents = 0;
+            osPollIdx2FdsIdx[osPollNfds] = i;
+            ++osPollNfds;
         }
     }
-    KNET_DEBUG("Poll ret %d, nfds %d, timeout %d", numEvents, nfds, timeout);
-    free(events);
-    close(epfd);
-    return numEvents;
+
+    if (dpPollNfds == 0) { // 性能优化：无hijackFd，直接走os
+        return g_origOsApi.poll(fds, nfds, timeout);
+    }
+
+    struct SelectFdInfo fdInfo = {0};
+    fdInfo.dpPollNfds = dpPollNfds;
+    fdInfo.dpPollFds = dpPollFds;
+
+    int pollRet = SelectPollingLoops(osPollFds, osPollNfds, timeout, &fdInfo);
+    if (pollRet < 0) {
+        return pollRet;
+    }
+
+    if (fdInfo.osPollRet > 0) {
+        for (int i = 0; i < osPollNfds; ++i) {
+            fds[osPollIdx2FdsIdx[i]].revents = osPollFds[i].revents;
+        }
+    }
+    if (fdInfo.dpPollRet > 0) {
+        for (int i = 0; i < dpPollNfds; ++i) {
+            fds[dpPollIdx2FdsIdx[i]].revents = dpPollFds[i].revents;
+        }
+    }
+
+    return pollRet;
 }
 
 int KNET_DpPoll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
+    KNET_CHECK_AND_GET_OS_API(g_origOsApi.poll, KNET_INVALID_FD);
+    if (!g_tcpInited) {
+        return g_origOsApi.poll(fds, nfds, timeout);
+    }
+
     /* 后续nfds作为变长数组的长度，这里必须合法性校验 */
-    if (nfds <= 0 || nfds > KNET_EPOLL_MAX_NUM) {
+    if (nfds <= 0 || nfds > KNET_POLL_MAX_NUM) {
         KNET_ERR("Invalid events, nfds %u", nfds);
         errno = EINVAL;
         return -1;
-    }
-
-    if (!g_tcpInited) {
-        KNET_CHECK_AND_GET_OS_API(g_origOsApi.poll, KNET_INVALID_FD);
-        return g_origOsApi.poll(fds, nfds, timeout);
     }
 
     if (fds == NULL) {
@@ -154,7 +123,7 @@ int KNET_DpPoll(struct pollfd *fds, nfds_t nfds, int timeout)
         return -1;
     }
 
-    return PollHelper(fds, nfds, timeout);
+    return DpPollHelper(fds, nfds, timeout);
 }
 
 KNET_STATIC int SigDpPoll(const sigset_t *sigmask, struct pollfd *fds, nfds_t nfds, int64_t timeout)

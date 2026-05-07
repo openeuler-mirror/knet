@@ -47,9 +47,9 @@ int KNET_FdInit(void)
         return 0;
     }
 
-    // 由于socketfd会被大页等使用，设置内置偏移量SOCKET_EXTRAS，不会影响具体链接数量
+    // 由于socketfd会被大页等使用，设置内置偏移量SOCKET_EXTRAS，不会影响具体链接数量。一个epoll两个fd，一个epoll_fd+一个eventfd
     cfgValue = KNET_GetCfg(CONF_TCP_MAX_TCPCB)->intValue + KNET_GetCfg(CONF_TCP_MAX_UDPCB)->intValue
-        + SOCKET_EXTRAS;
+        + KNET_GetCfg(CONF_TCP_MAX_EPOLLCB)->intValue * 2 + SOCKET_EXTRAS;
     if (cfgValue <= 0) {
         KNET_ERR("Get config fd limit fail");
         return -1;

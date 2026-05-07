@@ -29,28 +29,17 @@
 #include "knet_init.h"
 #include "knet_signal_tcp.h"
 #include "knet_tcp_api_init.h"
+#include "tcp_event_inner.h"
 #include "tcp_event.h"
-
-#define POLL_INTERVAL 10
-#define FAST_POLL_TIMES 5
-
-struct SelectFdInfo {
-    fd_set *readfds;
-    fd_set *writefds;
-    fd_set *exceptfds;
-    struct pollfd *dpPollFds;
-    int selectNfds;
-    int dpPollNfds;
-    int osPollRet; // os poll返回的event个数
-    int dpPollRet; // dp轮询得到的event个数
-};
 
 static int SelectPollingOnce(struct pollfd *osPollFds, nfds_t osPollNfds, struct SelectFdInfo *fdInfo)
 {
     if (osPollNfds > 0) { // 性能优化：osPollNfds为0时，不os poll
         fdInfo->osPollRet = g_origOsApi.poll(osPollFds, osPollNfds, 0);
         if (fdInfo->osPollRet < 0) {
-            KNET_ERR("OS poll failed, ret %d, errno %d, error %s", fdInfo->osPollRet, errno, strerror(errno));
+            if (errno != EINTR) {
+                KNET_ERR("OS poll failed, ret %d, errno %d, error %s", fdInfo->osPollRet, errno, strerror(errno));
+            }
             return fdInfo->osPollRet;
         }
     }
@@ -80,7 +69,7 @@ static inline bool KNET_CounterTimerIsTimeout(int64_t timeBeginMs, int64_t timeo
     return false;
 }
 
-static int SelectPollingLoops(
+int SelectPollingLoops(
     struct pollfd *osPollFds, nfds_t osPollNfds, int64_t timeoutMs, struct SelectFdInfo *fdInfo)
 {
     /* 进来先获取一次，如果有事件直接返回，可以减少一次获取时间的开销 */
@@ -88,7 +77,9 @@ static int SelectPollingLoops(
     if (pollRet > 0) {
         return pollRet;
     } else if (pollRet < 0) {
-        KNET_ERR("select polling failed, ret %d, osPollNfds %d, timeoutMs %lld", pollRet, osPollNfds, timeoutMs);
+        if (errno != EINTR) {
+            KNET_ERR("select polling failed, ret %d, errno %d, osPollNfds %d, timeoutMs %lld", pollRet, errno, osPollNfds, timeoutMs);
+        }
         return pollRet;
     }
 
@@ -105,7 +96,9 @@ static int SelectPollingLoops(
         if (pollRet > 0) {
             return pollRet;
         } else if (pollRet < 0) {
-            KNET_ERR("Select polling failed, ret %d, osPollNfds %d, timeoutMs %lld", pollRet, osPollNfds, timeoutMs);
+            if (errno != EINTR) {
+                KNET_ERR("Select polling failed, ret %d, errno %d, osPollNfds %d, timeoutMs %lld", pollRet, errno, osPollNfds, timeoutMs);
+            }
             return pollRet;
         }
         if (pollTimes <= FAST_POLL_TIMES) {

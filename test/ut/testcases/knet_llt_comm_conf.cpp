@@ -102,6 +102,8 @@ cJSON *CreateConfigJson()
     cJSON_AddNumberToObject(proto_stack, "max_tcpcb", 4096);
     // 4096表示max_udpcb个数
     cJSON_AddNumberToObject(proto_stack, "max_udpcb", 4096);
+    // 64表示max_epollcb个数
+    cJSON_AddNumberToObject(proto_stack, "max_epollcb", 64);
     cJSON_AddNumberToObject(proto_stack, "tcp_sack", 1);
     cJSON_AddNumberToObject(proto_stack, "tcp_dack", 1);
     // 30表述msl时间

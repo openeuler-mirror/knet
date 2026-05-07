@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #define KNET_EPOLL_MAX_NUM (((uint32_t)0xFFFFFFFF) / sizeof(struct epoll_event))
+#define KNET_POLL_MAX_NUM 50000 // POLL最大监听文件描述符数量，KNET性能很差，不建议使用
 
 
 /**

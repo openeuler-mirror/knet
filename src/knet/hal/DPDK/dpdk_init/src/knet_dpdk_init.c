@@ -32,10 +32,10 @@
 extern "C" {
 #endif
 
-#define MAX_CPU_NUM 128
+#define MAX_CPU_NUM 320
 #define MEMORY_THRESHOLD_RATIO 0.75 // 为系统内存的75%时，启动进程时进行告警
 #define MEMPOOL_THRESHOLD_RATIO 0.7
-#define KNET_DPDK_PRIM_ARGC 17
+#define KNET_DPDK_PRIM_ARGC 18
 #define KNET_DPDK_ARG_MAX_LEN 127
 #define KNET_PKT_POOL_DEFAULT_CACHENUM 128
 #define KNET_PKT_POOL_DEFAULT_CACHESIZE 512
@@ -288,6 +288,7 @@ static int32_t DpdkArgvAssign(char **argv, int procType)
         coreList,
         "-n2",
         "--file-prefix=knet",
+        KNET_GetCfg(CONF_HW_BIFUR_ENABLE)->intValue == 1 ? "--iova-mode=pa" : "",
         KNET_GetCfg(CONF_DPDK_TELEMETRY)->intValue == 1 ? "--telemetry" : "--no-telemetry",
         (procType == KNET_PROC_TYPE_PRIMARY) ? "--proc-type=primary" : "--proc-type=secondary",
         mainLcore,

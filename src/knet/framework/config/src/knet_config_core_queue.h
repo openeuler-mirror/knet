@@ -22,7 +22,7 @@ extern "C" {
 
 #define KNET_QUEUE_ID_NULL (-1)
 #define KNET_QUEUE_ID_INVALID (-2)
-#define MAX_CORE_NUM 128
+#define MAX_CORE_NUM 320
 
 // config
 int KnetGetCoreNum(void);

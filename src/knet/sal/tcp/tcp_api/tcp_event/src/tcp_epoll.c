@@ -418,8 +418,10 @@ static int EpollWaitHelperBlock(struct EpollCtlBlock* epollCb, int timeout)
     if (IsEpfdNeedOsEpollWait(epfd)) {
         *epollCb->kernelEventCnt = g_origOsApi.epoll_wait(epfd, epollCb->kernelEvents, maxevents, timeout);
         if (*epollCb->kernelEventCnt < 0) {
-            KNET_ERR("Epoll fd %d epoll_wait failed ret %d, maxevents %d, timeout %d, errno %d, %s",
-                epfd, *epollCb->kernelEventCnt, maxevents, timeout, errno, strerror(errno));
+            if (errno != EINTR) {
+                KNET_ERR("Epoll fd %d epoll_wait failed ret %d, maxevents %d, timeout %d, errno %d, %s",
+                    epfd, *epollCb->kernelEventCnt, maxevents, timeout, errno, strerror(errno));
+            }
             return *epollCb->kernelEventCnt;
         }
     }

@@ -24,7 +24,7 @@ typedef enum {
 } PatternIndex;
 
 #define BOND_LRO_SEG 1518
-#define RSS_KEY_LEN 64
+#define RSS_KEY_LEN 40
 #define MAX_ARP_PATTERN_NUM 2
 
 
