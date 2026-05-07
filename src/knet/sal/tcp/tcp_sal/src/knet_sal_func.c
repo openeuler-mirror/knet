@@ -30,6 +30,8 @@
 #include "rte_ring.h"
 
 #include "securec.h"
+#include "knet_fmm.h"
+#include "knet_pkt.h"
 #include "knet_init.h"
 #include "knet_init_tcp.h"
 #include "knet_rand.h"
@@ -272,6 +274,71 @@ uint32_t KnetRegMem(void)
     return DP_MemHookReg(&stFunctions);
 }
 
+static void* KNET_ACC_EbufGetSeg(void* ptr, uint32_t len, uint16_t idx)
+{
+    int left = (int)(len - (uint32_t)idx * PER_EBUF_MBUF_SIZE);
+    if (ptr == NULL || left <= 0) {
+        return NULL;
+    }
+
+    struct KNET_ExtBuf* ebuf = KnetPtrSub(ptr, sizeof(struct KNET_ExtBuf));
+
+    if (ebuf->totalBufCnt <= idx) {
+        return NULL;
+    }
+
+    struct rte_mbuf* mbuf = ebuf->bufs[idx];
+
+    if (left >= PER_EBUF_MBUF_SIZE) {
+        mbuf->data_len = PER_EBUF_MBUF_SIZE;
+    } else {
+        mbuf->data_len = left;
+    }
+    mbuf->buf_len = mbuf->data_len;
+
+    DP_Pbuf_t* pkt = KNET_Mbuf2Pkt(mbuf);
+    DP_PbufRawReset(pkt, mbuf->buf_addr, mbuf->buf_len);
+    // pbuf for ebuf 确保不会被释放
+    mbuf->refcnt = 100;
+    return pkt;
+}
+
+
+static void KNET_ACC_EbufSetRefCnt(void* ptr, uint16_t cnt)
+{
+    if (ptr == NULL) {
+        return;
+    }
+    struct KNET_ExtBuf* ebuf = KnetPtrSub(ptr, sizeof(struct KNET_ExtBuf));
+    ebuf->refcnt = cnt;
+}
+
+static uint16_t KNET_ACC_EbufRefCntUpdate(void* ptr, int16_t value)
+{
+    if (ptr == NULL) {
+        return -1;
+    }
+    struct rte_mbuf* mbuf = KNET_Pkt2Mbuf(ptr);
+    // todo for multithread
+    if (KNET_GetCfg(CONF_COMMON_COTHREAD)->intValue == 1) {
+        ((struct rte_mbuf_ext_shared_info *)mbuf->shinfo)->refcnt += value;
+    } else {
+        rte_mbuf_ext_refcnt_update((struct rte_mbuf_ext_shared_info *)mbuf->shinfo, value);
+    }
+    return mbuf->shinfo->refcnt;
+}
+
+static void KNET_ACC_EbufCallback(void* ptr)
+{
+    if (ptr == NULL) {
+        return;
+    }
+    struct rte_mbuf* mbuf = KNET_Pkt2Mbuf(ptr);
+    struct KNET_ExtBuf* extbuf = (struct KNET_ExtBuf*)mbuf->shinfo;
+    // todo for multithread
+    return extbuf->freeCb(extbuf->addr, extbuf->opaque);
+}
+
 uint32_t KnetRegMbufMemPool(void)
 {
     DP_MempoolHooks_S stFunctions = {0};
@@ -281,6 +348,10 @@ uint32_t KnetRegMbufMemPool(void)
     stFunctions.mpAlloc = KNET_ACC_MbufMemPoolAlloc;
     stFunctions.mpFree = KNET_ACC_MbufMemPoolFree;
     stFunctions.mpConstruct =  KNET_ACC_MbufConstruct;
+    stFunctions.ebufGetseg = KNET_ACC_EbufGetSeg;
+    stFunctions.ebufRefCntUpdate = KNET_ACC_EbufRefCntUpdate;
+    stFunctions.ebufCallback = KNET_ACC_EbufCallback;
+    stFunctions.ebufSetRefCnt = KNET_ACC_EbufSetRefCnt;
 
     return DP_MempoolHookReg(&stFunctions);
 }
@@ -340,12 +411,8 @@ uint32_t KNET_TimeHook(DP_ClockId_E clockId, int64_t *seconds, int64_t *nanoseco
         return KNET_ERROR;
     }
 
-    // 将时间转换为毫秒
-    uint64_t milliseconds =
-        (uint64_t)ts.tv_sec * MILLISECONDS_PER_SECOND + (uint64_t)ts.tv_nsec / NANOS_PER_MILLISECOND;
-    // 转换为秒和纳秒
-    *seconds = milliseconds / MILLISECONDS_PER_SECOND;
-    *nanoseconds = (milliseconds % MILLISECONDS_PER_SECOND) * NANOS_PER_MILLISECOND;
+    *seconds = ts.tv_sec;
+    *nanoseconds = ts.tv_nsec;
 
     return KNET_OK;
 }

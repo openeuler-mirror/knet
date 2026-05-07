@@ -884,94 +884,42 @@ static void TcpPushSendBufRevoke(PBUF_Chain_t* sndBuf, size_t pushCnt)
     }
 }
 
-static Pbuf_t* TcpReferencedPbufConstruct(void* ebuf, uint64_t offset, uint16_t segLen)
-{
-    Pbuf_t* pbuf = NULL;
-    RefPbufCb_t* refPbufCb = NULL;
-    // 构造一个 ref pbuf，用于引用 iov 的数据
-    pbuf = PBUF_RefPbufConstruct(ebuf, offset, segLen);
-    if (pbuf == NULL) {
-        DP_ADD_ABN_STAT(DP_TCP_PBUF_CONSTRUCT_FAILED);
-        return NULL;
-    }
-
-    pbuf->flags |= DP_PBUF_FLAGS_REFERENCED;
-    // 将 extern buffer 的指针保存到 pbuf cb 中
-    refPbufCb = PBUF_GetRefPbufCb(pbuf);
-    refPbufCb->ebuf = ebuf;
-
-    return pbuf;
-}
-
 static ssize_t TcpWriteIovWithZcopy(Sock_t* sk, struct DP_ZIovec* iov)
 {
     ssize_t  ret = 0;
     size_t   remain = iov->iov_len;
-    void*    ebuf = iov->iov_base;
-    uint64_t offset = 0;
-    uint16_t fragSize = UINT16_MAX;
-    uint16_t segLen;
     Pbuf_t*  pbuf = NULL;
+    uint16_t left;
+    uint16_t index = 0;
 
     while (remain > 0) {
-        segLen = (fragSize > remain) ? (uint16_t)remain : fragSize;
-
-        pbuf = TcpReferencedPbufConstruct(ebuf, offset, segLen);
-        if (UTILS_UNLIKELY(pbuf == NULL)) {
+        pbuf = EBUF_GETNEXTPBUF(iov->iov_base, iov->iov_len, index++);
+        if (pbuf == NULL) {
             break;
         }
-
-        PBUF_ChainPush(&sk->sndBuf, pbuf);
-
-        offset += (uint64_t)segLen;
-        ret += (ssize_t)segLen;
-        remain -= (size_t)segLen;
-    }
-
-    return ret;
-}
-
-static ssize_t TcpGetZcopyWritten(Sock_t* sk, struct DP_ZIovec* iov, uint16_t mss)
-{
-    ssize_t written = 0;
-    size_t threshold;
-    uint16_t dataroom = 2048;
-    uint16_t headroom = 128;
-    uint16_t fragSize  = PBUF_GetSegLen() - headroom;
-    fragSize = fragSize > mss ? mss : fragSize;
-    if (CFG_GET_TCP_VAL(DP_CFG_TCP_SMALL_PACKET_ZCOPY) == DP_ENABLE) {      // 支持小包零拷贝
-        return TcpWriteIovWithZcopy(sk, iov);
-    }
-
-    /* 硬件限制一个pbuf链中的连续8个pbuf中的数据总长度不得小于mss。连续的，iov_len小于threshold的iov们将通过
-     * PBUF_ChainWrite进行聚合，避免单片pbuf中的数据长度过小。当threshold不超过单片pbuf的数据范围时，连续8个
-     * pbuf中的数据总长度的最小值为threshold * 4 + 4，此时取threshold = mss / 4。
-     */
-    threshold = mss / 4;
-    if (threshold > dataroom) {
-        /* 当threshold超过单片pbuf的数据范围，最小值为 threshold * 3 + dataroom + 4，此时取
-         * threshold = (mss - dataroom) / 3
-         */
-        threshold = (mss - dataroom) / 3;
-    }
-
-    if (iov->iov_len < threshold) {
-        written = PBUF_ChainWrite(&sk->sndBuf, (uint8_t*)iov->iov_base, iov->iov_len, fragSize, headroom);
-        // 协议栈不再使用 extern buffer，调用释放回调
-        if (iov->freeCb != NULL) {
-            iov->freeCb(iov->iov_base, iov->cb);
+        left = remain - pbuf->payloadLen;
+        if (left >= 0) {
+            pbuf->totLen = pbuf->payloadLen;
+            pbuf->segLen = pbuf->payloadLen;
+            remain = left;
+        } else {
+            pbuf->totLen = remain;
+            pbuf->segLen = remain;
+            remain = 0;
         }
-    } else {
-        written = TcpWriteIovWithZcopy(sk, iov);
+        ret += pbuf->segLen;
+        pbuf->flags |= DP_PBUF_FLAGS_EXTERNAL;
+        PBUF_ChainPush(&sk->sndBuf, pbuf);
     }
-    return written;
+    EBUF_SETREFCNT(iov->iov_base, index + 1);
+    return ret;
 }
 
 static ssize_t TcpPushSndBufZcopy(Sock_t* sk, const struct DP_ZMsghdr* msg, uint16_t mss, size_t* index)
 {
     ssize_t            ret      = 0;
     size_t             i        = *index;
-    ssize_t            written  = 0;
+    ssize_t            written;
     struct DP_ZIovec*  iov;
     bool               isAllSent = true;
 
@@ -982,7 +930,7 @@ static ssize_t TcpPushSndBufZcopy(Sock_t* sk, const struct DP_ZMsghdr* msg, uint
             i++;
             continue;
         }
-        written = TcpGetZcopyWritten(sk, iov, mss);
+        written = TcpWriteIovWithZcopy(sk, iov);
         if (written < (ssize_t)iov->iov_len) {
             isAllSent = false;
             break;

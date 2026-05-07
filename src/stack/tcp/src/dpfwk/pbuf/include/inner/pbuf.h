@@ -25,6 +25,7 @@ extern "C" {
 
 #define DP_PBUF_FLAGS_EXTERNAL   0x01
 #define DP_PBUF_FLAGS_REFERENCED 0x02
+#define DP_PBUF_FLAGS_EXT_HEAD 0x04
 
 typedef struct DP_Pbuf Pbuf_t;
 

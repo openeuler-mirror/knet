@@ -213,14 +213,18 @@ static inline void DP_PbufRawReset(DP_Pbuf_t* pbuf, uint8_t* payload, uint16_t p
     }
     pbuf->payload    = payload;
     pbuf->payloadLen = plen;
-    pbuf->totLen     = 0;
+    // pbuf->totLen     = 0;    // 零拷贝attach住的mbuf不会再置0，alloc的流程会正常置0
     pbuf->offset     = 0;
-    pbuf->segLen     = 0;
+    // pbuf->segLen     = 0;    // 零拷贝attach住的mbuf不会再置0，alloc的流程会正常置0
     pbuf->nsegs      = 1;
     pbuf->ref        = 1;
     pbuf->flags      = 0;
     pbuf->end        = pbuf;
     pbuf->next       = NULL;
+    pbuf->nd = NULL;
+    pbuf->flow = NULL;
+    pbuf->pktFlags |= 0x1000;   // PBUF_PKTFLAGS_FLOW标志
+    pbuf->olFlags = 0;
 }
 
 #ifdef __cplusplus

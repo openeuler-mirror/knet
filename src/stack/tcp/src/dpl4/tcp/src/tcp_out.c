@@ -577,68 +577,25 @@ static bool TcpCanMergePbuf(Pbuf_t* pbuf, Pbuf_t* mergedPbuf, uint32_t pktLen, u
     return true;
 }
 
-static Pbuf_t* TcpGetOneSeg(PBUF_Chain_t* sndQue, uint32_t pktLen, uint32_t segNum)
-{
-    Pbuf_t* ret = NULL;
-    Pbuf_t* pbuf = NULL;
-
-    pbuf = PBUF_CHAIN_FIRST(sndQue);
-    if (pbuf == NULL) {
-        return NULL;
-    }
-
-    if ((pbuf->flags & DP_PBUF_FLAGS_REFERENCED) == DP_PBUF_FLAGS_REFERENCED) {
-        ret = PBUF_BuildZcopy(pbuf, pktLen, segNum, (uint16_t)pktLen);      // pktLen不超过uint16_t的tsoSize，无风险
-        if (ret != NULL) {
-            sndQue->bufLen -= PBUF_GET_PKT_LEN(ret);
-        }
-        if (PBUF_GET_PKT_LEN(pbuf) == 0) {
-            pbuf = PBUF_CHAIN_POP(sndQue);
-            PBUF_RefPbufFree(pbuf);
-        }
-    } else {
-        ret = PBUF_CHAIN_POP(sndQue);
-    }
-
-    return ret;
-}
-
-static Pbuf_t* TcpTrySplicePbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint32_t maxSndLen)
-{
-    Pbuf_t* ret = pbuf;
-    uint32_t pktLen = PBUF_GET_PKT_LEN(pbuf);
-    if (pktLen <= maxSndLen) {
-        return ret;
-    }
-
-    Pbuf_t* newBuf = PBUF_Splice(ret, (uint16_t)maxSndLen, IP_INET_MAX_HDR_LEN);
-    if (newBuf == NULL) {
-        PBUF_ChainPushHead(&tcp->sndQue, ret);
-        return NULL;
-    }
-    PBUF_ChainPushHead(&tcp->sndQue, newBuf);
-
-    return ret;
-}
-
 static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
 {
     Pbuf_t* ret = NULL;
     uint32_t dataLen = 0;
-    uint16_t segNum = 0;
     uint16_t maxSegNum = tcp->maxSegNum - 1;    // 零拷贝场景下，考虑额外添加的一个作为头部的pbuf
     Pbuf_t* nxt = tcp->sndQue.head;
     Pbuf_t* pbuf = NULL;
 
+    /* 先获取一个pbuf出来，然后判断长度是否超了，不够就继续获取，够了就返回，下面判断整体长度是否超过可发送空间，超了就后面部分切片，并重新放回sndQue */
     while (nxt != NULL && dataLen < pktLen && tcp->sndQue.pktCnt > 0) {
         if (!TcpCanMergePbuf(PBUF_CHAIN_FIRST(&tcp->sndQue), ret, pktLen, maxSegNum)) {
             break;
         }
 
-        pbuf = TcpGetOneSeg(&tcp->sndQue, pktLen - dataLen, maxSegNum - segNum);
-        if (pbuf == NULL) {
+        pbuf = PBUF_CHAIN_FIRST(&tcp->sndQue);
+        if (dataLen + PBUF_GET_PKT_LEN(pbuf) > pktLen) {
             break;
         }
+        PBUF_CHAIN_POP(&tcp->sndQue);
 
         if (ret == NULL) {
             ret = pbuf;
@@ -647,7 +604,6 @@ static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
         }
 
         dataLen = PBUF_GET_PKT_LEN(ret);
-        segNum = PBUF_GET_SEGS(ret);
         nxt = tcp->sndQue.head;
     }
 
@@ -655,7 +611,7 @@ static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
         return NULL;
     }
 
-    return TcpTrySplicePbuf(tcp, ret, pktLen);
+    return ret;
 }
 
 static inline uint32_t TcpCalcTcTimeInc(uint32_t timeNow, SOCK_Pacing_t* pacing)
@@ -860,6 +816,7 @@ static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo
     }
 
     DP_TCP_STAT_SND_DATA(tcp, PBUF_GET_PKT_LEN(pbuf) - DP_PBUF_GET_L4_LEN(pbuf), false);
+    // 增加计数，避免网卡发送后被释放，ack后再释放
     PBUF_REF(pbuf);
     PMGR_Dispatch(pbuf);
 
@@ -931,8 +888,6 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
         }
     }
 
-    uint8_t wndUpdateForce = force;
-    uint8_t isFirstPkt = 1;
     // 仍有窗口可以继续发送新的数据
     uint32_t totalSndLen = UTILS_MIN((uint32_t)tcp->sndQue.bufLen, TcpCalcFreeWndSize(tcp));
     uint32_t snded = 0;
@@ -948,9 +903,10 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
 
     // 有数据才能发送
     while (totalSndLen > 0 && tcp->sndQue.pktCnt > 0) {
+        // 能发送的数据大小：tsosize, 可发送窗口大小
         uint32_t pktLen = UTILS_MIN(xmitInfo.tsoSize, totalSndLen);
         // 判断能否发送，不能发送就没必要聚合。tcp发送缓冲区高水位类型为uint32_t，这里转换后不会截断
-        if (UTILS_UNLIKELY(!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, wndUpdateForce) || !TcpPacingProc(tcp, pktLen))) {
+        if (UTILS_UNLIKELY(!TcpCanSendPbuf(tcp, pktLen, xmitInfo.mss, force) || !TcpPacingProc(tcp, pktLen))) {
             break;
         }
 
@@ -966,18 +922,13 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
             if (UTILS_UNLIKELY(Pbuf_Zcopy_Alloc(&pbuf) != 0)) {
                 return 0;
             }
+            pbuf->flags |= DP_PBUF_FLAGS_EXT_HEAD;
         }
 
         // 发送报文
         totalSndLen -= PBUF_GET_PKT_LEN(pbuf);
         snded += PBUF_GET_PKT_LEN(pbuf);
         TcpXmitPbuf(tcp, pbuf, thflags, &xmitInfo);
-        if (isFirstPkt > 0) {
-            TcpUpdateRcvAdertise(tcp);
-            isFirstPkt = 0;
-            // 在发送数据报文时实际已经告知了对端窗口，可以不用再发窗口更新报文
-            wndUpdateForce = 0;
-        }
     }
 
     TcpTryActiveTimer(tcp);
@@ -985,7 +936,7 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
     // 不管有没有发送数据，强制发送置为 0
     tcp->force = 0;
 
-    return TcpXmitCtrlPktAfterData(tcp, wndUpdateForce, isNeedRst, snded);
+    return TcpXmitCtrlPktAfterData(tcp, force, isNeedRst, snded);
 }
 
 void TcpXmitCtrlPkt(TcpSk_t* tcp, uint8_t thflags)

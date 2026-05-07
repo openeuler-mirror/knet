@@ -163,7 +163,6 @@ static KNET_ALWAYS_INLINE void PbufSeg2Mbuf(DP_Pbuf_t *pbuf, struct rte_mbuf *mb
     if (mbufRef != 0) {
         rte_mbuf_refcnt_update(mbuf, mbufRef);
     }
-    mbuf->next = NULL;
 }
 
 static KNET_ALWAYS_INLINE struct rte_mbuf *KNET_DpMbuf2rteMbuf(DP_Pbuf_t *buf)
@@ -178,8 +177,8 @@ static KNET_ALWAYS_INLINE struct rte_mbuf *KNET_DpMbuf2rteMbuf(DP_Pbuf_t *buf)
     * 1、tx 方向，协议栈保证了单线程，发送和释放不并发；
     * 2、协议栈保证了整个pbuf链上的引用计数一致，所以使用同一个mbufRef；
     */
-    DP_PBUF_SET_REF(buf, DP_PBUF_GET_REF(buf) - 1);
-    uint16_t mbufRef = DP_PBUF_GET_REF(buf);
+    uint16_t mbufRef = DP_PBUF_GET_REF(buf) - 1;
+    DP_PBUF_SET_REF(buf, mbufRef);
 
     // 首片转换
     PbufSeg2Mbuf(pbuf, mbuf, mbufRef);
@@ -193,6 +192,7 @@ static KNET_ALWAYS_INLINE struct rte_mbuf *KNET_DpMbuf2rteMbuf(DP_Pbuf_t *buf)
         PbufSeg2Mbuf(pbuf, mbuf, mbufRef);
         nextPbuf = DP_PBUF_GET_NEXT(pbuf);
     }
+    mbuf->next = NULL;
 
     if (g_hwChecksumEnable) {
         KnetMbufCksumOffloadInfoAssign(headMbuf, buf);

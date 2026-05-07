@@ -38,6 +38,7 @@ typedef struct {
 
 int            g_fdOffset = 0;
 static FdTbl_t g_fdTbl    = { 0 };
+static Fd_t* g_zcopyFile[DP_HIGHLIMIT_TCPCB_MAX + DP_HIGHLIMIT_UDPCB_MAX + DP_DEFAULT_ARP_MAX];
 
 static int InitFdNodes(FdTbl_t* tbl)
 {
@@ -180,6 +181,7 @@ Fd_t* FD_Alloc(void)
         node->file  = file;
         file->fdIdx = node - g_fdTbl.nodes;
         node->isClosed = false;
+        g_zcopyFile[FD_GetUserFd(file)] = file;
     } else {
         MEM_FREE(file, DP_MEM_FREE);
         DP_ADD_ABN_STAT(DP_FD_NODE_FULL);
@@ -200,6 +202,7 @@ void FD_Free(Fd_t* file)
     // 调用 FD_Free 时，node 不会被外界持有，无需加锁
     node->file = NULL;
     node->isClosed = true;
+    g_zcopyFile[FD_GetUserFd(file)] = NULL;
 
     PutUnusedNode(&g_fdTbl, node);
 
@@ -247,6 +250,8 @@ int FD_Close(int fd)
         DP_SET_ERRNO(-ret);
         return -1;
     }
+    g_zcopyFile[fd] = NULL;
+
     return ret;
 }
 
@@ -393,6 +398,11 @@ void FD_PutOptRef(Fd_t* file)
     if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) != DP_DEPLOYMENT_CO_THREAD) {
         FD_Put(file);
     }
+}
+
+Fd_t* FD_GetFileOpt(int fd)
+{
+    return g_zcopyFile[fd];
 }
 
 int FD_GetFileLimit(void)

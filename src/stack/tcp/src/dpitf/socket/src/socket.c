@@ -162,7 +162,7 @@ ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags)
         msgFlags = ((uint32_t)flags & ~DP_MSG_ZEROCOPY);
     }
 
-    ret = SOCK_Sendmsg(sk, msg, (int)msgFlags);
+    ret = SOCK_Sendmsg(sk, msg, (int)msgFlags, -1);
 
     FD_PutOptRef(file);
 
@@ -175,31 +175,26 @@ ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags)
     return ret;
 }
 
-ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags)
+ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags, ssize_t totalLen)
 {
     if (UTILS_UNLIKELY(CFG_GET_VAL(DP_CFG_ZERO_COPY) == 0)) {
         DP_LOG_DBG("Zero copy send msg failed, zero copy not enable.");
         return -1;
     }
 
-    Sock_t* sk;
     Fd_t*   file;
     ssize_t ret;
     uint32_t msgFlags;
 
-    ret = (ssize_t)GetSockFromFd(sockfd, &file, &sk);
-    if (UTILS_UNLIKELY(ret != 0)) {
+    file = FD_GetFileOpt(sockfd);
+    if (UTILS_UNLIKELY(file == NULL)) {
         DP_ADD_ABN_STAT(DP_ZSENDMSG_GET_SOCK_ERR);
-        DP_SET_ERRNO((int)(-ret));
         return -1;
     }
 
     msgFlags = ((uint32_t)flags | DP_MSG_ZEROCOPY | DP_MSG_DONTWAIT);       // 零拷贝写默认非阻塞
 
-    ret = SOCK_Sendmsg(sk, (const struct DP_Msghdr*)msg, (int)msgFlags);
-
-    FD_PutOptRef(file);
-
+    ret = SOCK_Sendmsg(file->priv, (const struct DP_Msghdr*)msg, (int)msgFlags, totalLen);
     if (UTILS_UNLIKELY(ret < 0)) {
         DP_LOG_DBG("DP_ZSendmsg failed, errno = %d.", (int)(-ret));
         DP_SET_ERRNO((int)(-ret));
@@ -315,24 +310,19 @@ ssize_t DP_ZRecvmsg(int sockfd, struct DP_ZMsghdr* msg, int flags)
         return -1;
     }
 
-    Sock_t* sk;
     Fd_t*   file;
     ssize_t ret;
     uint32_t msgFlags;
 
-    ret = (ssize_t)GetSockFromFd(sockfd, &file, &sk);
-    if (UTILS_UNLIKELY(ret != 0)) {
-        DP_ADD_ABN_STAT(DP_ZRCVMSG_FAILED);
-        DP_SET_ERRNO((int)(-ret));
+    file = FD_GetFileOpt(sockfd);
+    if (UTILS_UNLIKELY(file == NULL)) {
+        DP_ADD_ABN_STAT(DP_ZSENDMSG_GET_SOCK_ERR);
         return -1;
     }
 
     msgFlags = ((uint32_t)flags | DP_MSG_ZEROCOPY);
 
-    ret = SOCK_Recvmsg(sk, (struct DP_Msghdr*)msg, (int)msgFlags);
-
-    FD_PutOptRef(file);
-
+    ret = SOCK_Recvmsg(file->priv, (struct DP_Msghdr*)msg, (int)msgFlags);
     if (UTILS_UNLIKELY(ret < 0)) {
         DP_LOG_DBG("DP_ZRecvmsg failed, errno = %d.", (int)(-ret));
         DP_SET_ERRNO((int)(-ret));

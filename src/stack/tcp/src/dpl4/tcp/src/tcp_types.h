@@ -433,7 +433,7 @@ static inline uint32_t TcpGetSndSpace(TcpSk_t* tcp)
 {
     if (CFG_GET_VAL(DP_CFG_DEPLOYMENT) == DP_DEPLOYMENT_CO_THREAD &&
         (TcpSk2Sk(tcp)->sndBuf.pktCnt + tcp->rexmitQue.pktCnt + tcp->sndQue.pktCnt >=
-        (uint32_t)CFG_GET_TCP_VAL(DP_CFG_TCP_SNDBUF_PBUFCNT_MAX))) {
+        512)) { // 512为HINIC3驱动防止wqe不够限制阈值，经实践发现部分情况会导致wqe不够流量为0
         return 0;
     }
 

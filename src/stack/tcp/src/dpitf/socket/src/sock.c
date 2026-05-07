@@ -825,7 +825,7 @@ static ssize_t PreprocessSendFlags(Sock_t* sk, int flags)
     return 0;
 }
 
-ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
+ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags, ssize_t totalLen)
 {
     ssize_t ret;
     size_t sendLen = 0;
@@ -840,7 +840,11 @@ ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
         return ret;
     }
 
-    msgDataLen = SOCK_GetMsgDataLen(msg, flags);
+    if (totalLen != -1) {
+        msgDataLen = totalLen;
+    } else {
+        msgDataLen = SOCK_GetMsgDataLen(msg, flags);
+    }
     if (UTILS_UNLIKELY(msgDataLen < 0)) {
         DP_ADD_ABN_STAT(DP_SEND_GET_DATALEN_FAILED);
         return msgDataLen;
@@ -917,7 +921,7 @@ ssize_t SOCK_Sendto(
         msgFlags = ((uint32_t)flags & ~DP_MSG_ZEROCOPY);
     }
 
-    return SOCK_Sendmsg(sk, &msg, (int)msgFlags);
+    return SOCK_Sendmsg(sk, &msg, (int)msgFlags, -1);
 }
 
 ssize_t SOCK_Recvmsg(Sock_t* sk, struct DP_Msghdr* msg, int flags)
