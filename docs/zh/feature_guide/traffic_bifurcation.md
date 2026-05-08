@@ -1,12 +1,16 @@
-# 流量分叉功能
->
+# 网卡流量分叉功能
+
+## 功能描述
+
+提供流量分叉能力开关，通过流表进程流量分发，支持内核态与<term>K-NET</term>应用的同时使能。
+
 >**说明：** 
 >流量分叉功能仅支持在CTyunos-2.0.1系统上使用。
 >流量分叉功能仅支持在物理机环境下SP670网卡的ROCE\_2X100G\_UN\_ADAP模板中使用。
 >默认支持8队列，队列规格受网卡约束，可通过网卡hinicadm3工具将规格扩展至32队列。
 >开启流量分叉时，支持使用SP670 Bond卸载功能。
 
-流量分叉能使DPDK无需接管网卡即可使用<term>K-NET</term>网络加速特性。使用前需使能网卡的流量分叉功能和<term>K-NET</term>流量分叉配置。
+流量分叉能使DPDK无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
 
 ## 流量分叉基础功能
 
@@ -24,7 +28,7 @@
 
     ![](../figures/zh-cn_image_0000002477573334.png)
 
-2. <term>K-NET</term>启用网卡流量分叉功能。
+2. K-NET启用网卡流量分叉功能。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -37,7 +41,7 @@
     }
     ```
 
-3. 无需<term>DPDK</term>接管网卡，服务端启动iPerf3。
+3. 无需DPDK接管网卡，服务端启动iPerf3。
 
     ```bash
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
@@ -51,7 +55,7 @@
     iperf3 -s -4 -p 10002 --bind 192.168.*.*
     ```
 
-5. 客户端同时向<term>K-NET</term>、内核态iPerf3打流。
+5. 客户端同时向K-NET、内核态iPerf3打流。
 
     ```bash
     iperf3 -c 192.168.*.* -t 0 -p 10001 -b 0 -l 64 -P 1 # K-NET
@@ -59,7 +63,7 @@
     iperf3 -c 192.168.*.* -t 0 -p 10002 -b 0 -l 64 -P 1 # 内核态iPerf3
     ```
 
-    <term>K-NET</term>和内核态iPerf3均有流量。
+    K-NET和内核态iPerf3均有流量。
 
     ![](../figures/zh-cn_image_0000002509653267.png)
 

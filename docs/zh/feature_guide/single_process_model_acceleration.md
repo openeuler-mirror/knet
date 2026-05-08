@@ -1,5 +1,9 @@
 # 单进程模式加速
 
+## 功能描述
+
+提供高性能用户态协议栈处理能力，支持针对单进程业务场景进行网络加速。
+
 >**说明：** 
 >
 >- 该模式支持服务端为配置VF直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
@@ -17,9 +21,9 @@ vi /etc/knet/knet_comm.conf
     }
 ```
 
-# Redis业务加速
+## Redis业务加速
 
-## 单实例加速
+### 单实例加速
 
 > **说明：** 
 >服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
@@ -80,7 +84,7 @@ vi /etc/knet/knet_comm.conf
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
     ```
 
-## 虚拟机VF硬直通对Redis业务主从场景加速
+### 虚拟机VF硬直通对Redis业务主从场景加速
 
 >**说明：** 
 >一主一从场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置，典型组网参考[Redis典型组网](../installation/installation_planning.md)。
@@ -149,7 +153,7 @@ vi /etc/knet/knet_comm.conf
     >**说明：** 
     >-p 6379：从服务端运行redis命令没有指定端口号，因此其绑定端口号为redis配置文件默认值6379。
 
-## 虚拟机VF硬直通对Redis业务集群场景加速
+### 虚拟机VF硬直通对Redis业务集群场景加速
 
 >**说明：** 
 >三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置，典型组网参考[Redis三主三从组网](../installation/installation_planning.md)。
