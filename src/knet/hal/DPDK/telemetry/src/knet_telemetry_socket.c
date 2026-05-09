@@ -327,10 +327,10 @@ KNET_STATIC int ProcessSocketState(KNET_SocketState socketState, struct rte_tel_
         return -1;
     }
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, socketStatDict, "lAddr", lAddrStr);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, socketStatDict, "lPort",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, socketStatDict, "lPort",
                             htons((uint16_t)socketState.dpSocketState.lPort));
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, socketStatDict, "rAddr", rAddrStr);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, socketStatDict, "rPort",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, socketStatDict, "rPort",
                             htons((uint16_t)socketState.dpSocketState.rPort));
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, socketStatDict, "state",
                             GetSocketState(socketState.dpSocketState.state));
@@ -370,7 +370,7 @@ KNET_STATIC int ProcessSocketStatesInfo(KNET_SocketState *sockets, struct rte_te
             }
             char keyName[MAX_JSON_KEY_NAME_LEN] = "osFd";
             (void)snprintf_s(keyName + strlen(keyName), MAX_JSON_KEY_NAME_LEN - strlen(keyName),
-                             MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, " %d", sockets[i].osFd);
+                             MAX_JSON_KEY_NAME_LEN - strlen(keyName) - 1, "%d", sockets[i].osFd);
             if (CheckAddContainerToDict(data, keyName, socketStat) != 0) {
                 return KNET_ERROR;
             }
@@ -509,31 +509,31 @@ KNET_STATIC int ProcessSockInfo(DP_SockDetails_t *dpSockDetails, struct rte_tel_
     }
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, sockInfo, "protocol",
                             GetSocketProto(dpSockDetails->protocol));
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isLingerOnoff", dpSockDetails->lingerOnoff);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isNonblock", dpSockDetails->nonblock);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isReuseAddr", dpSockDetails->reuseAddr);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isReusePort", dpSockDetails->reusePort);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isBroadcast", dpSockDetails->broadcast);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isKeepAlive", dpSockDetails->keepalive);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isBindDev", dpSockDetails->bindDev);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "isDontRoute", dpSockDetails->dontRoute);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "options", dpSockDetails->options);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "error", dpSockDetails->error);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isLingerOnoff", dpSockDetails->lingerOnoff);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isNonblock", dpSockDetails->nonblock);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isReuseAddr", dpSockDetails->reuseAddr);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isReusePort", dpSockDetails->reusePort);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isBroadcast", dpSockDetails->broadcast);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isKeepAlive", dpSockDetails->keepalive);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isBindDev", dpSockDetails->bindDev);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "isDontRoute", dpSockDetails->dontRoute);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "options", dpSockDetails->options);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "error", dpSockDetails->error);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, sockInfo, "pf", GetSocketPf(dpSockDetails->family));
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "linger", dpSockDetails->linger);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "flags", dpSockDetails->flags);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "state", dpSockDetails->state);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "rdSemCnt", dpSockDetails->rdSemCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "wrSemCnt", dpSockDetails->wrSemCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "flags", dpSockDetails->flags);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "state", dpSockDetails->state);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "rdSemCnt", dpSockDetails->rdSemCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "wrSemCnt", dpSockDetails->wrSemCnt);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "rcvTimeout", dpSockDetails->rcvTimeout);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "sndTimeout", dpSockDetails->sndTimeout);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "sndDataLen", dpSockDetails->sndDataLen);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "rcvDataLen", dpSockDetails->rcvDataLen);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "sndLowat", dpSockDetails->sndLowat);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "rcvLowat", dpSockDetails->rcvLowat);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "sndHiwat", dpSockDetails->sndHiwat);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "rcvHiwat", dpSockDetails->rcvHiwat);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockInfo, "bandWidth", dpSockDetails->bandWidth);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "sndDataLen", dpSockDetails->sndDataLen);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "rcvDataLen", dpSockDetails->rcvDataLen);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "sndLowat", dpSockDetails->sndLowat);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "rcvLowat", dpSockDetails->rcvLowat);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "sndHiwat", dpSockDetails->sndHiwat);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "rcvHiwat", dpSockDetails->rcvHiwat);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockInfo, "bandWidth", dpSockDetails->bandWidth);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "priority", dpSockDetails->priority);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "associateFd", dpSockDetails->associateFd);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, sockInfo, "notifyType", dpSockDetails->notifyType);
@@ -547,16 +547,16 @@ KNET_STATIC int ProcessInetSkInfo(DP_InetDetails_t *inetDetails, struct rte_tel_
         KNET_ERR("K-NET telemetry get sock info failed, start inetSkInfo dict failed");
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "ttl", inetDetails->ttl);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "tos", inetDetails->tos);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "mtu", inetDetails->mtu);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isIncHdr", inetDetails->options.incHdr);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isTos", inetDetails->options.tos);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isTtl", inetDetails->options.ttl);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isMtu", inetDetails->options.mtu);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isPktInfo", inetDetails->options.pktInfo);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isRcvTos", inetDetails->options.rcvTos);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, inetSkInfo, "isRcvTtl", inetDetails->options.rcvTtl);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "ttl", inetDetails->ttl);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "tos", inetDetails->tos);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "mtu", inetDetails->mtu);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isIncHdr", inetDetails->options.incHdr);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isTos", inetDetails->options.tos);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isTtl", inetDetails->options.ttl);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isMtu", inetDetails->options.mtu);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isPktInfo", inetDetails->options.pktInfo);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isRcvTos", inetDetails->options.rcvTos);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, inetSkInfo, "isRcvTtl", inetDetails->options.rcvTtl);
     return KNET_OK;
 }
 KNET_STATIC char *GetTcpConnType(uint8_t connType)
@@ -577,39 +577,39 @@ KNET_STATIC int ProcessTcpBaseInfo(DP_TcpBaseDetails_t *tcpBaseDetails, struct r
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, tcpBaseInfo, "state", GetSocketState(tcpBaseDetails->state));
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, tcpBaseInfo, "connType",
                             GetTcpConnType(tcpBaseDetails->connType));
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "noVerifyCksum", tcpBaseDetails->noVerifyCksum);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "ackNow", tcpBaseDetails->ackNow);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "delayAckEnable", tcpBaseDetails->delayAckEnable);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "nodelay", tcpBaseDetails->nodelay);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "rttRecord", tcpBaseDetails->rttRecord);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "cork", tcpBaseDetails->cork);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "deferAccept", tcpBaseDetails->deferAccept);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "flags", tcpBaseDetails->flags);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "noVerifyCksum", tcpBaseDetails->noVerifyCksum);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "ackNow", tcpBaseDetails->ackNow);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "delayAckEnable", tcpBaseDetails->delayAckEnable);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "nodelay", tcpBaseDetails->nodelay);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "rttRecord", tcpBaseDetails->rttRecord);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "cork", tcpBaseDetails->cork);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "deferAccept", tcpBaseDetails->deferAccept);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "flags", tcpBaseDetails->flags);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, tcpBaseInfo, "wid", tcpBaseDetails->wid);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, tcpBaseInfo, "txQueid", tcpBaseDetails->txQueid);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, tcpBaseInfo, "childCnt", tcpBaseDetails->childCnt);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, tcpBaseInfo, "backlog", tcpBaseDetails->backlog);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "accDataCnt", tcpBaseDetails->accDataCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "accDataMax", tcpBaseDetails->accDataMax);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "accDataCnt", tcpBaseDetails->accDataCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "accDataMax", tcpBaseDetails->accDataMax);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, tcpBaseInfo, "caAlgId", tcpBaseDetails->caAlgId);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "caState", tcpBaseDetails->caState);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "dupAckCnt", tcpBaseDetails->dupAckCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "cwnd", tcpBaseDetails->cwnd);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "ssthresh", tcpBaseDetails->ssthresh);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "seqRecover", tcpBaseDetails->seqRecover);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "reorderCnt", tcpBaseDetails->reorderCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "rttStartSeq", tcpBaseDetails->rttStartSeq);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "srtt", tcpBaseDetails->srtt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "rttval", tcpBaseDetails->rttval);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "tsVal", tcpBaseDetails->tsVal);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "tsEcho", tcpBaseDetails->tsEcho);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "lastChallengeAckTime",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "caState", tcpBaseDetails->caState);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "dupAckCnt", tcpBaseDetails->dupAckCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "cwnd", tcpBaseDetails->cwnd);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "ssthresh", tcpBaseDetails->ssthresh);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "seqRecover", tcpBaseDetails->seqRecover);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "reorderCnt", tcpBaseDetails->reorderCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "rttStartSeq", tcpBaseDetails->rttStartSeq);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "srtt", tcpBaseDetails->srtt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "rttval", tcpBaseDetails->rttval);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "tsVal", tcpBaseDetails->tsVal);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "tsEcho", tcpBaseDetails->tsEcho);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "lastChallengeAckTime",
                             tcpBaseDetails->lastChallengeAckTime);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "fastMode", tcpBaseDetails->fastMode);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "sndQueSize", tcpBaseDetails->sndQueSize);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "rcvQueSize", tcpBaseDetails->rcvQueSize);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "rexmitQueSize", tcpBaseDetails->rexmitQueSize);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpBaseInfo, "reassQueSize", tcpBaseDetails->reassQueSize);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "fastMode", tcpBaseDetails->fastMode);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "sndQueSize", tcpBaseDetails->sndQueSize);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "rcvQueSize", tcpBaseDetails->rcvQueSize);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "rexmitQueSize", tcpBaseDetails->rexmitQueSize);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpBaseInfo, "reassQueSize", tcpBaseDetails->reassQueSize);
 
     return KNET_OK;
 }
@@ -620,49 +620,49 @@ KNET_STATIC int ProcessTcpTransInfo(DP_TcpTransDetails_t *tcpTransDetails, struc
         KNET_ERR("K-NET telemetry get sock info failed, start tcpTransInfo dict failed");
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "lport", tcpTransDetails->lport);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "pport", tcpTransDetails->pport);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "synOpt", tcpTransDetails->synOpt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "negOpt", tcpTransDetails->negOpt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvWs", tcpTransDetails->rcvWs);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndWs", tcpTransDetails->sndWs);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvMss", tcpTransDetails->rcvMss);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "mss", tcpTransDetails->mss);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "iss", tcpTransDetails->iss);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "irs", tcpTransDetails->irs);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndUna", tcpTransDetails->sndUna);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndNxt", tcpTransDetails->sndNxt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndMax", tcpTransDetails->sndMax);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndWnd", tcpTransDetails->sndWnd);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndUp", tcpTransDetails->sndUp);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndWl1", tcpTransDetails->sndWl1);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "sndSml", tcpTransDetails->sndSml);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvNxt", tcpTransDetails->rcvNxt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvWnd", tcpTransDetails->rcvWnd);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvMax", tcpTransDetails->rcvMax);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rcvWup", tcpTransDetails->rcvWup);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "idleStart", tcpTransDetails->idleStart);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepIdle", tcpTransDetails->keepIdle);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepIntvl", tcpTransDetails->keepIntvl);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepProbes", tcpTransDetails->keepProbes);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepProbeCnt", tcpTransDetails->keepProbeCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepIdleLimit", tcpTransDetails->keepIdleLimit);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "keepIdleCnt", tcpTransDetails->keepIdleCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "backoff", tcpTransDetails->backoff);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "maxRexmit", tcpTransDetails->maxRexmit);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "rexmitCnt", tcpTransDetails->rexmitCnt);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "userTimeout", tcpTransDetails->userTimeout);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "userTimeStartFast",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "lport", tcpTransDetails->lport);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "pport", tcpTransDetails->pport);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "synOpt", tcpTransDetails->synOpt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "negOpt", tcpTransDetails->negOpt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvWs", tcpTransDetails->rcvWs);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndWs", tcpTransDetails->sndWs);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvMss", tcpTransDetails->rcvMss);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "mss", tcpTransDetails->mss);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "iss", tcpTransDetails->iss);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "irs", tcpTransDetails->irs);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndUna", tcpTransDetails->sndUna);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndNxt", tcpTransDetails->sndNxt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndMax", tcpTransDetails->sndMax);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndWnd", tcpTransDetails->sndWnd);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndUp", tcpTransDetails->sndUp);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndWl1", tcpTransDetails->sndWl1);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "sndSml", tcpTransDetails->sndSml);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvNxt", tcpTransDetails->rcvNxt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvWnd", tcpTransDetails->rcvWnd);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvMax", tcpTransDetails->rcvMax);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rcvWup", tcpTransDetails->rcvWup);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "idleStart", tcpTransDetails->idleStart);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepIdle", tcpTransDetails->keepIdle);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepIntvl", tcpTransDetails->keepIntvl);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepProbes", tcpTransDetails->keepProbes);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepProbeCnt", tcpTransDetails->keepProbeCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepIdleLimit", tcpTransDetails->keepIdleLimit);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "keepIdleCnt", tcpTransDetails->keepIdleCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "backoff", tcpTransDetails->backoff);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "maxRexmit", tcpTransDetails->maxRexmit);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "rexmitCnt", tcpTransDetails->rexmitCnt);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "userTimeout", tcpTransDetails->userTimeout);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "userTimeStartFast",
                             tcpTransDetails->userTimeStartFast);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "userTimeStartSlow",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "userTimeStartSlow",
                             tcpTransDetails->userTimeStartSlow);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "fastTimeoutTick",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "fastTimeoutTick",
                             tcpTransDetails->fastTimeoutTick);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "slowTimeoutTick",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "slowTimeoutTick",
                             tcpTransDetails->slowTimeoutTick);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "delayAckTimoutTick",
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "delayAckTimoutTick",
                             tcpTransDetails->delayAckTimoutTick);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, tcpTransInfo, "synRetries", tcpTransDetails->synRetries);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, tcpTransInfo, "synRetries", tcpTransDetails->synRetries);
     return KNET_OK;
 }
 KNET_STATIC int CreateSockInfoAndAddReply(DP_SockDetails_t *dpSockDetails, struct rte_tel_data *data)
