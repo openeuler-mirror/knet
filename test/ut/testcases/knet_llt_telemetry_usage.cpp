@@ -245,7 +245,7 @@ DTEST_CASE_F(TELE_USAGE, TEST_KNET_TELEMETRY_USAGE_CALLBACK_JSON_PARSE_FAILED, N
     g_maxSuccessCnt = 10;   // 令 rte_eth_stats_get 成功 10 次
     ret = KnetTelemetryEthdevUsageCallback(cmd, params, data);
     DT_ASSERT_NOT_EQUAL(ret, 0);
-    const char *outputStr = "[{\"t\":\"0-1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
+    const char *outputStr = "[{\"t\":\"0_1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
     DT_ASSERT_EQUAL(strcmp(g_usageDebugOutput, outputStr), 0);
     
     Mock->Delete(cJSON_Parse);
@@ -288,7 +288,7 @@ DTEST_CASE_F(TELE_USAGE, TEST_KNET_TELEMETRY_USAGE_CALLBACK_RTE_TEL_DATA_ALLOC_F
     g_maxSuccessCnt = 10;   // 令 rte_eth_stats_get 成功 10 次
     ret = KnetTelemetryEthdevUsageCallback(cmd, params, data);
     DT_ASSERT_NOT_EQUAL(ret, 0);
-    const char *outputStr = "[{\"t\":\"0-1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
+    const char *outputStr = "[{\"t\":\"0_1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
     DT_ASSERT_EQUAL(strcmp(g_usageDebugOutput, outputStr), 0);
     
     Mock->Delete(rte_eth_stats_get);
@@ -333,7 +333,7 @@ DTEST_CASE_F(TELE_USAGE, TEST_KNET_TELEMETRY_USAGE_CALLBACK_NORMAL, NULL, NULL)
     g_maxSuccessCnt = 10;    // 令 rte_eth_stats_get 成功 10 次
     ret = KnetTelemetryEthdevUsageCallback(cmd, params, data);
     DT_ASSERT_EQUAL(ret, 0);
-    const char *outputStr = "[{\"t\":\"0-1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
+    const char *outputStr = "[{\"t\":\"0_1s\",\"tx\":\"0.00 bit/s, 0 p/s\",\"rx\":\"0.00 bit/s, 0 p/s\"}]";
     DT_ASSERT_EQUAL(strcmp(g_usageDebugOutput, outputStr), 0);
     
     Mock->Delete(rte_eth_stats_get);
