@@ -14,13 +14,35 @@
 
 #include "rte_ethdev.h"
 #include "rte_eth_bond.h"
-
+#include "rte_version.h"
 #include "knet_log.h"
 #include "knet_config.h"
 #include "knet_dpdk_init.h"
 #include "knet_bond.h"
 
 static int g_slavePortIds[KNET_BOND_SLAVE_NUM] = { 0 };
+
+KNET_STATIC int AdapterBondAdd(uint16_t bondedPortId, uint16_t slavePortId)
+{
+    int ret = 0;
+    #if RTE_VERSION >= RTE_VERSION_NUM(23,11,0,0)
+        ret = rte_eth_bond_member_add(bondedPortId, slavePortId);
+    #else
+        ret = rte_eth_bond_slave_add(bondedPortId, slavePortId);
+    #endif
+    return ret;
+}
+
+KNET_STATIC int AdapterBondSlavesGet(uint16_t bondPortId, uint16_t slaves[], uint16_t len)
+{
+    int ret = 0;
+    #if RTE_VERSION >= RTE_VERSION_NUM(23,11,0,0)
+        ret = rte_eth_bond_active_members_get(bondPortId, slaves, len);
+    #else
+        ret = rte_eth_bond_active_slaves_get(bondPortId, slaves, len);
+    #endif
+    return ret;
+}
 
 KNET_STATIC int BondXmitPolicySet(int bondPortID, int bondMode)
 {
@@ -41,7 +63,7 @@ KNET_STATIC int AddSlavesToBond(int bondPortID, uint16_t slavePortIds[], uint16_
 {
     int ret = 0;
     for (uint16_t i = 0; i < slavePortNum && i < KNET_BOND_SLAVE_NUM; i++) {
-        ret = rte_eth_bond_slave_add(bondPortID, slavePortIds[i]);
+        ret = AdapterBondAdd(bondPortID, slavePortIds[i]);
         if (ret != 0) {
             KNET_ERR("Bond slave %d add failed, ret %d", i, ret);
             return -1;
@@ -139,7 +161,7 @@ int KNET_BondWaitSlavesReady(int bondPortID)
     uint32_t waitCounter = 20;  // 等待从端口活跃最长20秒，超时视为失败
     while (waitCounter > 0) {
         uint16_t activeSlaves[KNET_BOND_SLAVE_NUM] = {0};
-        if (rte_eth_bond_active_slaves_get(bondPortID, activeSlaves, KNET_BOND_SLAVE_NUM) == KNET_BOND_SLAVE_NUM) {
+        if (AdapterBondSlavesGet(bondPortID, activeSlaves, KNET_BOND_SLAVE_NUM) == KNET_BOND_SLAVE_NUM) {
             break;
         }
         sleep(1);  // 睡眠等待 1s
