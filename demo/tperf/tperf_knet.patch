@@ -1,107 +1,10 @@
-# Please note that this patch is a modification to tperf under the libtpa/app.
-# It is intended for performance testing only.
-
 diff -ruN tperf/client.c tperf_knet/client.c
---- tperf/client.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/client.c	2025-10-22 14:46:22.336000000 +0800
-@@ -1,91 +1,214 @@
--/*
-- * SPDX-License-Identifier: BSD-3-Clause
-- * Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
-- * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
-- */
--#include <stdio.h>
--
--#include "tperf.h"
--
--static struct connection *create_client_conn(struct test_thread *thread, int sid)
--{
--	struct connection *conn;
--	int message_size = ctx.message_size;
--
--	conn = conn_create(thread, sid);
--
--	conn->is_client = 1;
--	conn->test = ctx.test;
--	conn->integrity_enabled = ctx.integrity_enabled;
--	conn->integrity_off = get_time_in_ns();
--	conn->enable_zwrite = ctx.enable_zwrite;
--	conn->message_size = message_size;
--
--	switch (conn->test) {
--	case TEST_READ:
--		conn->read.budget  = message_size;
--		conn->write.budget = 0;
--		break;
--
--	case TEST_WRITE:
--		conn->read.budget  = 0;
--		conn->write.budget = message_size;
--		break;
--
--	case TEST_RR:
--	case TEST_CRR:
--		conn->last_ns = get_time_in_ns();
--		/* fallthrough */
--	case TEST_RW:
--		conn->read.budget  = message_size;
--		conn->write.budget = message_size;
--		break;
--	}
--
--	return conn;
--}
--
--static void bootstrap_test(struct test_thread *thread)
--{
--	int sid;
--
--	while (thread->nr_conn < ctx.nr_conn_per_thread) {
--		sid = tpa_connect_to(ctx.server, ctx.port, NULL);
--		if (sid < 0)
--			break;
--
--		create_client_conn(thread, sid);
--	}
--}
--
--static void *client_test_loop(void *arg)
--{
--	struct test_thread *thread = arg;
--	struct tpa_worker *worker;
--
--	worker = tpa_worker_init();
--	if (!worker) {
--		fprintf(stderr, "failed to init worker: %s\n", strerror(errno));
--		return NULL;
--	}
--	thread->worker = worker;
--
--	while (1) {
--		bootstrap_test(thread);
--
--		tpa_worker_run(thread->worker);
--
--		if (poll_and_process(thread) < 0)
--			break;
--	}
--
--	return NULL;
--}
--
--int tperf_client(void)
--{
--	spawn_test_threads(client_test_loop);
--	show_stats();
--
--	return 0;
--}
-+/*
-+ * SPDX-License-Identifier: BSD-3-Clause
-+ * Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
-+ * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
-+ */
-+#include <stdio.h>
+--- tperf/client.c	2026-05-07 14:47:26.761320200 +0800
++++ tperf_knet/client.c	2026-05-07 14:50:20.600194600 +0800
+@@ -4,6 +4,16 @@
+  * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
+  */
+ #include <stdio.h>
 +#include <stdlib.h>
 +#include <string.h>
 +#include <errno.h>
@@ -112,47 +15,14 @@ diff -ruN tperf/client.c tperf_knet/client.c
 +#include <sys/socket.h>
 +#include <netinet/tcp.h>
 +#include <fcntl.h>
-+
-+#include "tperf.h"
-+
-+static struct connection *create_client_conn(struct test_thread *thread, int sid)
-+{
-+	struct connection *conn;
-+	int message_size = ctx.message_size;
-+
-+	conn = conn_create(thread, sid);
-+
-+	conn->is_client = 1;
-+	conn->test = ctx.test;
-+	conn->integrity_enabled = ctx.integrity_enabled;
-+	conn->integrity_off = get_time_in_ns();
-+	conn->enable_zwrite = ctx.enable_zwrite;
-+	conn->message_size = message_size;
-+
-+	switch (conn->test) {
-+	case TEST_READ:
-+		conn->read.budget  = message_size;
-+		conn->write.budget = 0;
-+		break;
-+
-+	case TEST_WRITE:
-+		conn->read.budget  = 0;
-+		conn->write.budget = message_size;
-+		break;
-+
-+	case TEST_RR:
-+	case TEST_CRR:
-+		conn->last_ns = get_time_in_ns();
-+		/* fallthrough */
-+	case TEST_RW:
-+		conn->read.budget  = message_size;
-+		conn->write.budget = message_size;
-+		break;
-+	}
-+
-+	return conn;
-+}
-+
+ 
+ #include "tperf.h"
+ 
+@@ -45,35 +55,148 @@
+ 	return conn;
+ }
+ 
+-static void bootstrap_test(struct test_thread *thread)
 +// 设置 socket 为非阻塞模式
 +static void set_nonblocking(int fd) {
 +    int flags = fcntl(fd, F_GETFL, 0);
@@ -167,7 +37,8 @@ diff -ruN tperf/client.c tperf_knet/client.c
 +
 +
 +int connect_to(const char *server, uint16_t port, int thread_id)
-+{
+ {
+-	int sid;
 +    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 +    if (sockfd == -1) {
 +        perror("socket failed");
@@ -219,16 +90,19 @@ diff -ruN tperf/client.c tperf_knet/client.c
 +    close(sockfd);
 +    return -1;
 +}
-+
+ 
 +static int bootstrap_test(struct test_thread *thread)
 +{
 +	int sid;
 + 
-+	while (thread->nr_conn < ctx.nr_conn_per_thread) {
+ 	while (thread->nr_conn < ctx.nr_conn_per_thread) {
+-		sid = tpa_connect_to(ctx.server, ctx.port, NULL);
 +		// sid = tpa_connect_to(ctx.server, ctx.port, NULL);
 +		sid = connect_to(ctx.server, ctx.port, thread->id); // 客户端创建的sockfd
 + 
-+		if (sid < 0)
+ 		if (sid < 0)
+-			break;
+-
 +			return -1;
 +        int err = 0;
 +        socklen_t len = sizeof(err);
@@ -253,14 +127,28 @@ diff -ruN tperf/client.c tperf_knet/client.c
 +            }
 +        }
 + 
-+		create_client_conn(thread, sid);
-+	}
+ 		create_client_conn(thread, sid);
+ 	}
 +    return 0;
-+}
+ }
+ 
 +
-+
-+static void *client_test_loop(void *arg)
-+{
+ static void *client_test_loop(void *arg)
+ {
+-	struct test_thread *thread = arg;
+-	struct tpa_worker *worker;
+-
+-	worker = tpa_worker_init();
+-	if (!worker) {
+-		fprintf(stderr, "failed to init worker: %s\n", strerror(errno));
+-		return NULL;
+-	}
+-	thread->worker = worker;
+-
+-	while (1) {
+-		bootstrap_test(thread);
+-
+-		tpa_worker_run(thread->worker);
 +    struct test_thread *thread = arg;
 +#if defined(KNETCO) || defined(KNETCOZCOPY)
 +    int ret = knet_worker_init();
@@ -295,24 +183,20 @@ diff -ruN tperf/client.c tperf_knet/client.c
 +#if defined(KNETCO) || defined(KNETCOZCOPY)
 +    knet_worker_run();
 +#endif
-+
-+		if (poll_and_process(thread) < 0)
-+			break;
-+	}
-+
-+	return NULL;
-+}
-+
-+int tperf_client(void)
-+{
-+	spawn_test_threads(client_test_loop);
-+	show_stats();
+ 
+ 		if (poll_and_process(thread) < 0)
+ 			break;
+@@ -86,6 +209,6 @@
+ {
+ 	spawn_test_threads(client_test_loop);
+ 	show_stats();
+-
 +    thread_join();
-+	return 0;
-+}
+ 	return 0;
+ }
 diff -ruN tperf/conn.c tperf_knet/conn.c
---- tperf/conn.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/conn.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/conn.c	2026-05-07 14:47:27.271265500 +0800
++++ tperf_knet/conn.c	2026-05-07 14:50:21.107841800 +0800
 @@ -10,19 +10,34 @@
  struct connection *conn_create(struct test_thread *thread, int sid)
  {
@@ -369,8 +253,8 @@ diff -ruN tperf/conn.c tperf_knet/conn.c
  	conn_put(conn);
  }
 diff -ruN tperf/event.c tperf_knet/event.c
---- tperf/event.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/event.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/event.c	2026-05-07 14:47:27.774115700 +0800
++++ tperf_knet/event.c	2026-05-07 14:50:21.628457400 +0800
 @@ -15,13 +15,13 @@
  	events = conn->events;
  	conn->events = 0;
@@ -424,8 +308,8 @@ diff -ruN tperf/event.c tperf_knet/event.c
  	process_event_queue(thread);
  
 diff -ruN tperf/include/conn.h tperf_knet/include/conn.h
---- tperf/include/conn.h	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/include/conn.h	2025-10-22 14:46:22.336000000 +0800
+--- tperf/include/conn.h	2026-05-07 14:47:28.439130400 +0800
++++ tperf_knet/include/conn.h	2026-05-07 14:50:22.296448600 +0800
 @@ -13,6 +13,7 @@
  #define DEFAULT_MESSAGE_SIZE		1000
  #define DEFAULT_DURATION		10
@@ -470,8 +354,8 @@ diff -ruN tperf/include/conn.h tperf_knet/include/conn.h
 +
  #endif
 diff -ruN tperf/include/mbuf.h tperf_knet/include/mbuf.h
---- tperf/include/mbuf.h	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/include/mbuf.h	2025-10-22 14:46:22.336000000 +0800
+--- tperf/include/mbuf.h	2026-05-07 14:47:29.086352200 +0800
++++ tperf_knet/include/mbuf.h	2026-05-07 14:50:24.074778900 +0800
 @@ -7,7 +7,8 @@
  #define _MBUF_H_
  
@@ -556,7 +440,7 @@ diff -ruN tperf/include/mbuf.h tperf_knet/include/mbuf.h
  #endif
 diff -ruN tperf/include/oputils.h tperf_knet/include/oputils.h
 --- tperf/include/oputils.h	1970-01-01 08:00:00.000000000 +0800
-+++ tperf_knet/include/oputils.h	2025-10-22 14:46:22.336000000 +0800
++++ tperf_knet/include/oputils.h	2026-05-07 14:50:27.967552300 +0800
 @@ -0,0 +1,19 @@
 +#ifndef _OP_UTILS_H_
 +#define _OP_UTILS_H_
@@ -579,8 +463,8 @@ diff -ruN tperf/include/oputils.h tperf_knet/include/oputils.h
 +#endif
 \ No newline at end of file
 diff -ruN tperf/include/tperf.h tperf_knet/include/tperf.h
---- tperf/include/tperf.h	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/include/tperf.h	2025-10-22 14:46:22.336000000 +0800
+--- tperf/include/tperf.h	2026-05-07 14:47:30.257118500 +0800
++++ tperf_knet/include/tperf.h	2026-05-07 14:50:30.161620800 +0800
 @@ -13,15 +13,28 @@
  #include <unistd.h>
  #include <sys/queue.h>
@@ -647,8 +531,8 @@ diff -ruN tperf/include/tperf.h tperf_knet/include/tperf.h
  
  #endif
 diff -ruN tperf/Makefile tperf_knet/Makefile
---- tperf/Makefile	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/Makefile	2025-10-22 14:46:22.336000000 +0800
+--- tperf/Makefile	2026-05-07 14:47:33.501596100 +0800
++++ tperf_knet/Makefile	2026-05-07 14:50:34.273114300 +0800
 @@ -1,19 +1,117 @@
 -# SPDX-License-Identifier: BSD-3-Clause
 -# Copyright (c) 2021-2023, ByteDance Ltd. and/or its Affiliates
@@ -785,8 +669,8 @@ diff -ruN tperf/Makefile tperf_knet/Makefile
 +-include $(DEPS)
 +.PHONY: all clean
 diff -ruN tperf/mbuf.c tperf_knet/mbuf.c
---- tperf/mbuf.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/mbuf.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/mbuf.c	2026-05-07 14:47:35.134725000 +0800
++++ tperf_knet/mbuf.c	2026-05-07 14:50:35.593750500 +0800
 @@ -16,27 +16,40 @@
  	void *addr;
  	int i;
@@ -851,8 +735,8 @@ diff -ruN tperf/mbuf.c tperf_knet/mbuf.c
  	return pool;
  }
 diff -ruN tperf/options.c tperf_knet/options.c
---- tperf/options.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/options.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/options.c	2026-05-07 14:47:36.869625300 +0800
++++ tperf_knet/options.c	2026-05-07 14:50:36.998419600 +0800
 @@ -5,8 +5,6 @@
   */
  #include <stdio.h>
@@ -967,7 +851,7 @@ diff -ruN tperf/options.c tperf_knet/options.c
  }
 diff -ruN tperf/oputils.c tperf_knet/oputils.c
 --- tperf/oputils.c	1970-01-01 08:00:00.000000000 +0800
-+++ tperf_knet/oputils.c	2025-10-22 14:46:22.336000000 +0800
++++ tperf_knet/oputils.c	2026-05-07 14:50:38.683578200 +0800
 @@ -0,0 +1,104 @@
 +#include <stdio.h>
 +#include <stdarg.h>
@@ -1074,8 +958,8 @@ diff -ruN tperf/oputils.c tperf_knet/oputils.c
 +	return num;
 +}
 diff -ruN tperf/server.c tperf_knet/server.c
---- tperf/server.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/server.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/server.c	2026-05-07 14:47:38.717731100 +0800
++++ tperf_knet/server.c	2026-05-07 14:50:40.731299200 +0800
 @@ -4,9 +4,13 @@
   * Author: Yuanhan Liu <liuyuanhan.131@bytedance.com>
   */
@@ -1329,8 +1213,8 @@ diff -ruN tperf/server.c tperf_knet/server.c
  }
  
 diff -ruN tperf/test.c tperf_knet/test.c
---- tperf/test.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/test.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/test.c	2026-05-07 14:47:43.169416700 +0800
++++ tperf_knet/test.c	2026-05-07 14:50:46.375762900 +0800
 @@ -7,7 +7,8 @@
  
  #include "tperf.h"
@@ -1758,8 +1642,8 @@ diff -ruN tperf/test.c tperf_knet/test.c
  
  	return 0;
 diff -ruN tperf/utils.c tperf_knet/utils.c
---- tperf/utils.c	2023-12-27 07:16:35.000000000 +0800
-+++ tperf_knet/utils.c	2025-10-22 14:46:22.336000000 +0800
+--- tperf/utils.c	2026-05-07 14:47:51.248080300 +0800
++++ tperf_knet/utils.c	2026-05-07 14:50:51.026389700 +0800
 @@ -15,41 +15,57 @@
  
  #include "tperf.h"
@@ -1836,11 +1720,15 @@ diff -ruN tperf/utils.c tperf_knet/utils.c
  
  	for (i = 0; i < ctx.nr_thread; i++) {
  		thread = &ctx.threads[i];
-@@ -64,12 +80,20 @@
+@@ -63,13 +79,23 @@
+ 
  		TAILQ_INIT(&thread->event_queue);
  		TAILQ_INIT(&thread->conn_list);
- 
+-
 -		spawn_thread(func, thread, ctx.start_cpu + i);
++	}
++	for (i = 0; i < ctx.nr_thread; i++) {
++		thread = &ctx.threads[i];
 +		threads[i] = spawn_thread(func, thread, ctx.start_cpu + i);
  	}
  
