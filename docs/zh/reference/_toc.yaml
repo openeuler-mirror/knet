@@ -1,11 +1,13 @@
 isManual: true
-label: "附录"
+label: 附录
 sections:
   - label: 性能调优
     href: ./performance_tuning/_toc.yaml
   - label: 常用操作
     href: ./common_operations/_toc.yaml
-  - label: 脚本参考
-    href: ./script_reference/_toc.yaml
   - label: 附录
     href: ./reference_menu.md
+  - label: 批量运维
+    href: ./common_operations/batch_om.md
+  - label: BIOS调优
+    href: ./performance_tuning/bios_tuning.md

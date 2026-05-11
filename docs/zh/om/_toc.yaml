@@ -7,8 +7,6 @@ sections:
     href: ./om_architecture.md
   - label: 运维管理
     href: ./om_menu.md
-  - label: 运维工具介绍
-    href: ./om_tools_introduction
   - label: 运维信息收集脚本collect.sh
     href: ./collect.md
   - label: 遥测工具dpdk-telemetry
@@ -19,3 +17,5 @@ sections:
     href: ./knet_comm_log.md
   - label: 配置文件合并脚本merge_conf.sh
     href: ./merge_conf.md
+  - label: 运维工具介绍
+    href: ./om_tools_introduction.md

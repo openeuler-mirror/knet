@@ -156,7 +156,7 @@
                          └─ 935 /sbin/rngd -f
             ```
 
-        - 若服务不正常，考虑重启rngd服务：
+        - 若服务不正常（非active状态），考虑重启rngd服务：
 
             ```bash
             systemctl daemon-reload

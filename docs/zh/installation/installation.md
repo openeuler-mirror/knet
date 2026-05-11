@@ -137,7 +137,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
     ```
 
     >**说明：** 
-    >如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径_INCLUDEDIR_、DPDK动态库路径_LDDIR_、libpcap动态库路径_LIBPCAPDIR_下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
+    >如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
 
 6. 授予驱动和编译抓包程序执行权限。
 
@@ -188,6 +188,8 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
         ```
 
 # 安装K-NET
+
+命令行安装和Computing ToolKit批量安装请根据安装规模选择其一。
 
 ## 命令行安装
 

@@ -57,8 +57,9 @@
         ```
 
 4. 在Linux行输入以下配置。
+    按“i”进入编辑模式，在文件的Linux行后输入以下内容。
 
-    ```bash
+    ```text
     default_hugepagesz=1G hugepagesz=1G  hugepages=2 iommu.passthrough=1 pci=realloc
     ```
 
@@ -132,6 +133,9 @@
         ```bash
         cat /sys/class/net/ens6f0/device/numa_node # 用户根据实际使用的网卡名填写
         ```
+
+        >**说明：**
+        >此处网卡为ens6f0。
 
         回显说明所在NUMA为1。
 

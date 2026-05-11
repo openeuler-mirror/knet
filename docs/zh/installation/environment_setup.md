@@ -8,8 +8,7 @@
 
     1. 在浏览器输入iBMC管理网口地址：https://_ipaddress_，按“Enter”键进入。
     2. 输入用户名和密码登录。
-
-    ![](../figures/zh-cn_image_0000002535472605.png)
+![](../figures/zh-cn_image_0000002535472605.png)
 
 2. 打开HTML5集成远程控制台。
 
@@ -25,7 +24,7 @@
 
     ![](../figures/zh-cn_image_0000002503592798.png)
 
-5. 输入BIOS登录密码。进入BIOS。
+5. 输入BIOS登录密码，进入BIOS。
 6. 进入“Advanced-\>MISC Config”配置页面。
 
     ![](../figures/1.png)
@@ -48,10 +47,10 @@
 
     ![](../figures/zh-cn_image_0000002536427415.png)
 
-### （可选）配置物理机yum源
+### （可选）配置物理机Yum源
 
 >**说明：** 
->这里以配置openEuler 22.03 LTS SP4系统物理机的yum源为例，如果环境已经配置过yum源，可跳过此章节。
+>这里以配置openEuler 22.03 LTS SP4系统物理机的Yum源为例，如果环境已经配置过Yum源，可跳过此章节。
 
 1. 登录服务器节点，下载虚拟机镜像openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso上传至服务器。
 
@@ -110,7 +109,7 @@
 
 ### 安装SP670驱动（仅SP670网卡涉及）
 
-1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
+1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/692f5d74)中“编译/安装驱动”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
     sh install.sh -d bifur

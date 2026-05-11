@@ -15,8 +15,6 @@ sections:
     href: ./multi_process_model_acceleration.md
   - label: 网络加速功能验证
     href: ./network_acceleration_verification.md
-  - label: 运维特性
-    href: ./om_features.md
   - label: 单进程模式加速
     href: ./single_process_model_acceleration.md
   - label: 流量分叉功能

@@ -1,7 +1,0 @@
-# 运维工具介绍
-
-- [1、日志工具knet_comm.log]()
-- [2、遥测工具dpdk-telemetry]()
-- [3、抓包工具dumpcap]()
-- [4、配置文件合并脚本merge_conf.sh]()
-- [5、运维信息收集脚本collect.sh]()
