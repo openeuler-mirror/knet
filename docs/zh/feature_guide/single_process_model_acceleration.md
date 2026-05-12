@@ -70,6 +70,29 @@ vi /etc/knet/knet_comm.conf
     >- -t set：测试类型，set对应测试类型为set操作，如果是-t get表示测试类型为get操作。
     >- --threads 15：线程数，即每个客户端使用的线程数。同一个客户端可以使用多个线程来发送请求，从而提高并发量和吞吐量。
 
+    结果形如以下示例输出：
+
+    ```bash
+    ====== SET ======
+    10000000 requests completed in 25.75 seconds
+    1000 parallel clients
+    3 bytes payload
+    keep alive: 1
+    host configuration "save": 900 1 300 10 60 10000
+    host configuration "appendonly": no
+    multi-thread: yes
+    threads: 15
+                    
+    0.00% <= 0.4 milliseconds
+    0.00% <= 0.5 milliseconds
+    0.00% <= 0.6 milliseconds
+    0.00% <= 0.7 milliseconds
+    0.01% <= 0.8 milliseconds
+    ...
+    388274.12 requests per second
+    ```
+
+    则性能为388274.12 rps，实际性能以运行为准。
 3. 客户端清理set数据。
 
     ```bash
@@ -83,6 +106,35 @@ vi /etc/knet/knet_comm.conf
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
     ```
+    结果形如以下示例输出：
+
+    ```bash
+    ====== GET ======
+    1000000 requests completed in 64.26 seconds  
+    1000 parallel clients  
+    3 bytes payload  
+    keep alive: 1  
+    host configuration "save": 900 1 300 10 60 10000  
+    host configuration "appendonly": no  
+    multi-thread: yes  
+    threads: 1  
+
+    0.00% <= 0.6 milliseconds  
+    0.00% <= 0.7 milliseconds  
+    0.00% <= 0.8 milliseconds  
+    0.00% <= 2 milliseconds  
+    0.00% <= 3 milliseconds  
+    0.00% <= 4 milliseconds  
+    0.01% <= 5 milliseconds
+    ...
+    305608.11 requests per second
+    ```
+
+    则性能为305608.11 rps，实际性能以运行为准。
+    
+### 观测性能提升效果
+
+测试内核协议栈相同场景下Redis set、get性能，可以与上述K-NET结果进行对比，观测提升效果。
 
 ### 虚拟机VF硬直通对Redis业务主从场景加速
 

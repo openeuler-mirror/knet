@@ -12,7 +12,7 @@
 >- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
 >- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet\_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
 
-1. 修改knet\_comm.conf配置文件。
+1. 修改服务端knet\_comm.conf配置文件。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -49,7 +49,7 @@
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-2. 删除socket文件，防止权限问题产生报错。
+2. 删除服务端的socket文件，防止权限问题产生报错。
 
     > **说明：** 
     >该步骤适用于切换用户后运行的场景。

@@ -32,8 +32,7 @@ tperf_knetco：使用K-NET共线程特性的tperf demo；
 tperf_knetzcopy:使用K-NET零拷贝特性的tperf demo；
 tperf_knetcozocpy:使用K-NET共线程+零拷贝特性的tperf demo。
 
-
-撤销patch：
+使用完patch后，若需要恢复到原生tperf版本，可撤销patch：
 ```
 cd app
 patch -p1 -Rd tperf/ < tperf_knet.patch

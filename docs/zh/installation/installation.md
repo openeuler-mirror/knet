@@ -1,5 +1,7 @@
 # 安装
 
+文档中安装步骤适用于所有需要部署运行K-NET的物理机或虚拟机。
+
 ## 安全检查
 
 ### 检查Glibc版本
@@ -56,6 +58,13 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 >**说明：** 
 >如果已经安装21.11.7版本的DPDK，且不需要抓包功能，可跳过此章节。
+>
+>**判断DPDK版本的方法（适用于大多数安装方式）**
+>   通过pkg-config查询：
+>   ```bash
+>   pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config未配置"
+>   ```
+> 如果回显未显示DPDK版本，建议检查是否安装了DPDK或重新安装DPDK。
 
 ### DPDK安装
 
@@ -194,8 +203,12 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 ## 命令行安装
 
 1. 下载<term>K-NET</term>源码并编译。
-
+    
+    
     ```bash
+    # 用户指定K-NET源码的存放目录，此处以/home/knet-repo目录为例。
+    mkdir -p /home/knet-repo
+    cd /home/knet-repo
     git clone https://atomgit.com/openeuler/knet.git
     cd knet
     python3 build.py rpm
