@@ -7,3 +7,5 @@
     
 - [常用操作](./common_operations/common_menu.md)
   - [批量运维](./common_operations/batch_om.md)
+
+- [安全管理](./security.md)
