@@ -26,7 +26,7 @@ vi /etc/knet/knet_comm.conf
 ### 单实例加速
 
 > **说明：** 
->服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，已按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 
 1. 服务端中运行Redis服务端。
 
@@ -106,6 +106,7 @@ vi /etc/knet/knet_comm.conf
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
     ```
+
     结果形如以下示例输出：
 
     ```bash

@@ -1137,4 +1137,3 @@ jq . /etc/knet/run/stats/knet-persist.json
 |rx|rx方向的带宽和包率。|
 
 ****
-

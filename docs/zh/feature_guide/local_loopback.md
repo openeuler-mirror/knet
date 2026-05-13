@@ -22,14 +22,17 @@ K-NET进程作为TCP服务端监听端口时，同一台机器上的其他进程
 1.K-NET进程启动iPerf3服务端。
 
    服务端ip以192.168.1.6为例；具体需要替换为网卡配置的ip，且与K-NET配置文件中ip保持一致。
+
    ```bash
    LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.1.6
    ```
 
 2.同机启动另一个iPerf3客户端，连接K-NET服务端。
+
    ```bash
    iperf3 -c 192.168.1.6 -p 10001 -t 10
    ```
+
    客户端与K-NET服务端成功建立连接并打流。
 
 ### 示例二：K-NET服务端 bind `0.0.0.0`，同机客户端连接
@@ -39,12 +42,15 @@ K-NET进程 bind `0.0.0.0` 时，内核侧监听所有本地IP，同一台机器
 以iPerf3为例：
 
 1.K-NET进程启动iPerf3服务端，bind `0.0.0.0`。
+
    ```bash
    LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 0.0.0.0
    ```
+
 2.同机启动另一个iPerf3客户端，连接配置IP。
+
    ```bash
    iperf3 -c 192.168.1.6 -p 10001 -t 10
    ```
-   客户端与K-NET服务端成功建立连接并打流。
 
+   客户端与K-NET服务端成功建立连接并打流。

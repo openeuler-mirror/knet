@@ -51,20 +51,18 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
     yum install -y libboundscheck
     ```
 
-    - CTyunos操作系统下：
-    请参考[https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md](https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md)。
+    - CTyunOS操作系统下请参考：[https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md](https://atomgit.com/openeuler/libboundscheck/blob/v1.1.16/README.md)。
 
 ## 安装DPDK
 
->**说明：** 
->如果已经安装21.11.7版本的DPDK，且不需要抓包功能，可跳过此章节。
->
->**判断DPDK版本的方法（适用于大多数安装方式）**
->   通过pkg-config查询：
->   ```bash
->   pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config未配置"
->   ```
-> 如果回显未显示DPDK版本，建议检查是否安装了DPDK或重新安装DPDK。
+如果已经安装21.11.7版本的DPDK，且不需要抓包功能，可跳过以下DPDK的安装流程。
+可先通过pkg-config查询DPDK版本：
+
+```bash
+pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config未配置"
+```
+
+如果回显未显示DPDK版本，建议检查是否安装了DPDK或重新安装DPDK。
 
 ### DPDK安装
 
@@ -203,7 +201,6 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 ## 命令行安装
 
 1. 下载<term>K-NET</term>源码并编译。
-    
     
     ```bash
     # 用户指定K-NET源码的存放目录，此处以/home/knet-repo目录为例。

@@ -134,6 +134,7 @@
         # 此处以网卡名ens6f0为例，用户根据实际使用的网卡名填写
         cat /sys/class/net/ens6f0/device/numa_node 
         ```
+        
         回显说明所在NUMA为1。
 
         ![](../figures/zh-cn_image_0000002503837758.png)

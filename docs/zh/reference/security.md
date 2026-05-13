@@ -76,13 +76,13 @@
 
 启用日志转储时，部分设备需检查SELinux。部分环境开启SELinux，rsyslog服务没有足够权限访问logrotate，从而导致日志无法继续转储。
 
-1.请参见[SELinux配置](#selinux配置)。
+1. 请参见[SELinux配置](#selinux配置)。
 
-2.重启rsyslog。
+2. 重启rsyslog。
   
-  ```bash
-  systemctl restart rsyslog
-  ```
+    ```bash
+    systemctl restart rsyslog
+    ```
 
 ## Capability
 
@@ -109,7 +109,7 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
 
 ## SELinux配置
 
->**说明**
+> **说明** 
 >- Linux系统默认开启的SELinux安全机制会显示K-NET部分功能，导致无法正常使用K-NET业务。这是Linux OS本身的行为。如果用户需在自己系统中使用SELinux，则需自行寻找解决方法。
 >- 针对此限制，提供快速禁用SELinux的方法。
 >- 禁用SELinux可能会导致安全问题，若用户最终解决方案本身没有规划启用SELinux，建议通过端到端的整体方案弥补SELinux关闭带来的风险，且需自行承担安全风险。若用户有SELinux的需求，建议根据实际的SELinux问题进行细粒度的规则配置，并保证整个系统的安全。
@@ -118,24 +118,24 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
 
 ### 临时关闭SELinux
   
-1.关闭SELinux。
+1. 关闭SELinux。
 
-  ```bash
-  setenforce 0
-  ```
+    ```bash
+    setenforce 0
+    ```
 
-2.查看SELinux状态。
+2. 查看SELinux状态。
 
-  ```bash
-  sestatus
-  ```
+    ```bash
+    sestatus
+    ```
 
-  回显中的“SELinux Status”为“enabled”,"Current mode"变为“permissive”。
+    回显中的“SELinux Status”为“enabled”,"Current mode"变为“permissive”。
 
-  ```CodeFusion
-  SELinux Status:       enabled  
-  Current mode:         permissive
-  ```
+    ```CodeFusion
+    SELinux Status:       enabled  
+    Current mode:         permissive
+    ```
 
 ### 永久关闭SELinux
 
