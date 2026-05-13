@@ -10,3 +10,4 @@
   - [共线程功能](./cothread.md)
   - [用户态网卡Bond功能](./using_dpdk_user_space_virtual_bonding.md)
   - [内核流量转发功能](./kernel_traffic_forwarding.md)
+  - [本地回环](./local_loopback.md)
