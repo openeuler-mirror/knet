@@ -14,69 +14,6 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 
 ## 编译
 Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)。
-注意：需要安装K-NET支持共线程、零拷贝特性版本后编译和使用。
-
-将patch放到app目录下，安装patch：
-
-```bash
-cd app
-patch -p1 -d tperf/ < tperf_knet.patch
-```
-
-需安装K-NET支持共线程以及零拷贝版本后编译tperf：
-
-```bash
-cd tperf
-make
-cd build/bin
-```
-
-在build/bin下为4个可执行demo，分别如下：
-tperf_os：标准POSIX接口的tperf dmeo；
-tperf_knetco：使用K-NET共线程特性的tperf demo；
-tperf_knetzcopy:使用K-NET零拷贝特性的tperf demo；
-tperf_knetcozocpy:使用K-NET共线程+零拷贝特性的tperf demo。
-
-使用完patch后，若需要恢复到原生tperf版本，可撤销patch：
-
-```bash
-cd app
-patch -p1 -Rd tperf/ < tperf_knet.patch
-```
-
-## 修改双端配置文件
-
-```bash
-vi /etc/knet/knet_comm.conf
-```
-
-按“i”进入编辑模式。
-
-```text
-{
-    "hw_offload": {
-        "tso": 1,
-        "lro": 1,
-        "tcp_checksum": 1,
-        "bifur_enable": 1
-     },
-    "proto_stack": {
-        "max_mbuf": 204800,
-        "def_sendbuf": 1048576,
-        "def_recvbuf": 1048576,
-        "zcopy_sge_len": 4096,
-        "zcopy_sge_num": 2097152,
-    },
-    "dpdk": {
-        "tx_cache_size": 1024,
-        "rx_cache_size": 1024,
-        "socket_mem": "--socket-mem=4096",
-        "socket_limit": "--socket-limit=4096",
-    }
-}
-```
-
-修改完成后按“ESC”键，输入“:wq!”后按“Enter”键保存并退出文件。
 
 ## 使用示例
 
@@ -538,7 +475,9 @@ Connection established with sockfd 69
 
 双端先执行：
 ```echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range```
+
 1并发：
+
 服务端:
 
 ```bash
@@ -585,6 +524,7 @@ Connection established with sockfd 4
 ...
 ...
 ...
+```
 
 2并发：
 双端修改配置文件：
