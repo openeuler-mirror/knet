@@ -216,4 +216,4 @@
 
 5. 启动业务。
 
-    以Tperf为例，参考[特性支持](./feature_overview.md#特性支持)中的Tperf patch链接使用。
+    以Tperf为例，参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。

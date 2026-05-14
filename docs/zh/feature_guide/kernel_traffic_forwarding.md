@@ -27,20 +27,24 @@
 
 1. 开启后用户态劫持启动。
 
-    ![](../figures/zh-cn_image_0000002478219760.png)
-
     ```bash
     taskset -c 0-3 env LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
 
-2. 启动内核态进程，该内核进程流量由用户态进程转发处理。
+    >**说明：** 
+    >taskset -c 0-3表示对cpu核心0-3绑核，指定进程只能在这些cpu核心上运行，用户根据实际场景替换。
+    >/usr/lib64/libknet_frame.so为K-NET共享库默认安装路径，若不同需根据实际场景替换。
 
-    ![](../figures/zh-cn_image_0000002510219711.png)
+    ![](../figures/zh-cn_image_0000002478219760.png)
+
+2. 启动内核态进程，该内核进程流量由用户态进程转发处理。
 
     ```bash
     taskset -c 0-4 iperf3 -s -4 -p 10000 --bind 192.168.*.*
      #此IP地址与用户态IP地址相同，端口不同
     ```
+
+    ![](../figures/zh-cn_image_0000002510219711.png)
 
     启动成功后即可与内核进程建立连接，发送流量。
 

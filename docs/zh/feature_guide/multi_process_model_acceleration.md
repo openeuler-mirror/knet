@@ -89,6 +89,7 @@
         ```bash
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
         ```
+        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
 
         >**说明：** 
         >- taskset -c  _64-95_  env：将指定的进程绑定到CPU核心64\~95上运行，用户使用时根据[绑核与网卡所在NUMA一致](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)中的步骤1和步骤2确认绑定的CPU范围。
@@ -110,6 +111,7 @@
         ```bash
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
         ```
+        回显同上。
 
 4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口一致，及IP地址保持一致。
     1. 启动一个终端运行redis-benchmark。
@@ -118,6 +120,7 @@
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 10000000 -r 100000 -t set --threads 15
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
+        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
 
     2. 再起一个终端，运行第二个redis-benchmark。其余进程重复执行该步骤。
 
@@ -125,6 +128,7 @@
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
+        回显同上。
 
 5. 客户端清理set数据，提升性能。
 
@@ -132,3 +136,4 @@
     redis-cli -h 192.168.*.* -p 6379 flushall
     redis-cli -h 192.168.*.* -p 6380 flushall
     ```
+    结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。

@@ -2,14 +2,12 @@
 
 ## 配置大页内存
 
-### 配置物理机大页内存
-
-### 配置NUMA大页内存
-
 > **说明：** 
+>使用大页内存可减少页表与内存管理开销，提升应用程序性能。
 >请用户根据服务端环境具体的大页配置调整参数，服务端环境关闭或重启后需要重新配置和挂载。
+>若服务端为物理机，从[步骤1](#查看物理机是否配置大页内存)开始执行；若服务端为虚拟机，可直接从[步骤9](#配置NUMA大页)开始执行
 
-1. 查看物理机是否配置大页内存。
+1. 查看物理机是否配置大页内存。<a id="查看物理机是否配置大页内存"></a>
 
     ```bash
     cat /sys/devices/system/node/node*/meminfo | grep Huge
@@ -126,23 +124,29 @@
 
         ![](../figures/zh-cn_image_0000002510201037.png)
 
-9. 配置大页内存。从此步骤开始，如果要在虚拟机中运行业务，那就在虚拟机中操作，如果是在物理机中运行业务，则在物理机操作。
+9. 配置NUMA大页内存。从此步骤开始，如果要在虚拟机中运行业务，那就在虚拟机中操作，如果是在物理机中运行业务，则在物理机操作。<a id="配置NUMA大页"></a>
 
     - 服务端为物理机场景：
 
         ```bash
-        # 此处以网卡名ens6f0为例，用户根据实际使用的网卡名填写
-        cat /sys/class/net/ens6f0/device/numa_node 
+        cat /sys/class/net/ens6f0/device/numa_node # 查看网卡所在NUMA
         ```
         
-        回显说明所在NUMA为1。
+        >**说明：** 
+        >此处以网卡名ens6f0为例，用户根据实际使用的网卡名填写。
+        
+        回显示例如下，此处说明所在NUMA为1。
 
         ![](../figures/zh-cn_image_0000002503837758.png)
 
         ```bash
         echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
-        echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 具体node编号根据查询到的网卡所在NUMA进行更改
+        echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 为指定节点分配2个大小为1048576kB（1GB）的大页
         ```
+
+        >**说明：** 
+        >此处node1为上一步查询到的网卡所在NUMA节点，具体node编号根据查询到的网卡所在NUMA进行更改
+        >分配的大页数量与单个大页大小根据实际情况替换
 
     - 服务端为虚拟机场景：
 
@@ -205,10 +209,6 @@
 ## 相关业务配置
 
 ### 通用业务配置
-
-### （可选）SockPerf业务配置
-
-### （可选）TPerf业务配置
 
 1. 修改配置文件。
     1. 参考[配置大页内存 步骤8](#确认所用网卡)确认要用的网卡。
@@ -359,3 +359,73 @@
             export XDG_RUNTIME_DIR=/home/KNET_USER/knet
             echo $XDG_RUNTIME_DIR #确认是否配置环境变量，如果已配置会显示配置的路径
             ```
+
+### （可选）SockPerf业务配置
+
+若用户需使用K-NET加速SockPerf，由于用户态协议栈recvfrom()暂不支持MSG_NOSIGNAL flag，需将SockPerf源码路径下src/input_handlers.h第66-68行代码注释或者删除，具体代码如下：
+```bash
+#ifndef __windows__
+flags = MSG_NOSIGNAL;
+#endif
+```
+再进行编译，编译后K-NET可以劫持双端进行网络加速。
+
+### （可选）TPerf业务配置
+
+若用户需要使用K-NET加速Tperf，需要对应的[tperf_knet.patch](../../../demo/tperf/tperf_knet.patch)及以下业务配置：
+#### 编译
+注意：需要安装K-NET支持共线程、零拷贝特性版本后编译和使用。
+
+将patch放到app目录下，安装patch：
+```
+cd app
+patch -p1 -d tperf/ < tperf_knet.patch
+```
+需安装K-NET支持共线程以及零拷贝版本后编译tperf：
+```
+cd tperf
+make
+cd build/bin
+```
+在build/bin下为4个可执行demo，分别如下：
+tperf_os：标准POSIX接口的tperf dmeo；
+tperf_knetco：使用K-NET共线程特性的tperf demo；
+tperf_knetzcopy:使用K-NET零拷贝特性的tperf demo；
+tperf_knetcozocpy:使用K-NET共线程+零拷贝特性的tperf demo。
+
+>**说明：** 
+>使用完patch后，若需要恢复到原生tperf版本，可撤销patch：
+>```
+>cd app
+>patch -p1 -Rd tperf/ < tperf_knet.patch
+>```
+
+#### 修改双端配置文件
+```
+vi /etc/knet/knet_comm.conf
+```
+
+```
+{
+    "hw_offload": {
+        "tso": 1,
+        "lro": 1,
+        "tcp_checksum": 1,
+        "bifur_enable": 1
+     },
+    "proto_stack": {
+        "max_mbuf": 204800,
+        "def_sendbuf": 1048576,
+        "def_recvbuf": 1048576,
+        "zcopy_sge_len": 4096,
+        "zcopy_sge_num": 2097152,
+    },
+    "dpdk": {
+        "tx_cache_size": 1024,
+        "rx_cache_size": 1024,
+        "socket_mem": "--socket-mem=4096",
+        "socket_limit": "--socket-limit=4096",
+    }
+}
+```
+

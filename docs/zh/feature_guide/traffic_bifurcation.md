@@ -220,3 +220,5 @@ commit #保存配置
     ```bash
     iperf3 -c 192.168.*.* -t 0 -p 10001 -b 0 -l 64 -P 1
     ```
+
+    ![](../figures/zh-cn_image_0000002477573338.png)

@@ -13,58 +13,7 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 -d ：打流时间，为0则不打流；
 
 ## 编译
-注意：需要安装K-NET支持共线程、零拷贝特性版本后编译和使用。
-
-将patch放到app目录下，安装patch：
-```
-cd app
-patch -p1 -d tperf/ < tperf_knet.patch
-```
-需安装K-NET支持共线程以及零拷贝版本后编译tperf：
-```
-cd tperf
-make
-cd build/bin
-```
-在build/bin下为4个可执行demo，分别如下：
-tperf_os：标准POSIX接口的tperf dmeo；
-tperf_knetco：使用K-NET共线程特性的tperf demo；
-tperf_knetzcopy:使用K-NET零拷贝特性的tperf demo；
-tperf_knetcozocpy:使用K-NET共线程+零拷贝特性的tperf demo。
-
-使用完patch后，若需要恢复到原生tperf版本，可撤销patch：
-```
-cd app
-patch -p1 -Rd tperf/ < tperf_knet.patch
-```
-## 修改双端配置文件
-```
-vi /etc/knet/knet_comm.conf
-```
-
-```
-{
-    "hw_offload": {
-        "tso": 1,
-        "lro": 1,
-        "tcp_checksum": 1,
-        "bifur_enable": 1
-     },
-    "proto_stack": {
-        "max_mbuf": 204800,
-        "def_sendbuf": 1048576,
-        "def_recvbuf": 1048576,
-        "zcopy_sge_len": 4096,
-        "zcopy_sge_num": 2097152,
-    },
-    "dpdk": {
-        "tx_cache_size": 1024,
-        "rx_cache_size": 1024,
-        "socket_mem": "--socket-mem=4096",
-        "socket_limit": "--socket-limit=4096",
-    }
-}
-```
+Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)。
 
 ## 使用示例
 
@@ -79,6 +28,28 @@ taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
 
 # 客户端
 taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
+```
+若执行成功，回显示例如下：
+
+```
+# 服务端
+listening on 192.168.1.54:11111
+Acepted connection: fd = 6, cli_addr=192.168.1.56, cli_port=1446
+nr_sock :1
+
+# 客户端
+Connection in progress...server port 11111, sockfd 4, cli_port random
+Conection established with sockfd 4
+    0 W     0.000 read Gbits/sec    11.819 write Gbits/sec
+    1 W     0.000 read Gbits/sec    16.347 write Gbits/sec
+    2 W     0.000 read Gbits/sec    17.650 write Gbits/sec
+    3 W     0.000 read Gbits/sec    17.555 write Gbits/sec
+    ...
+    29 W    0.000 read Gbits/sec    17.626 write Gbits/sec
+    30 W    0.000 read Gbits/sec    17.652 write Gbits/sec
+
+---
+ 0 nr_conn=1 nr_zero_io_conn=0
 ```
 
 2并发:
