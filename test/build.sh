@@ -15,12 +15,26 @@ readonly PROJECT_ROOT="$(dirname $(readlink -f $0))"
 
 readonly KNET_DIR=${PROJECT_ROOT}/..
 
-cd ../
-python build.py debug
-cd -
+cd ${KNET_DIR}/opensource
+if [ ! -d "dpdk" ]; then
+    git clone https://gitcode.com/lyontang/dpdk.git dpdk
+else
+    echo "dpdk exist."
+fi
+
+cd ${KNET_DIR}
+if command -v python3 > /dev/null 2>&1; then
+    python3 build.py debug
+else
+    python build.py debug
+fi
+cd ${KNET_DIR}/test
 rm -rf ./ut/build
 mkdir -p ./ut/build
 pushd ./ut/build
     cmake ..
     make -j8
 popd
+
+sudo mkdir -p /etc/knet
+sudo cp ${KNET_DIR}/conf/knet_comm.conf /etc/knet/
