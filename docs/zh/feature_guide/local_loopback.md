@@ -35,6 +35,28 @@ K-NET进程作为TCP服务端监听端口时，同一台机器上的其他进程
 
    客户端与K-NET服务端成功建立连接并打流。
 
+服务端输出结果如下回显：
+
+```bash
+.......
+Accepted connection from 192.168.1.6, port 36182
+[ 70] local 192.168.1.6 port 10001 connected to 192.168.1.6 port 36184
+[ ID] Interval           Transfer     Bitrate
+[ 70]   0.00-1.00   sec  5.15 GBytes  44.2 Gbits/sec                  
+[ 70]   1.00-2.00   sec  5.33 GBytes  45.8 Gbits/sec                  
+[ 70]   2.00-3.00   sec  5.32 GBytes  45.7 Gbits/sec                  
+[ 70]   3.00-4.00   sec  5.50 GBytes  47.3 Gbits/sec                  
+[ 70]   4.00-5.00   sec  4.96 GBytes  42.6 Gbits/sec                  
+[ 70]   5.00-6.00   sec  5.33 GBytes  45.8 Gbits/sec                  
+[ 70]   5.00-6.00   sec  5.33 GBytes  45.8 Gbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[ 70]   0.00-6.00   sec  36.3 GBytes  51.9 Gbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 10001 (test #2)
+-----------------------------------------------------------
+```
+
 ### 示例二：K-NET服务端 bind `0.0.0.0`，同机客户端连接
 
 K-NET进程 bind `0.0.0.0` 时，内核侧监听所有本地IP，同一台机器上的其他进程可直接通过配置IP连接。
@@ -54,3 +76,25 @@ K-NET进程 bind `0.0.0.0` 时，内核侧监听所有本地IP，同一台机器
    ```
 
    客户端与K-NET服务端成功建立连接并打流。
+
+服务端输出结果如下回显：
+       
+```bash
+.......
+Accepted connection from 192.168.1.6, port 36182
+[ 70] local 192.168.1.6 port 10001 connected to 192.168.1.6 port 36184
+[ ID] Interval           Transfer     Bitrate
+[ 70]   0.00-1.00   sec  5.15 GBytes  44.2 Gbits/sec                  
+[ 70]   1.00-2.00   sec  5.93 GBytes  45.8 Gbits/sec                  
+[ 70]   2.00-3.00   sec  5.32 GBytes  45.7 Gbits/sec                  
+[ 70]   3.00-4.00   sec  5.45 GBytes  45.3 Gbits/sec                  
+[ 70]   4.00-5.00   sec  4.96 GBytes  42.6 Gbits/sec                  
+[ 70]   5.00-6.00   sec  5.31 GBytes  45.7 Gbits/sec                  
+[ 70]   5.00-6.00   sec  5.33 GBytes  45.4 Gbits/sec                  
+- - - - - - - - - - - - - - - - - - - - - - - - -
+[ ID] Interval           Transfer     Bitrate
+[ 70]   0.00-6.00   sec  36.3 GBytes  51.7 Gbits/sec                  receiver
+-----------------------------------------------------------
+Server listening on 10001 (test #2)
+-----------------------------------------------------------
+```
