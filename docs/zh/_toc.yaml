@@ -5,7 +5,7 @@ sections:
     href: ./release_note.md
   - label: 产品描述
     sections:
-      - href: ./product_descritions/_toc.yaml
+      - href: ./product_descriptions/_toc.yaml
   - label: 快速入门
     href: ./quick_start.md
   - label: 安装指南

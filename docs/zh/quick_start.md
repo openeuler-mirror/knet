@@ -1,6 +1,6 @@
 # 快速入门
 
-K-NET（K-Network，网络加速套件）旨在打造一款网络加速套件，提供统一的软件框架，发挥软硬件协同优势，释放网卡硬件性能，详细介绍请参见[产品描述](./product_descritions/descritions_menu.md)。
+K-NET（K-Network，网络加速套件）旨在打造一款网络加速套件，提供统一的软件框架，发挥软硬件协同优势，释放网卡硬件性能，详细介绍请参见[产品描述](./product_descriptions/descriptions_menu.md)。
 本快速入门以在SP670网卡上，运行Redis单实例加速任务为例，快速教您如何使用K-NET。
 
 ## 1、安装K-NET

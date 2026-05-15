@@ -15,7 +15,7 @@
 | redis get  | 1000  | redis-benchmark默认大小 | 161480.45 | 505816.66 |
 | redis set  | 1000  | redis-benchmark默认大小    | 141693.23 | 376067.09 |
 
-具体请参见[K-NET产品描述](./docs/zh/product_descritions/descritions_menu.md)。
+具体请参见[K-NET产品描述](./docs/zh/product_descriptions/descriptions_menu.md)。
 
 
 ## 版本说明

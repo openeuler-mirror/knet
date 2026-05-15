@@ -400,7 +400,7 @@ cd build/bin
 - tperf_os：标准POSIX接口的tperf demo；
 - tperf_knetco：使用K-NET共线程特性的tperf demo；
 - tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
-- tperf_knetcozocpy：使用K-NET共线程+零拷贝特性的tperf demo。
+- tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
 
 >**说明：** 
 >使用完patch后，若需要恢复到原生tperf版本，可撤销patch。
