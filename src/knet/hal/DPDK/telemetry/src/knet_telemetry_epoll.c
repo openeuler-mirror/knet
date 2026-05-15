@@ -144,7 +144,7 @@ KNET_STATIC int AddEpollBasicInfo(EpollTelemetryContext *epollctx, struct rte_te
         (void)snprintf_s(tidStr, MAX_TID_LEN, MAX_TID_LEN - 1, "%u", epollctx->tid);
         CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_string, epollDict, "tid", tidStr);
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, epollDict, "pid", epollctx->pid);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, epollDict, "pid", epollctx->pid);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "osFd", epollctx->osFd);
     CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_int, epollDict, "innerFd", epollctx->dpFd);
     return KNET_OK;
@@ -183,10 +183,10 @@ KNET_STATIC int ProcessPerSockDetail(DP_EpollDetails_t sockDetails, struct rte_t
     if (rte_tel_data_start_dict(sockDict) != 0) {
         return KNET_ERROR;
     }
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "expectEvents", sockDetails.expectEvents);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "readyEvents", sockDetails.readyEvents);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "notifiedEvents", sockDetails.notifiedEvents);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, sockDict, "shoted", sockDetails.shoted);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockDict, "expectEvents", sockDetails.expectEvents);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockDict, "readyEvents", sockDetails.readyEvents);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockDict, "notifiedEvents", sockDetails.notifiedEvents);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, sockDict, "shoted", sockDetails.shoted);
     return KNET_OK;
 }
 KNET_STATIC int ProcessSockDetails(DP_EpollDetails_t *sockDetails, struct rte_tel_data *sockDetailDict,

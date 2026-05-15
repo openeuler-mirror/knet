@@ -126,7 +126,7 @@ KNET_STATIC int GetEthdevUsageOutput(struct NetDevUsageInfo *infos, int time)
             return KNET_ERROR;
         }
         ret = snprintf_s(curPos, remain, (MAX_USAGE_OUTPUT_LEN - 1) / time,
-                         "%s{\"%s\":\"%d-%ds\",\"%s\":\"%s, %lu "
+                         "%s{\"%s\":\"%d_%ds\",\"%s\":\"%s, %lu "
                          "p/s\",\"%s\":\"%s, %lu p/s\"}%s",
                          (i == 0) ? "[" : "", KEY_STR_TIME, i, i + 1, KEY_STR_TX,
                          outBdString, infos[i].opps, KEY_STR_RX, inBdString,

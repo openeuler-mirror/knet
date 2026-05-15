@@ -26,11 +26,11 @@ set(DPDK_STATIC_LIBRARIES
     rte_net_bond
 )
 
-project(knet_sdv)
+project(knet_ut)
 cmake_minimum_required(VERSION 3.16)
 add_compile_options(-g -fPIC -O0 -fpermissive -fprofile-arcs -ftest-coverage -fsanitize=address -static-libasan)
 
-set(UT_NAME knet_sdv_BIN)
+set(UT_NAME knet_ut_BIN)
 
 add_definitions(-DTEST_SDV_DEBUG)
 add_definitions(-DKNET_TEST)
@@ -95,18 +95,6 @@ target_include_directories(${UT_NAME}  PRIVATE
     ${KNET_INCLUDE_DIRS}
     ${SECUREC_INCLUDE_DIRS}
     ${ALL_HEADER_DIRS}
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_sal/src/
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_api/tcp_api_init/include/
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_api/tcp_fd/include/
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_api/tcp_os/include/
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_api/tcp_event/include/
-    # ${KNET_SRC_DIR}/sal/tcp/tcp_api/tcp_socket/include/
-    # ${KNET_SRC_DIR}/framework/config/src/
-    # ${KNET_SRC_DIR}/hal/DPDK/mem/src/
-    # ${KNET_SRC_DIR}/hal/DPDK/dpdk_init/src/
-    # ${KNET_SRC_DIR}/hal/DPDK/telemetry/src/
-    # ${KNET_SRC_DIR}/sal/knet_init/src/
-    # ${KNET_SRC_DIR}/framework/rpc/include/
 )
 
 target_link_directories(${UT_NAME}  PRIVATE
@@ -135,4 +123,3 @@ target_link_libraries(${UT_NAME} PRIVATE
 )
 
 set_target_properties(${UT_NAME} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${SDV_ROOT_DIR})
-file(COPY ${KNET_ROOT_DIR}/conf/knet_comm.conf DESTINATION /etc/knet/)

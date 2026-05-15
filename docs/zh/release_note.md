@@ -34,7 +34,7 @@
 | 项目       | 版本  |获取地址|
 |------------|-------|-------|
 | Redis  | 6.0.20   |[获取链接](https://github.com/redis/redis/tree/6.0.20)|
-| DPDK  |  21.11.7 |[获取链接](https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz)|
+| DPDK  |  21.11.7/23.11.6 |[获取链接](https://fast.dpdk.org/rel)|
 | iPerf3  | 3.16  |[获取链接](https://github.com/esnet/iperf/releases/tag/3.16)|
 | SockPerf  | 3.10  |[获取链接](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
 | TPerf  | 1.0  |[获取链接](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
