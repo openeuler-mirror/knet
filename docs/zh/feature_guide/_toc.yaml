@@ -1,5 +1,5 @@
 isManual: true
-label: "特性指南"
+label: 特性指南
 sections:
   - label: 共线程功能
     href: ./cothread.md
@@ -17,9 +17,11 @@ sections:
     href: ./network_acceleration_verification.md
   - label: 单进程模式加速
     href: ./single_process_model_acceleration.md
-  - label: 流量分叉功能
+  - label: 网卡流量分叉功能
     href: ./traffic_bifurcation.md
-  - label: 使用DPDK用户态虚拟Bond功能
+  - label: 用户态网卡bond功能
     href: ./using_dpdk_user_space_virtual_bonding.md
   - label: 零拷贝功能
     href: ./zero_copy.md
+  - label: 本地流量环回功能
+    href: ./local_loopback.md
