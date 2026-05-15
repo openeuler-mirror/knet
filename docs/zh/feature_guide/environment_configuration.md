@@ -363,49 +363,62 @@
 ### （可选）SockPerf业务配置
 
 若用户需使用K-NET加速SockPerf，由于用户态协议栈recvfrom()暂不支持MSG_NOSIGNAL flag，需将SockPerf源码路径下src/input_handlers.h第66-68行代码注释或者删除，具体代码如下：
-```bash
+
+```c
 #ifndef __windows__
 flags = MSG_NOSIGNAL;
 #endif
 ```
+
 再进行编译，编译后K-NET可以劫持双端进行网络加速。
 
 ### （可选）TPerf业务配置
 
 若用户需要使用K-NET加速Tperf，需要对应的[tperf_knet.patch](../../../demo/tperf/tperf_knet.patch)及以下业务配置：
+
 #### 编译
+
 注意：需要安装K-NET支持共线程、零拷贝特性版本后编译和使用。
 
 将patch放到app目录下，安装patch：
-```
+
+```bash
 cd app
 patch -p1 -d tperf/ < tperf_knet.patch
 ```
+
 需安装K-NET支持共线程以及零拷贝版本后编译tperf：
-```
+
+```bash
 cd tperf
 make
 cd build/bin
 ```
+
 在build/bin下为4个可执行demo，分别如下：
-tperf_os：标准POSIX接口的tperf dmeo；
-tperf_knetco：使用K-NET共线程特性的tperf demo；
-tperf_knetzcopy:使用K-NET零拷贝特性的tperf demo；
-tperf_knetcozocpy:使用K-NET共线程+零拷贝特性的tperf demo。
+
+- tperf_os：标准POSIX接口的tperf demo；
+- tperf_knetco：使用K-NET共线程特性的tperf demo；
+- tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
+- tperf_knetcozocpy：使用K-NET共线程+零拷贝特性的tperf demo。
 
 >**说明：** 
->使用完patch后，若需要恢复到原生tperf版本，可撤销patch：
->```
+>使用完patch后，若需要恢复到原生tperf版本，可撤销patch。
+>
+>```bash
 >cd app
 >patch -p1 -Rd tperf/ < tperf_knet.patch
 >```
 
 #### 修改双端配置文件
-```
+
+```bash
 vi /etc/knet/knet_comm.conf
 ```
 
-```
+按“i”进入编辑模式。
+
+```text
 {
     "hw_offload": {
         "tso": 1,
@@ -429,3 +442,4 @@ vi /etc/knet/knet_comm.conf
 }
 ```
 
+完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。

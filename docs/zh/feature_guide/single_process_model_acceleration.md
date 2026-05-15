@@ -147,7 +147,6 @@ vi /etc/knet/knet_comm.conf
 
 ![](../figures/运维管理架构-智能网卡.png)
 
-
 1. 服务端虚拟机（主）运行Redis服务端。
 
     > **说明：** 
@@ -220,7 +219,6 @@ vi /etc/knet/knet_comm.conf
 组网参考:
 
 ![](../figures/运维管理架构-智能网卡-0.png)
-
 
 1. 六台服务端虚拟机分别运行Redis客户端。
 
