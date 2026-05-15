@@ -11,7 +11,7 @@
  */
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <pthread.h>
 #include "rte_config.h"
 #include "rte_errno.h"
 #include "rte_mempool.h"

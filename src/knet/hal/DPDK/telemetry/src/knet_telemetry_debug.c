@@ -146,7 +146,7 @@ KNET_STATIC int AddJsonToData(cJSON *json, const char *key, struct rte_tel_data 
         return KNET_ERROR;
     }
 
-    if (rte_tel_data_add_dict_u64(data, key, value) != 0) {
+    if (ADD_DICT_INT_FUNC(data, key, value) != 0) {
         KNET_ERR("Rte telemetry data add dict u64 failed");
         return KNET_ERROR;
     }
@@ -513,9 +513,9 @@ int KnetTelemetryFlowTableCallback(const char *cmd, const char *params, struct r
 KNET_STATIC int AddQueuePidTidLcoreInfo(struct rte_tel_data *queueDict, uint32_t pid, uint32_t tid,
                                         uint32_t lcoreId)
 {
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "pid", pid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "tid", tid);
-    CHECK_ADD_VALUE_TO_DICT(rte_tel_data_add_dict_u64, queueDict, "lcoreId", lcoreId);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "pid", pid);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "tid", tid);
+    CHECK_ADD_VALUE_TO_DICT(ADD_DICT_INT_FUNC, queueDict, "lcoreId", lcoreId);
     return KNET_OK;
 }
 
