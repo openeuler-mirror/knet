@@ -4,13 +4,17 @@
 tperf_knet.patch基于libtpa原生Tperf工具开发，将原生tpa接口转换为标准POSIX接口，并在此基础上，分别适配了K-NET共线程、零拷贝、共线程加零拷贝特性。
 libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c](https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c)。
 ## tperf新增/修改命令参数：
-* server端：
+server端：
+
 -n ：运行的线程数，每个线程有各自的listen端口，为-p的端口+线程id。如-p 11111 -n 2，则在11111与11112的端口分别有1个线程进行监听；
 
-* clinet端：
+client端：
+
 -N ：指服务端启动的线程数，客户端将线程均匀散到服务端的N个线程进行建链，如 -N 2，客户端会将1线程与对端1线程建链，2线程与对端2线程建链；
+
 -P ：客户端每个线程bind的端口，必须指定-l 为本端ip，且-P的个数与-n 线程数保持一致。
--d ：打流时间，为0则不打流；
+
+-d ：打流时间，为0则不打流。
 
 ## 编译
 Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)。
@@ -215,6 +219,7 @@ Connection established with sockfd 4
 ```echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range```
 
 1并发：
+
 服务端打流命令：
 
 ```bash
@@ -270,6 +275,7 @@ Connection established with sockfd 4
 
 
 2并发：
+
 修改双端配置文件：
 ```text
 "max_worker_num": 2,
@@ -394,6 +400,7 @@ Connection established with sockfd 4
 
 
 2并发：
+
 修改双端配置文件：
 ```
 "max_worker_num": 2,
@@ -527,6 +534,7 @@ Connection established with sockfd 4
 ```
 
 2并发：
+
 双端修改配置文件：
 
 ```text
