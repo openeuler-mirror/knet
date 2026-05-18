@@ -162,7 +162,8 @@ int KNET_DpEpollCreate(int size)
         errno = EPERM;
         KNET_WARN("Function epoll_create was not allowed to be called in signal exiting process, errno %d, %s",
             errno, strerror(errno));
-        return -1;
+        // 业务main函数已退出，析构流程直接返回内核创建的epoll实例，用于DPDK中断线程正常处理
+        return g_origOsApi.epoll_create(size);
     }
 
     int osFd = g_origOsApi.epoll_create(size);
