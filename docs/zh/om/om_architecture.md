@@ -1,6 +1,6 @@
 # 运维架构
 
-<term>K-NET</term>为了方便获取定位能力，提供了运维工具：抓包工具、遥测工具、日志工具以及运维脚本。
+<term>K-NET</term>为了方便获取定位能力，提供了运维工具：抓包工具**dumpcap**、遥测工具**dpdk-telemetry**、日志工具**knet\_comm.log**、运维信息收集脚本**collect.sh**以及配置文件合并脚本**merge_conf.sh**。
 
 ## 运维对象
 

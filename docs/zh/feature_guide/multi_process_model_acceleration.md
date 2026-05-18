@@ -6,6 +6,8 @@
 
 ## 使用示例
 
+本章示例以Redis为例。
+
 > **说明：** 
 >
 >- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。

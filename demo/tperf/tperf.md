@@ -1,7 +1,7 @@
 # tperf_knet.patch使用示例
 
 ## 简介
-tperf_knet.patch基于libtpa原生tperf工具开发，将原生tpa接口转换为标准POSIX接口，并在此基础上，分别适配了K-NET共线程、零拷贝、共线程加零拷贝特性。
+tperf_knet.patch基于libtpa原生Tperf工具开发，将原生tpa接口转换为标准POSIX接口，并在此基础上，分别适配了K-NET共线程、零拷贝、共线程加零拷贝特性。
 libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c](https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c)。
 ## tperf新增/修改命令参数：
 * server端：
@@ -17,7 +17,7 @@ Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_
 
 ## 使用示例
 
-服务端ip以192.168.1.6为例，客户端以192.168.1.7为例；具体需要替换为网卡配置的ip，且与K-NET配置文件中ip保持一致。
+服务端ip以192.168.1.6为例，客户端以192.168.1.7为例；具体需要替换为网卡配置的IP，且与K-NET配置文件中IP保持一致。
 
 ### tperf_os
 
