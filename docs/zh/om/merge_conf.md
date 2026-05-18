@@ -1,4 +1,4 @@
-# merge_conf.sh（配置文件合并脚本）
+# 配置文件合并脚本merge_conf.sh
 
 ## 命令功能
 

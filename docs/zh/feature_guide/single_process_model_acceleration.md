@@ -1,5 +1,13 @@
 # 单进程模式加速
 
+## 功能描述
+
+提供高性能用户态协议栈处理能力，支持针对单进程业务场景进行网络加速。
+
+## 使用示例
+
+本章示例以Redis为例。
+
 >**说明：** 
 >
 >- 该模式支持服务端为配置VF直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
@@ -17,12 +25,10 @@ vi /etc/knet/knet_comm.conf
     }
 ```
 
-# Redis业务加速
-
-## 单实例加速
+### 单实例加速
 
 > **说明：** 
->服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，已按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 
 1. 服务端中运行Redis服务端。
 
@@ -66,6 +72,29 @@ vi /etc/knet/knet_comm.conf
     >- -t set：测试类型，set对应测试类型为set操作，如果是-t get表示测试类型为get操作。
     >- --threads 15：线程数，即每个客户端使用的线程数。同一个客户端可以使用多个线程来发送请求，从而提高并发量和吞吐量。
 
+    结果形如以下示例输出：
+
+    ```bash
+    ====== SET ======
+    10000000 requests completed in 25.75 seconds
+    1000 parallel clients
+    3 bytes payload
+    keep alive: 1
+    host configuration "save": 900 1 300 10 60 10000
+    host configuration "appendonly": no
+    multi-thread: yes
+    threads: 15
+                    
+    0.00% <= 0.4 milliseconds
+    0.00% <= 0.5 milliseconds
+    0.00% <= 0.6 milliseconds
+    0.00% <= 0.7 milliseconds
+    0.01% <= 0.8 milliseconds
+    ...
+    388274.12 requests per second
+    ```
+
+    则性能为388274.12 rps，实际性能以运行为准。
 3. 客户端清理set数据。
 
     ```bash
@@ -80,11 +109,44 @@ vi /etc/knet/knet_comm.conf
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
     ```
 
-## 虚拟机VF硬直通对Redis业务主从场景加速
+    结果形如以下示例输出：
+
+    ```bash
+    ====== GET ======
+    1000000 requests completed in 64.26 seconds  
+    1000 parallel clients  
+    3 bytes payload  
+    keep alive: 1  
+    host configuration "save": 900 1 300 10 60 10000  
+    host configuration "appendonly": no  
+    multi-thread: yes  
+    threads: 1  
+
+    0.00% <= 0.6 milliseconds  
+    0.00% <= 0.7 milliseconds  
+    0.00% <= 0.8 milliseconds  
+    0.00% <= 2 milliseconds  
+    0.00% <= 3 milliseconds  
+    0.00% <= 4 milliseconds  
+    0.01% <= 5 milliseconds
+    ...
+    305608.11 requests per second
+    ```
+
+    则性能为305608.11 rps，实际性能以运行为准。
 
 >**说明：** 
->一主一从场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置，典型组网参考[Redis典型组网](../installation/installation_planning.md)。
+>测试内核协议栈相同场景下Redis set、get性能，可以与上述K-NET结果进行对比，观测提升效果。
+
+### 虚拟机VF硬直通对Redis业务主从场景加速
+
+>**说明：** 
+>一主一从场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 >以主服务端使用的网卡IP地址为192.168.0.1，从服务端使用的网卡IP地址为192.168.0.2为例。
+
+组网参考：
+
+![](../figures/运维管理架构-智能网卡.png)
 
 1. 服务端虚拟机（主）运行Redis服务端。
 
@@ -149,12 +211,15 @@ vi /etc/knet/knet_comm.conf
     >**说明：** 
     >-p 6379：从服务端运行redis命令没有指定端口号，因此其绑定端口号为redis配置文件默认值6379。
 
-## 虚拟机VF硬直通对Redis业务集群场景加速
+### 虚拟机VF硬直通对Redis业务集群场景加速
 
 >**说明：** 
->三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置，典型组网参考[Redis三主三从组网](../installation/installation_planning.md)。
+>三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>以6个服务端虚拟机使用的网卡IP分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
 
-以6个服务端虚拟机使用的网卡IP分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例，执行以下步骤：
+组网参考:
+
+![](../figures/运维管理架构-智能网卡-0.png)
 
 1. 六台服务端虚拟机分别运行Redis客户端。
 

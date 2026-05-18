@@ -1,4 +1,8 @@
-# 使用DPDK用户态虚拟Bond功能
+# 用户态网卡bond功能
+
+## 功能描述
+
+提供基于用户态的网卡聚合能力开关，支持将两个物理网口在用户态进行逻辑绑定，实现带宽叠加，可靠性增强。
 >
 >**说明：** 
 >Bond场景参考组网[物理机组网规划](../installation/installation_planning.md#组网规划)，Bond功能具有如下约束：
@@ -7,6 +11,10 @@
 >- Switch（交换机）支持LACP动态协商聚合（IEEE 802.3ad Dynamic link aggregation）。
 >- 仅支持DPDK Bond mode 4模式。
 >- 仅支持K-NET单进程模式。
+
+## 使用示例
+
+本章示例以iPerf3为例。
 
 1. 配置交换机。
 

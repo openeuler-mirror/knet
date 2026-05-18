@@ -2,7 +2,7 @@ isManual: true
 label: "产品描述"
 sections:
   - label: K-NET 产品描述
-    href: ./descritions_menu.md
+    href: ./descriptions_menu.md
   - label: 特性和功能
     href: ./features_and_functions.md
   - label: 产品定位和特点

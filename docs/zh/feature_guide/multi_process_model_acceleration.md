@@ -1,12 +1,20 @@
 # 多进程模式加速
->
+
+## 功能描述
+
+提供多个业务进程并发运行的网络处理能力，支持针对多进程业务场景进行网络加速。
+
+## 使用示例
+
+本章示例以Redis为例。
+
 > **说明：** 
 >
 >- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 >- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
 >- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet\_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
 
-1. 修改knet\_comm.conf配置文件。
+1. 修改服务端knet\_comm.conf配置文件。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -43,7 +51,7 @@
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-2. 删除socket文件，防止权限问题产生报错。
+2. 删除服务端的socket文件，防止权限问题产生报错。
 
     > **说明：** 
     >该步骤适用于切换用户后运行的场景。
@@ -83,6 +91,8 @@
         ```bash
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
         ```
+        
+        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
 
         >**说明：** 
         >- taskset -c  _64-95_  env：将指定的进程绑定到CPU核心64\~95上运行，用户使用时根据[绑核与网卡所在NUMA一致](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)中的步骤1和步骤2确认绑定的CPU范围。
@@ -105,6 +115,8 @@
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
         ```
 
+        回显同上。
+
 4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口一致，及IP地址保持一致。
     1. 启动一个终端运行redis-benchmark。
 
@@ -113,6 +125,8 @@
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
 
+        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
+
     2. 再起一个终端，运行第二个redis-benchmark。其余进程重复执行该步骤。
 
         ```bash
@@ -120,9 +134,13 @@
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
 
+        回显同上。
+
 5. 客户端清理set数据，提升性能。
 
     ```bash
     redis-cli -h 192.168.*.* -p 6379 flushall
     redis-cli -h 192.168.*.* -p 6380 flushall
     ```
+
+    结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。

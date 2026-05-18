@@ -1,5 +1,5 @@
 isManual: true
-label: "共线程接口"
+label: 共线程接口
 sections:
   - label: 共线程接口
     href: ./cothread_api_menu.md
@@ -11,3 +11,5 @@ sections:
     href: ./knet_worker_init.md
   - label: knet\_worker\_run
     href: ./knet_worker_run.md
+  - label: 共线程接口列表
+    href: ./cothread_list.md

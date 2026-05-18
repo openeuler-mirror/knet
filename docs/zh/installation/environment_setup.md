@@ -8,8 +8,7 @@
 
     1. 在浏览器输入iBMC管理网口地址：https://_ipaddress_，按“Enter”键进入。
     2. 输入用户名和密码登录。
-
-    ![](../figures/zh-cn_image_0000002535472605.png)
+![](../figures/zh-cn_image_0000002535472605.png)
 
 2. 打开HTML5集成远程控制台。
 
@@ -25,7 +24,7 @@
 
     ![](../figures/zh-cn_image_0000002503592798.png)
 
-5. 输入BIOS登录密码。进入BIOS。
+5. 输入BIOS登录密码，进入BIOS。
 6. 进入“Advanced-\>MISC Config”配置页面。
 
     ![](../figures/1.png)
@@ -48,10 +47,10 @@
 
     ![](../figures/zh-cn_image_0000002536427415.png)
 
-### （可选）配置物理机yum源
+### （可选）配置物理机Yum源
 
 >**说明：** 
->这里以配置openEuler 22.03 LTS SP4系统物理机的yum源为例，如果环境已经配置过yum源，可跳过此章节。
+>这里以配置openEuler 22.03 LTS SP4系统物理机的Yum源为例，如果环境已经配置过Yum源，可跳过此章节。
 
 1. 登录服务器节点，下载虚拟机镜像openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso上传至服务器。
 
@@ -110,7 +109,7 @@
 
 ### 安装SP670驱动（仅SP670网卡涉及）
 
-1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)中“编译和安装”章节。若使用流量分叉，需执行以下命令：
+1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/692f5d74)中“编译/安装驱动”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
     sh install.sh -d bifur
@@ -230,7 +229,7 @@
     >- root@remote\_host：用户为root，remote\_host表示物理机的控制IP地址，即物理机上192.168.122.\*的IP地址。
     >- /path/to/local/directory：表示虚拟机存放ISO文件路径。请用户根据实际存放路径修改。
 
-    1. 使用mount命令挂载虚机对应的ISO文件。
+    1. 使用mount命令挂载虚拟机对应的ISO文件。
 
         >**须知：** 
         >每次重启虚拟机后都要重新执行**mount**命令。
@@ -328,13 +327,13 @@
 
     ![](../figures/zh-cn_image_0000002483498160.png)
 
-6. 关闭虚机。
+6. 关闭虚拟机。
 
     ```bash
     virsh shutdown vm_perf_2203
     ```
 
-7. 在虚机xml中增加直通设备。
+7. 在虚拟机xml中增加直通设备。
     1. 以enp1s0f0v0为例，进入配置文件界面：
 
         ```bash
@@ -346,7 +345,7 @@
         ![](../figures/zh-cn_image_0000002515618139.png)
 
         >**说明：** 
-        >第一个红框与[步骤1.5](#step1.5)配置的VF相对应，比如这里VF选择01:00.2所对应的端口（即[步骤1.5](#step1.5)图中右边红框），该端口为enp1s0f0v0，第二个红框表示这个VF会在虚机里面生成一个网口，网口名为enp6s0。如果需要配置多个VF，就在<device\>字段中添加多个字段。
+        >第一个红框与[步骤1.5](#step1.5)配置的VF相对应，比如这里VF选择01:00.2所对应的端口（即[步骤1.5](#step1.5)图中右边红框），该端口为enp1s0f0v0，第二个红框表示这个VF会在虚拟机里面生成一个网口，网口名为enp6s0。如果需要配置多个VF，就在<device\>字段中添加多个字段。
 
         如下为模板，仅供参考：
 
@@ -392,7 +391,7 @@
 
 ### 安装SP670驱动
 
-若用户需要在虚拟化环境上运行业务，还需要重新在虚机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
+若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
 
 安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
 

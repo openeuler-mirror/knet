@@ -1,6 +1,13 @@
 # 共线程功能
 
-本节主要说明如何配置、使用[API参考](../api/cothread_apis/cothread_api_menu.md)的共线程接口，提供共线程使用伪代码，指导用户使用。
+## 功能说明
+
+提供共线程定制接口，支持在业务线程直接驱动协议栈，具有节省转发CPU核的优势。
+
+## 使用示例
+
+本章示例以Tperf为例。
+本节主要说明如何配置、使用[API参考](../api/cothread_apis/cothread_list.md)的共线程接口，提供共线程使用伪代码，指导用户使用。
 
 >**说明：** 
 >共线程功能指K-NET用户态协议栈与业务在同一个线程中运行，并在此业务线程中进行数据包的收发、事件处理和数据读写。
@@ -10,7 +17,7 @@
 >- 业务编译的时候，建议优先链接-lknet\_frame，再链接其他库，如-lpthread、-lc。
 >- 业务线程的绑核由业务控制，建议K-NET worker业务绑核要在调用knet\_worker\_init\(\)之前执行，且不与“ctrl\_vcpu\_ids”共核；共线程场景下，“core\_list\_global”配置不生效。
 >- K-NET worker业务线程之间不得共享与跨线程操作socket fd、epoll fd。
->- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见步骤4。
+>- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见[步骤4](#step4)。
 >- K-NET worker业务线程个数与配置项中的“max\_worker\_num”一致，超过“max\_worker\_num”部分线程执行knet\_worker\_init\(\)会失败。
 >- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启"bifur\_enable"并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流。
 >- 共线程场景下，开启流分叉"bifur\_enable"设置为1，或者max\_worker\_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入ip非0，为业务ip。
@@ -199,7 +206,7 @@
         55535 65535
         ```
 
-    - 内核协议栈与K-NET端口范围交叉，需修改内核协议栈或者K-NET端口范围
+    - 内核协议栈与K-NET端口范围交叉，需修改内核协议栈或者K-NET端口范围。
         - 方案1：修改内核协议栈端口范围，使其不与K-NET端口范围冲突。
 
             ```bash
@@ -210,4 +217,4 @@
 
 5. 启动业务。
 
-    以Tperf为例，参考[特性支持](./feature_overview.md#特性支持)中的Tperf patch链接使用。
+    以Tperf为例，参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。

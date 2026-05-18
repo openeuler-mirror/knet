@@ -1,5 +1,5 @@
 isManual: true
-label: "特性指南"
+label: 特性指南
 sections:
   - label: 共线程功能
     href: ./cothread.md
@@ -11,17 +11,21 @@ sections:
     href: ./feature_overview.md
   - label: 内核流量转发功能
     href: ./kernel_traffic_forwarding.md
-  - label: 多进程模式加速
+  - label: 多进程加速功能
     href: ./multi_process_model_acceleration.md
-  - label: 网络加速功能验证
+  - label: 网络加速功能
     href: ./network_acceleration_verification.md
-  - label: 运维特性
-    href: ./om_features.md
-  - label: 单进程模式加速
+  - label: 单进程加速功能
     href: ./single_process_model_acceleration.md
-  - label: 流量分叉功能
+  - label: 网卡流量分叉功能
     href: ./traffic_bifurcation.md
-  - label: 使用DPDK用户态虚拟Bond功能
+  - label: 用户态网卡Bond功能
     href: ./using_dpdk_user_space_virtual_bonding.md
   - label: 零拷贝功能
     href: ./zero_copy.md
+  - label: 本地流量环回功能
+    href: ./local_loopback.md
+  - label: 使用示例
+    href: ./usage_example.md
+  - label: 使用共线程、零拷贝功能进行Tperf加速
+    href: ../../../demo/tperf/tperf.md
