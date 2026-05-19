@@ -4,40 +4,57 @@
 
 |  产品名称      |   软件名称   | 软件版本 |
 |------------|-------------|-------------|
+| Data Acceleration Kit | 网络加速套件（K-NET）   | tag-tbd |
 | Data Acceleration Kit | 网络加速套件（K-NET）   | [26.0.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.0.rc1-0331) |
 
 ## 版本配套关系
 
 ### 鲲鹏环境
 
-|  项目       |    兼容性1  |    兼容性2 | 
-|------------|-------------|-----------|
-| 操作系统  | openEuler 22.03 LTS SP4(Host和Guest OS保持一致)   | CTyunos-2.0.1-220311-aarch64(4.19.90-2102.2.0.0062.ctl2.aarch64) |
-| 服务器  |  TaiShan 200服务器（型号2280 VD）  | TaiShan 200服务器（型号2280 VD）    |
-| 网卡  | SP670  | SP670 |
-| CPU  | 鲲鹏920 7260处理器  | 鲲鹏920 7260处理器    |
+|  项目       |    兼容性1  |    兼容性2 |   兼容性3 |
+|------------|-------------|-----------|-----------|
+| 操作系统  | openEuler 22.03 LTS SP4  | CTyunos-2.0.1-220311-aarch64(4.19.90-2102.2.0.0062.ctl2.aarch64) | openEuler 24.03 LTS SP3 |
+| 服务器  |  TaiShan 200服务器（型号2280 VD）  | TaiShan 200服务器（型号2280 VD）    |  TaiShan 200服务器（新型号）   |
+| 网卡  | SP670  | SP670 | SP670 |
+| CPU  | 鲲鹏920 7260处理器  | 鲲鹏920 7260处理器    | 鲲鹏920 7260T处理器  |
 
 ### x86环境
 
 | 项目       | 兼容性  |
 |------------|-------|
-| 操作系统  | openEuler 22.03 LTS SP1(Host和Guest OS保持一致)   |
+| 操作系统  | openEuler 22.03 LTS SP1   |
 | 服务器  |  FusionServer 2288H V6  |
 | 网卡  | SP670  |
 | CPU  | 1/2个第三代英特尔至强可扩展处理器（lce Lake）（8300/6300/5300/4300系列）  |
 
 > 说明：
+> 以上配套环境需保持服务端与客户端一致。
 > 适配场景请查看[特性支持](./feature_guide/feature_overview.md)。
+> 目前仅兼容性3配套环境支持DPDK23.11.6版本，仅支持DPDK基础功能，不包括流量分叉、Bond卸载等网卡扩展特性。
 
 ### 软件配套关系
 
 | 项目       | 版本  |获取地址|
 |------------|-------|-------|
 | Redis  | 6.0.20   |[获取链接](https://github.com/redis/redis/tree/6.0.20)|
-| DPDK  |  21.11.7 |[获取链接](https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz)|
+| DPDK  |  21.11.7/23.11.6 |[获取链接](https://fast.dpdk.org/rel)|
 | iPerf3  | 3.16  |[获取链接](https://github.com/esnet/iperf/releases/tag/3.16)|
 | SockPerf  | 3.10  |[获取链接](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
 | TPerf  | 1.0  |[获取链接](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
+
+## K-NET 1.2.0
+
+### 更新说明
+
+- 新增DPDK 23.11.6版本的支持。
+
+### 已解决问题
+
+无
+
+### 遗留问题
+
+无
 
 ## K-NET 1.0.0
 
