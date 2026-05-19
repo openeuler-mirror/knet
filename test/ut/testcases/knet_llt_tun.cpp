@@ -47,6 +47,7 @@ DTEST_CASE_F(TUN, TEST_KNET_TAP_CREATE, NULL, NULL)
     int ret = 0;
 
     Mock->Create(ioctl, TEST_GetFuncRetPositive(0));
+    Mock->Create(open, TEST_GetFuncRetPositive(0));
     Mock->Create(memcpy_s, TEST_GetFuncRetPositive(0));
     Mock->Create(socket, TEST_GetFuncRetPositive(0));
     Mock->Create(snprintf_truncated_s, TEST_GetFuncRetPositive(0));
@@ -66,6 +67,7 @@ DTEST_CASE_F(TUN, TEST_KNET_TAP_CREATE, NULL, NULL)
     Mock->Delete(socket);
     Mock->Delete(memcpy_s);
     Mock->Delete(ioctl);
+    Mock->Delete(open);
     Mock->Delete(fcntl);
     DeleteMock(Mock);
 }
