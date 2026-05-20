@@ -90,7 +90,6 @@ static Pbuf_t* PbufMpAlloc(void* mp, uint32_t payload)
     DP_PBUF_SET_TOTAL_LEN(ret, 0);
     DP_PBUF_SET_OFFSET(ret, 0);
     DP_PBUF_SET_VPNID(ret, 0);
-    DP_PBUF_SET_SEG_LEN(ret, 0);
     ret->flags = 0;
 
     allocedLen += DP_PBUF_GET_PAYLOAD_LEN(ret);
@@ -111,7 +110,6 @@ static Pbuf_t* PbufMpAlloc(void* mp, uint32_t payload)
         DP_PBUF_SET_TOTAL_LEN(nxt, 0);
         DP_PBUF_SET_OFFSET(nxt, 0);
         DP_PBUF_SET_VPNID(ret, 0);
-        DP_PBUF_SET_SEG_LEN(ret, 0);
         nxt->flags = 0;
         allocedLen += DP_PBUF_GET_PAYLOAD_LEN(nxt);
     }

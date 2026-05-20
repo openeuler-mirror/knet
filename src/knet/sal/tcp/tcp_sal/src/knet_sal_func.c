@@ -298,6 +298,7 @@ static void* KNET_ACC_EbufGetSeg(void* ptr, uint32_t len, uint16_t idx)
 
     DP_Pbuf_t* pkt = KNET_Mbuf2Pkt(mbuf);
     DP_PbufRawReset(pkt, mbuf->buf_addr, mbuf->buf_len);
+    DP_PbufZcopyRawReset(pkt);
     // pbuf for ebuf 确保不会被释放
     mbuf->refcnt = 100;
     return pkt;

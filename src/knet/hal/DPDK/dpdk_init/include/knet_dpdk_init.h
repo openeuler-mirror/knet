@@ -16,7 +16,7 @@
 #include "knet_config.h"
 
 #ifdef __cplusplus
-}
+extern "C" {
 #endif
 
 typedef struct {

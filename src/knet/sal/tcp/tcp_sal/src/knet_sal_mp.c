@@ -446,6 +446,7 @@ static void *EbufMpConstruct(uint32_t poolId, void *addr, uint64_t offset, uint1
     }
     pkt = KNET_Mbuf2Pkt(mbuf);
     DP_PbufRawReset(pkt, mbuf->buf_addr, mbuf->buf_len);
+    DP_PbufZcopyRawReset(pkt);
     return pkt;
 }
 
