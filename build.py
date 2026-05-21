@@ -10,11 +10,11 @@ import subprocess
 
 KNET_SOURCE_DIR = os.path.abspath(os.path.dirname(__file__))
 logging.basicConfig(level=logging.INFO)
-cJSON_repo_url = "https://github.com/DaveGamble/cJSON.git"
+cJSON_repo_url = "https://gitcode.com/gh_mirrors/cj/cJSON.git"
 cJSON_tag = "v1.7.15"
-dpdk_repo_url = "https://github.com/DPDK/dpdk.git"
+dpdk_repo_url = "https://github.com/DPDK/dpdk.git"  # 当前dpdk没有官方镜像仓，正式构建暂保留，其他依赖全面迁移到gitcode
 dpdk_tag = "v21.11.7"
-securec_repo_url = "https://gitee.com/openeuler/libboundscheck.git"
+securec_repo_url = "https://gitcode.com/openeuler/libboundscheck.git"
 securec_tag = "v1.1.16"
 
 def copy_cjson():
@@ -83,7 +83,7 @@ def build_dpdk():
         return 0
     
     if not os.path.exists(KNET_DPDK_DIR):
-        logging.info("cjson directory not found, cloning repository...")
+        logging.info("dpdk directory not found, cloning repository...")
         
         os.makedirs(f"{KNET_SOURCE_DIR}/opensource", exist_ok=True)
         
@@ -95,7 +95,7 @@ def build_dpdk():
         if output.returncode != 0:
             logging.error(f"git clone failed. [{clone_cmd}]")
             return 1
-        
+       
     os.chdir(f"{KNET_DPDK_DIR}")
     shutil.rmtree(f"{KNET_DPDK_DIR}/build", ignore_errors=True)
     cmd = ["meson", "-Ddisable_drivers=net/cnxk",
@@ -186,40 +186,7 @@ def build_securec():
         return 0
     return 1
 
-def build_dpstack():
-    os.chdir(f"{KNET_SOURCE_DIR}/src/stack/tcp")
-    # build
-
-    # 获取原始 LD_LIBRARY_PATH
-    original_ld_library_path = os.environ.get('LD_LIBRARY_PATH', '')
-
-    # 设置 LD_LIBRARY_PATH
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/dpdk/output/lib64:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/cJSON/build:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-    os.environ["LD_LIBRARY_PATH"] = f"{KNET_SOURCE_DIR}/opensource/secure_c/lib:" \
-        f"{os.environ.get('LD_LIBRARY_PATH', '')}"
-
-    cmd = ["cmake", f"{KNET_SOURCE_DIR}/src/stack/tcp", "-B", f"{KNET_SOURCE_DIR}/build/tcp"]
-
-    output = subprocess.run(cmd, shell=False)
-    if output.returncode != 0:
-        logging.error(f"exec cmd fail. [{cmd}]")
-        return 1
-
-    cmd = ["make", "-C", f"{KNET_SOURCE_DIR}/build/tcp", "-j"]
-    output = subprocess.run(cmd, shell=False)
-    if output.returncode != 0:
-        logging.error(f"exec cmd fail. [{cmd}]")
-        return 1
-
-    # 将 LD_LIBRARY_PATH 还原为原始值
-    os.environ["LD_LIBRARY_PATH"] = original_ld_library_path
-
-    return 0
-
-def build_knet(debug, test, sdv, fuzz):
+def build_knet(debug, test, sdv, fuzz, use_opensource=False):
     os.chdir(f"{KNET_SOURCE_DIR}")
     # build
 
@@ -245,7 +212,8 @@ def build_knet(debug, test, sdv, fuzz):
         cmd[-1] += "Fuzz"
     else:
         cmd[-1] += "Release"
-
+    if use_opensource:
+        cmd.append("-DUSE_OPENSOURCE=ON")
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
         logging.error(f"exec cmd fail. [{cmd}]")
@@ -347,23 +315,22 @@ if __name__ == "__main__":
     if ret != 0:
         sys.exit(0)
 
-    ret = build_cjson()
-    if ret != 0:
-        sys.exit(1)
+    # 若没有yum参数，才执行cjson、dpdk、securec的构建，否则跳过直接使用yum依赖
+    use_opensource = "yum" not in sys.argv
+    if use_opensource:
+        ret = build_cjson()
+        if ret != 0:
+            sys.exit(1)
 
-    ret = build_dpdk()
-    if ret != 0:
-        sys.exit(1)
+        ret = build_dpdk()
+        if ret != 0:
+            sys.exit(1)
 
-    ret = build_securec()
-    if ret != 0:
-        sys.exit(1)
+        ret = build_securec()
+        if ret != 0:
+            sys.exit(1)
 
-    ret = build_dpstack()
-    if ret != 0:
-        sys.exit(1)
-
-    ret = build_knet(debugMode, testMode, sdvMode, fuzzMode)
+    ret = build_knet(debugMode, testMode, sdvMode, fuzzMode, use_opensource)
     if ret != 0:
         sys.exit(1)
 
@@ -372,7 +339,7 @@ if __name__ == "__main__":
         if ret != 0:
             sys.exit(1)
 
-    if arg_nums > 1:
-        if sys.argv[-1] == "rpm":
-            if build_rpm() != 0:
-                sys.exit(1)
+    # 检查命令行参数中是否包含"rpm"，若有则执行rpm打包
+    if "rpm" in sys.argv:
+        if build_rpm() != 0:
+            sys.exit(1)

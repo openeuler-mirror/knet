@@ -36,11 +36,12 @@ elseif (${KNET_BUILD_TYPE} STREQUAL "Release")
         -D_FORTIFY_SOURCE=2 \
         -fPIE \
         -fPIC \
-        -fstack-protector-strong"
+        -fstack-protector-strong \
+        -s"
     )
 # Debug编译选项默认从项目CMake统一添加
 elseif (${KNET_BUILD_TYPE} STREQUAL "Debug")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall -g -O0")
 endif()
 
 
@@ -49,6 +50,15 @@ set(TARGET_CORE knet_core)
 set(TARGET_FRAME knet_frame)
 set(TARGET_DAEMON knet_mp_daemon)
 set(SECURE_C boundscheck)
+if(USE_OPENSOURCE)
+    set(CJSON libcjson.a)
+else()
+    set(CJSON cjson)
+    include_directories(
+        /usr/include/cjson
+        /usr/local/include
+    )
+endif()
 set(DPDK_DIR ${KET_SRC_DIR}/opensource/dpdk/output/lib64)
 
 link_directories(
@@ -123,13 +133,11 @@ endif()
 
 # knet_core链接选项
 target_link_options(${TARGET_CORE} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
 )
 
 # 根据找到的库设置链接选项
@@ -139,7 +147,7 @@ target_link_libraries(${TARGET_CORE}
     signal_tcp tcp_event tcp_api_init bond stk_mp
 
     # 下面都是外部opensource的动态库
-    libcjson.a
+    ${CJSON}
     -Wl,--whole-archive ${SECURE_C} -Wl,--no-whole-archive
     ${DPDK_LIBS}
     dl
@@ -164,13 +172,11 @@ endif()
 
 # knet_frame链接选项
 target_link_options(${TARGET_FRAME} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
 )
 
 target_link_libraries(${TARGET_FRAME}
@@ -194,13 +200,11 @@ endif()
 
 # knet_daemon链接选项
 target_link_options(${TARGET_DAEMON} PRIVATE
-    -O2
     -rdynamic
     -Wl,-z,relro
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
-    -s
     -pie
 )
 
@@ -208,7 +212,7 @@ target_link_options(${TARGET_DAEMON} PRIVATE
 target_link_libraries(${TARGET_DAEMON}
     ${TARGET_FRAME}
     rte_telemetry
-    libcjson.a
+    ${CJSON}
     ${SECURE_C}
     dl
     pthread
