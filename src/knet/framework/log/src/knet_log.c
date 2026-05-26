@@ -132,7 +132,7 @@ static int ThreadSafeSyslog(int level, char logMsg[MAX_LOG_LEN])
     }
 
     pthread_mutex_lock(&g_logMutex);
-    syslog(level, "%s", logMsg);
+    syslog(level, KNET_LOG_MODULE_NAME ": %s", logMsg);
     pthread_mutex_unlock(&g_logMutex);
 
     ret = pthread_setcancelstate(origCancelState, NULL);
