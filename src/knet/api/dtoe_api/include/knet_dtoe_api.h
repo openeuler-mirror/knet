@@ -45,6 +45,7 @@ struct knet_mr {
 enum knet_schd_type {
     KNET_EPOLL_SCHD = 0,
     KNET_POLL_SCHD,
+    KNET_SWITCHABLE_SCHD,
     KNET_SCHD_MOD_BUTT
 };
 
@@ -271,5 +272,9 @@ int32_t knet_recv_leaked_packet(int sockfd, void *buffer, int32_t recv_len);
  * @param format 日志信息
  */
 void knet_log(const char *function, int line, int level, const char *format, ...);
+
+int32_t knet_flexda_dtoe_channel_epoll_set(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel, uint32_t epoll_enable);
+
+int32_t knet_flexda_dtoe_channel_qpc_create(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel);
 
 #endif
