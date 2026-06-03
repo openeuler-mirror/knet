@@ -247,6 +247,7 @@ int KNET_CreateHashTbl(KNET_HashTblCfg *cfg, uint32_t *tableId)
     ret = GetHashTblName(queueName, hashTblName);
     if (ret != 0) {
         KNET_ERR("Get hash table name failed %d", ret);
+        ReleaseHashTblId(localTableId);
         return -1;
     }
 

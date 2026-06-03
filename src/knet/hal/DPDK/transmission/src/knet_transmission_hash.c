@@ -181,7 +181,6 @@ int KnetDestroyFdirHashTbl(void)
         int32_t delPos = rte_hash_del_key(g_fdirHandle, key);
         if (delPos < 0) {
             KNET_ERR("Delete Fdirhash table entry failed. delPos %d", delPos);
-            return -1;
         }
         free(nextEntry);
     }
