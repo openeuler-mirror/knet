@@ -57,7 +57,7 @@ struct ConfKeyHandle g_commonConfHandler[CONF_COMMON_MAX - CONF_COMMON_MIN] = {
     {CONF_COMMON_CTRL_RING_PER_VCPU, "ctrl_ring_per_vcpu", {1}, CtrVcpuRingSetter,
         {.intValue = {.min = 1, .max = MAX_RING_PER_VCPU}}},
     {CONF_COMMON_CTRL_VCPU_IDS, "ctrl_vcpu_ids", {.intValueArr = {0}}, CtrlVcpuArraySetter,
-        {.intValue = {.min = 0, .max = 127}}},
+        {.intValue = {.min = 0, .max = MAX_CORE_NUM - 1}}},
     {CONF_COMMON_ZERO_COPY, "zcopy_enable", {0}, IntSetter, {.intValue = {.min = 0, .max = 1}}},
     {CONF_COMMON_COTHREAD, "cothread_enable", {0}, IntSetter, {.intValue = {.min = 0, .max = 1}}},
 };
@@ -89,6 +89,7 @@ struct ConfKeyHandle g_tcpConfHandler[CONF_TCP_MAX - CONF_TCP_MIN] = {
     {CONF_TCP_MAX_ARP, "max_arp", {1024}, IntSetter, {.intValue = {.min = 8, .max = 8192}}},
     {CONF_TCP_MAX_TCPCB, "max_tcpcb", {4096}, IntSetter, {.intValue = {.min = 32, .max = 1000000}}},
     {CONF_TCP_MAX_UDPCB, "max_udpcb", {4096}, IntSetter, {.intValue = {.min = 32, .max = 1000000}}},
+    {CONF_TCP_MAX_EPOLLCB, "max_epollcb", {64}, IntSetter, {.intValue = {.min = 1, .max = 1000000}}},
     {CONF_TCP_TCP_SACK, "tcp_sack", {1}, IntSetter, {.intValue = {.min = 0, .max = 1}}},
     {CONF_TCP_TCP_DACK, "tcp_dack", {1}, IntSetter, {.intValue = {.min = 0, .max = 1}}},
     {CONF_TCP_MSL_TIME, "msl_time", {30}, IntSetter, {.intValue = {.min = 1, .max = 30}}},

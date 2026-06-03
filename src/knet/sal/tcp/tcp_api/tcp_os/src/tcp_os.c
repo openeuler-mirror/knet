@@ -33,8 +33,11 @@ bool KNET_DpIsForkedParent(void)
 int KNET_DpSigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
     KNET_CHECK_AND_GET_OS_API(g_origOsApi.sigaction, -1);
-
-    return KNET_DpSignalDoSigaction(signum, act, oldact);
+    if (signum == SIGUSR1 || signum == SIGUSR2) {
+        return g_origOsApi.sigaction(signum, act, oldact);
+    } else {
+        return KNET_DpSignalDoSigaction(signum, act, oldact);
+    }
 }
 
 sighandler_t KNET_DpSignal(int signum, sighandler_t handler)
@@ -47,7 +50,11 @@ sighandler_t KNET_DpSignal(int signum, sighandler_t handler)
         return SIG_ERR;
     }
 
-    return KNET_DpSignalDoSignal(signum, handler);
+    if (signum == SIGUSR1 || signum == SIGUSR2) {
+        return g_origOsApi.signal(signum, handler);
+    } else {
+        return KNET_DpSignalDoSignal(signum, handler);
+    }
 }
 
 pid_t KNET_DpFork(void)

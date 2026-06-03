@@ -125,15 +125,15 @@ KNET_STATIC int GetEnvQueueId(void)
         return KNET_QUEUE_ID_NULL;
     }
 
-    // 匹配 0-127 的数字 MAX_CORE_NUM为128
-    const char *pattern = "^([0-9]|[1-9][0-9]|1[0-1][0-9]|12[0-7])$";
+    // 匹配 0-319 的数字 MAX_CORE_NUM为320
+    const char *pattern = "^([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-9][0-9]|3[0-1][0-9])$";
     if (!KNET_RegMatch(pattern, strEnvQueueId)) {
-        KNET_ERR("Env KNET_QUEUE_ID which should be in range 0-127 is invalid");
+        KNET_ERR("Env KNET_QUEUE_ID which should be in range 0-319 is invalid");
         return KNET_QUEUE_ID_INVALID;
     }
     int queueId = 0;
     if (sscanf_s(strEnvQueueId, "%d", &queueId) == -1) {
-        // 前面正则保证id是0-127的数字
+        // 前面正则保证id是0-319的数字
         KNET_ERR("Failed to convert env queue id to int, env %s", strEnvQueueId);
         return KNET_QUEUE_ID_INVALID;
     }

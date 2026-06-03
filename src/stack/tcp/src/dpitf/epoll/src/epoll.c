@@ -40,6 +40,7 @@ typedef struct {
     int32_t        wid;
     Fd_t*          file;
     DP_EpollNotify_t userNotify;
+    uint8_t isClosed;
 } Epoll_t;
 
 typedef struct EpollItem {
@@ -76,6 +77,11 @@ static void DisableSockNotify(EpollItem_t* item)
 
 static int DP_EpollClose(Epoll_t* ep)
 {
+    // 加锁原因:若不加锁，epoll并发，UpdateEplist删除ep->idle链表元素，此时EpollClose会发现ep->ready为NULL。所以需加锁，且UpdateEpList要检查epoll是否已关闭
+    SPINLOCK_Lock(&ep->lock);
+    ep->isClosed = true;
+    SPINLOCK_Unlock(&ep->lock);
+
     EpollItem_t* item;
     while (!LIST_IS_EMPTY(&ep->ready)) {
         item = LIST_FIRST(&ep->ready);
@@ -149,6 +155,7 @@ static Epoll_t* CreateEpoll(DP_EpollNotify_t* callback)
     ret->wakeupCnt       = 0;
     ret->userNotify.data = callback->data;
     ret->userNotify.fn   = callback->fn;
+    ret->isClosed = false;
 
     LIST_INIT_HEAD(&ret->idle);
     LIST_INIT_HEAD(&ret->ready);
@@ -314,6 +321,10 @@ static void UpdateEpList(EpollItem_t* item, uint8_t newState, EpollEvent_t* even
     item->state = newState;
 
     SPINLOCK_Lock(&ep->lock);
+    if (ep->isClosed == true) {
+        SPINLOCK_Unlock(&ep->lock);
+        return;
+    }
 
     uint32_t readyEvents = GetReadyEvents(item);
     // 边缘触发模式，获取未上报的事件
@@ -346,6 +357,10 @@ static void RemoveEpList(EpollItem_t* item)
     Epoll_t* ep = item->ep;
 
     SPINLOCK_Lock(&ep->lock);
+    if (ep->isClosed == true) {
+        SPINLOCK_Unlock(&ep->lock);
+        return;
+    }
 
     if (item->ready != 0) {
         LIST_REMOVE(&ep->ready, item, node);
@@ -391,6 +406,10 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
             DP_LOG_DBG("the supplied file descriptor fd is already registered with this epoll instance.");
             return EEXIST;
         }
+    }
+
+    if (sk->notifyCtx != NULL) { // socket已经注册过notify，报错告知。后续需要链表适配
+        DP_LOG_ERR("fd is already added to another notifyType %d, associateFd %d", sk->notifyType, sk->associateFd);
     }
 
     /* 在该函数及InsertEpList中全字段赋值，无需初始化 */

@@ -84,6 +84,27 @@ __attribute__((weak)) bool KNET_IsMpDaemonInit(void)
     return false;
 }
 
+static sigset_t BlockAllSignals(void)
+{
+    sigset_t mask;
+    sigset_t oldMask;
+
+    sigfillset(&mask);
+    int ret = pthread_sigmask(SIG_SETMASK, &mask, &oldMask);
+    if (ret != 0) {
+        KNET_ERR("K-NET block all signals failed, ret %d", ret);
+    }
+    return oldMask;
+}
+
+static void SigmaskSet(sigset_t mask)
+{
+    int ret = pthread_sigmask(SIG_SETMASK, &mask, NULL);
+    if (ret != 0) {
+        KNET_ERR("K-NET set sigmask failed, ret %d", ret);
+    }
+}
+
 void KNET_AllThreadLock(void)
 {
     int ctrlVcpuNum = KNET_GetCfg(CONF_COMMON_CTRL_VCPU_NUMS)->intValue;
@@ -672,7 +693,9 @@ int KNET_TrafficResourcesInit(void)
     inprogress = true;
     tid = (uint64_t)syscall(__NR_gettid);
 
+    sigset_t oldMask = BlockAllSignals(); // knet创建的子线程不应该接收信号，信号完全由用户线程处理（父线程屏蔽所有信号，子线程会继承父线程的信号掩码）
     int32_t ret = DpdkStackInit();
+    SigmaskSet(oldMask); // 恢复父线程的信号掩码
     if (ret != 0) {
         KNET_SpinlockUnlock(&lock);
         KNET_ERR("Dpdk stack init failed, ret %d", ret);

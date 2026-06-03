@@ -138,6 +138,8 @@ target_link_options(${TARGET_CORE} PRIVATE
     -Wl,-z,now
     -Wl,-EL
     -Wl,-z,noexecstack
+    # gaussdb等APP使用并注册了cjson的函数，即使cjson是静态库，也会和knet的cjson符号冲突，然后knet会调用到APP里面的cjson函数。所以需要将cjson符号只对knet可见
+    -Wl,--exclude-libs,libcjson.a
 )
 
 # 根据找到的库设置链接选项

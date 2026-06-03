@@ -245,6 +245,7 @@ int KNET_PreBind(void* userData, const struct DP_Sockaddr* addr, DP_Socklen_t ad
 int KNET_DpBind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
     if (!g_tcpInited) {
+        KNET_DEBUG("DpBind is not initialized, fd %d go os", sockfd);
         KNET_CHECK_AND_GET_OS_API(g_origOsApi.bind, KNET_INVALID_FD);
         return g_origOsApi.bind(sockfd, addr, addrlen);
     }
@@ -253,6 +254,16 @@ int KNET_DpBind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "Fd %d bind is not hijacked", sockfd);
         KNET_CHECK_AND_GET_OS_API(g_origOsApi.bind, KNET_INVALID_FD);
         return g_origOsApi.bind(sockfd, addr, addrlen);
+    }
+
+    if (addr != NULL && addrlen >= sizeof(struct sockaddr_in)) {
+        uint32_t bindAddr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
+        if (bindAddr == inet_addr(LO_IP)) {
+            KNET_CHECK_AND_GET_OS_API(g_origOsApi.bind, KNET_INVALID_FD);
+            KNET_SetFdSocketState(KNET_FD_STATE_INVALID, sockfd, KNET_OsFdToDpFd(sockfd));
+            KNET_DEBUG("DpBind LOCAL_IP, fd %d go os", sockfd);
+            return g_origOsApi.bind(sockfd, addr, addrlen);
+        }
     }
 
     BEFORE_DPFUNC();
