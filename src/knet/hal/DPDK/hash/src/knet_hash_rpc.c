@@ -96,7 +96,16 @@ int KnetDestroyHashTblMultiple(void)
     return ret;
 }
 
-// 从进程对hash表的请求处理
+KNET_STATIC int FindFreeHandleSlot(void)
+{
+    for (int i = 0; i < HASH_TABLE_HANDLE_MAX; ++i) {
+        if (g_hcMap[i].clientID == -1) {
+            return i;
+        }
+    }
+    return -1;
+}
+// 从进程对Hash表的请求处理
 KNET_STATIC int HashRequestHandler(int id,
     struct KNET_RpcMessage *knetRpcRequest,
     struct KNET_RpcMessage *knetRpcResponse)
@@ -128,6 +137,14 @@ KNET_STATIC int HashRequestHandler(int id,
         return ret;
     }
 
+    int freeIdx = FindFreeHandleSlot();
+    if (freeIdx == -1) {
+        ret = -1;
+        KNET_ERR("Hash table handle map is full");
+        knetRpcResponse->ret = ret;
+        return ret;
+    }
+
     struct rte_hash_parameters params = {0};
     params.name = hr->name;
     params.entries = hr->entries;
@@ -141,13 +158,8 @@ KNET_STATIC int HashRequestHandler(int id,
         ret = -1;
         KNET_ERR("The primary process Create hash table failed");
     } else {
-        for (int i = 0; i < HASH_TABLE_HANDLE_MAX; ++i) {
-            if (g_hcMap[i].clientID == -1) {
-                g_hcMap[i].clientID = id;
-                g_hcMap[i].handle = handle;
-                break;
-            }
-        }
+        g_hcMap[freeIdx].clientID = id;
+        g_hcMap[freeIdx].handle = handle;
         ret = 0;
     }
 

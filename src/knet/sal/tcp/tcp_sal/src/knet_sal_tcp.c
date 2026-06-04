@@ -293,7 +293,7 @@ uint16_t GetRetaSize(uint16_t portId)
     int32_t ret = rte_eth_dev_info_get(portId, &devInfo);
     if (ret != 0) {
         KNET_ERR("The rte eth dev info get failed, portId %u, ret %d", portId, ret);
-        return -1;
+        return 0;
     }
     return devInfo.reta_size;
 }

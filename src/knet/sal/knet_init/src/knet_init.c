@@ -418,6 +418,7 @@ KNET_STATIC int32_t CreateCpThread(void)
             KNET_ERR("K-NET create control thread failed, ret %d", ret);
             return -1;
         }
+        g_cpThread[i].isCreated = true;
         char name[MAX_CPD_NAME_LEN] = {0};
         ret = snprintf_s(name, MAX_CPD_NAME_LEN, MAX_CPD_NAME_LEN - 1, "KnetCpThread%d", i);
         if (ret < 0) {
@@ -429,9 +430,7 @@ KNET_STATIC int32_t CreateCpThread(void)
             KNET_ERR("K-NET set control thread name failed, ret %d", ret);
             return -1;
         }
-        g_cpThread[i].isCreated = true;
     }
-
     return 0;
 }
 
