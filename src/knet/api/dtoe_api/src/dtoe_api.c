@@ -173,11 +173,11 @@ offloadFailed:
 int knet_thrd_cpu_set(struct knet_thrd_cpu_cfg *cfg)
 {
     flexda_dtoe_thrd_cpu_cfg_s dtoeCfg = {0};
-    dtoeCfg.enable = cfg->enable;
+    dtoeCfg.cpu_affinity_en = cfg->enable;
     dtoeCfg.cpu_mask_affinity = cfg->cpu_mask_affinity;
     int ret = flexda_dtoe_thrd_cpu_set(&dtoeCfg);
     if (ret != 0) {
-        KNET_ERR("Dtoe thrd cpu set failed, ret %d, enable %u", ret, dtoeCfg.enable);
+        KNET_ERR("Dtoe thrd cpu set failed, ret %d, enable %u", ret, dtoeCfg.cpu_affinity_en);
         return ret;
     }
 
@@ -379,7 +379,7 @@ int knet_start_chimney_general(int sockfd, struct knet_offload_in *in)
 
     flexda_dtoe_offload_in_s input = {0};
     input.user_data = (void *)KNET_GetFdConnUserData(sockfd);
-    input.rev_channel = (flexda_recv_channel_s *)in->recv_channel;
+    input.recv_channel = (flexda_recv_channel_s *)in->recv_channel;
     input.send_channel = (flexda_send_channel_s *)in->send_channel;
 
     flexda_dtoe_offload_out_s out = {0};
@@ -747,4 +747,14 @@ int32_t knet_recv_leaked_packet(int sockfd, void *buffer, int32_t recv_len)
 void knet_log(const char *function, int line, int level, const char *format, ...)
 {
     KNET_Log(function, line, level, format);
+}
+
+int32_t knet_flexda_dtoe_channel_epoll_set(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel, uint32_t epoll_enable)
+{
+    return flexda_dtoe_channel_epoll_set(g_dtoeRes.dev.devSn, (flexda_send_channel_s*)send_channel, (flexda_recv_channel_s*)recv_channel, epoll_enable);
+}
+
+int32_t knet_flexda_dtoe_channel_qpc_create(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel)
+{
+    return flexda_dtoe_channel_qpc_create(g_dtoeRes.dev.devSn, (flexda_send_channel_s*)send_channel, (flexda_recv_channel_s*)recv_channel);
 }
