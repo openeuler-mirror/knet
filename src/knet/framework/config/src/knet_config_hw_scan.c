@@ -37,6 +37,7 @@ static char *g_hisdkDeviceIdList[] = {
     "0x0222", // SP670 SP580设备device id
     "0x375f", // SP670 SP580 VF设备device id
     "0x0229", // SP235/SP233 PF设备device id
+    "0x022a", // SP235/SP233 VF设备device id
 };
 
 static char *g_hnsDeviceIdList[] = {
