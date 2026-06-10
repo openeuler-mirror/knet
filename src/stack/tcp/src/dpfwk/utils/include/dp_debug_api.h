@@ -527,6 +527,8 @@ enum DP_PKT_STAT_MIB_E {
     DP_PKT_ICMP6_UNREACH_EXTHDR_ERR,       /**< ICMPv6 UNREACH报文内部扩展首部异常 */
     DP_PKT_ICMP6_UNREACH_NOT_UDP,          /**< ICMPv6 UNREACH报文内部四层非UDP */
     DP_UDP_ICMP6_UNREACH_SHORT,            /**< ICMPv6 UNREACH报文长度过短 */
+    DP_PKT_UDP_BAD_LEN,                    /**< UDP首部和UDP数据长度不一致的报文统计 */
+    DP_PKT_UDP_BAD_PBUF_LEN,               /**< UDP pbuf数据长度超过报文头中数据长度报文统计 */
     DP_PKT_STAT_MAX
 };
 

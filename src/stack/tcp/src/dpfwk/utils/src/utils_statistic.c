@@ -275,6 +275,8 @@ static const DP_MibField_t g_pktList[] = {
     {DP_PKT_ICMP6_UNREACH_EXTHDR_ERR,    "Icmp6UnReachExthdrErr"},
     {DP_PKT_ICMP6_UNREACH_NOT_UDP,       "Icmp6UnReachNotUdp"},
     {DP_UDP_ICMP6_UNREACH_SHORT,         "UdpIcmp6UnReachShort"},
+    {DP_PKT_UDP_BAD_LEN,                 "UdpBadLenPkts"},
+    {DP_PKT_UDP_BAD_PBUF_LEN,            "UdpBadPbufLenPkts"},
     {DP_PKT_STAT_MAX,                    ""},
 };
 
