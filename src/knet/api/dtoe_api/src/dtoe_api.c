@@ -758,3 +758,8 @@ int32_t knet_flexda_dtoe_channel_qpc_create(struct knet_send_channel *send_chann
 {
     return flexda_dtoe_channel_qpc_create(g_dtoeRes.dev.devSn, (flexda_send_channel_s*)send_channel, (flexda_recv_channel_s*)recv_channel);
 }
+
+int32_t knet_flexda_dtoe_channel_qpc_destroy(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel)
+{
+    return flexda_dtoe_channel_qpc_destroy(g_dtoeRes.dev.devSn, (flexda_send_channel_s*)send_channel, (flexda_recv_channel_s*)recv_channel);
+}
