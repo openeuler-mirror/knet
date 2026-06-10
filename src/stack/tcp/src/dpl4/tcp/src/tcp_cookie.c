@@ -47,10 +47,10 @@ int TcpCookieGetMssIndex(uint16_t mss)
     return mssIndex;
 }
 
-static uint32_t TcpCookieGetTimestamp(void)
+static uint32_t TcpCookieGetTimeMinute(void)
 {
     // 监听tcp没有核，使用0核定时器获取时间
-    return WORKER_GetTime() / TCP_COOKIE_INC_TICK;
+    return WORKER_GetTime() / 1000 / 60; // 单位为分钟
 }
 
 static uint32_t TcpCookieInetHash(TcpCookieInetHashInfo_t* info, uint32_t count)
@@ -89,12 +89,12 @@ void TcpCookieCalcInetIss(TcpPktInfo_t* pi, TcpCookieInetHashInfo_t* info, uint1
     uint32_t hash1;
     uint32_t hash2;
     uint32_t mssIndex = (uint32_t)TcpCookieGetMssIndex(mss);
-    uint32_t timeSec = TcpCookieGetTimestamp();
+    uint32_t timeMin = TcpCookieGetTimeMinute(); // 单位为分钟
 
     hash1 = TcpCookieInetHash(info, 0);
-    hash2 = (TcpCookieInetHash(info, (timeSec & 0xFF)) + mssIndex) & TCP_COOKIE_MASK;
+    hash2 = (TcpCookieInetHash(info, (timeMin & TCP_COOKIE_TIME_MASK))) & TCP_COOKIE_MASK;
 
-    info->iss = hash1 + hash2 + pi->seq + (timeSec << TCP_COOKIE_BITS);
+    info->iss = hash1 + hash2 + pi->seq + (timeMin << TCP_COOKIE_TIME_SHIFT_BITS) + mssIndex; // 时间戳在高24位，hash2和mssIndex在低6位，不重合
 }
 
 bool TcpCookieVerifyInetIss(TcpPktInfo_t* pi, TcpCookieInetHashInfo_t* info, uint16_t* mss)
@@ -106,10 +106,16 @@ bool TcpCookieVerifyInetIss(TcpPktInfo_t* pi, TcpCookieInetHashInfo_t* info, uin
     hash1 = TcpCookieInetHash(info, 0);
     mssIndex = pi->ack - hash1 - pi->seq;
 
-    hash2 = TcpCookieInetHash(info, (mssIndex >> TCP_COOKIE_BITS));
+    uint32_t timeMin = (mssIndex >> TCP_COOKIE_TIME_SHIFT_BITS);
+    hash2 = (TcpCookieInetHash(info, timeMin)) & TCP_COOKIE_MASK;
     mssIndex = (mssIndex - hash2) & TCP_COOKIE_MASK;
 
     if (mssIndex >= TCP_MAX_MSSID_INDEX) {
+        return false;
+    }
+
+    uint32_t cutTimeMin = (TcpCookieGetTimeMinute() & TCP_COOKIE_TIME_MASK);
+    if (cutTimeMin - timeMin > 4) { // 4分钟阈值，syn+ack的ack必须在4分钟内回复才算有效
         return false;
     }
     *mss = g_TcpMssTable[mssIndex];
