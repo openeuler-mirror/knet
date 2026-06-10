@@ -79,7 +79,7 @@ static const char *g_dpStatsKeysPkts[] = {
     "Ip6TooShortPkts",           "Ip6BadVerPkts",             "Ip6BadHeadLenPkts",         "Ip6BadLenPkts",
     "Ip6MutiCastDeliverPkts",    "Ip6ExtHdrCntErrPkts",       "Ip6ExtHdrOverflowPkts",     "Ip6HbhHdrErrPkts",
     "Ip6NoUpperProtoPkts",       "Ip6ReassInFragPkts",        "Ip6FragHdrErrPkts",         "Ip6OutPkts",
-    "Ip6FragOutPkts",            "KernelFdirCacheMiss"
+    "Ip6FragOutPkts",            "KernelFdirCacheMiss",       "UdpBadLenPkts",             "UdpBadPbufLenPkts"
 };
 
 static const char *g_dpStatsKeysAbn[] = {

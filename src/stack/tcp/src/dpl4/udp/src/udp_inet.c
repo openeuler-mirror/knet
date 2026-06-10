@@ -876,6 +876,20 @@ static int PreCheckUdp(Pbuf_t* pbuf, DP_UdpHdr_t* udpHdr)
     if (PBUF_GET_SEG_LEN(pbuf) <= sizeof(*udpHdr)) {
         return -1;
     }
+    
+    uint16_t pktLen = (uint16_t)PBUF_GET_PKT_LEN(pbuf);
+    uint16_t dataLen = UTILS_NTOHS(udpHdr->len);
+    // 不支持纯udp报文头报文，或者pbuf的数据比报文头中数据少，说明数据有丢失，丢弃报文
+    if (UTILS_UNLIKELY(dataLen <= sizeof(DP_UdpHdr_t) || dataLen > pktLen)) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_UDP_BAD_LEN);
+        return -1;
+    }
+
+    // pbuf数据长度超过报文头中数据，说明有多余数据，需要截断pbuf
+    if (UTILS_UNLIKELY(dataLen < pktLen)) {
+        DP_INC_PKT_STAT(pbuf->wid, DP_PKT_UDP_BAD_PBUF_LEN);
+        PBUF_CutTailData(pbuf, (uint16_t)(pktLen - dataLen));
+    }
 
     if (udpHdr->chksum == 0) { // 忽略cksum校验
         return 0;
