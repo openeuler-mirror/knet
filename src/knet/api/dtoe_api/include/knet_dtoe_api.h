@@ -277,4 +277,6 @@ int32_t knet_flexda_dtoe_channel_epoll_set(struct knet_send_channel *send_channe
 
 int32_t knet_flexda_dtoe_channel_qpc_create(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel);
 
+int32_t knet_flexda_dtoe_channel_qpc_destroy(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel);
+
 #endif
