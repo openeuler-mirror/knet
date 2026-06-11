@@ -306,6 +306,10 @@ def build_rpm(stackType):
     elif stackType == 'dtoe':
         shutil.copy2(f"{KNET_SOURCE_DIR}/src/knet/api/dtoe_api/include/knet_dtoe_api.h", f"{KNET_RPM_DIR}/BUILD/usr/include")
         cmd = ["rpmbuild", f"-ba", f"--define", f"stack_type dtoe", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
+    elif stackType == 'kbdtoe':
+        shutil.copy2(f"{KNET_SOURCE_DIR}/src/knet/api/kbdtoe_api/include/kbdtoe.h", f"{KNET_RPM_DIR}/BUILD/usr/include")
+        cmd = ["rpmbuild", f"-ba", f"--define", f"stack_type kbdtoe", f"{KNET_RPM_DIR}/SPECS/knet.spec"]
+    
     output = subprocess.run(cmd, shell=False)
     if output.returncode != 0:
         logging.error(f"exec cmd fail. [{cmd}]")

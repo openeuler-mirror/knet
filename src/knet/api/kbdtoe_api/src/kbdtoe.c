@@ -480,7 +480,7 @@ int kbdtoe_conn_start_offload(int sockfd)
     flexda_dtoe_offload_in_s in = {0};
     in.user_data = conn;
     in.send_channel = thread_info->send_channel[thread_info->epoch];
-    in.rev_channel = (flexda_recv_channel_s *)thread_info->recv_channel[thread_info->epoch];
+    in.recv_channel = (flexda_recv_channel_s *)thread_info->recv_channel[thread_info->epoch];
 
     flexda_dtoe_offload_out_s out = {0};
     ret = flexda_dtoe_start_conn_offload(sockfd, &in, &out);
@@ -495,7 +495,7 @@ int kbdtoe_conn_start_offload(int sockfd)
     conn->send.comp_sn = out.send_sn - 1;
     conn->send.last_ack_sn = out.send_sn - 1;
     conn->send_channel = in.send_channel;
-    conn->recv_channel = (flexda_recv_channel_s *)in.rev_channel;
+    conn->recv_channel = (flexda_recv_channel_s *)in.recv_channel;
     conn->leaked_size = 0;
     conn->read_leaked_offset = 0;
     conn->has_readable_event = 0;
