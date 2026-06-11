@@ -2,7 +2,7 @@
 
 ## 接口名称
 
-**shutdown(int sockfd, int how\)**
+**shutdown(int sockfd, int how)**
 
 ## 接口描述
 

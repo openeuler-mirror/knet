@@ -8,7 +8,7 @@
 
 <term>K-NET</term>共线程worker运行。
 
-> **说明：** 
+> [!NOTE]说明 
 >
 >- 每个线程中需在knet\_worker\_init后执行。
 >- 需保证此接口持续循环调用。

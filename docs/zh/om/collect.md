@@ -24,14 +24,14 @@ The information is collected and stored in /var/log/knet/info_collect/2026020918
 
 如果在执行命令后，未显示上述回显时，用户通过“Ctrl+C”中断命令，回显示例如下所示。此时收集到的部分信息会存放在"/var/log/knet/info\_collect/时间戳\_info\_collect"的文件夹中（没有被压缩）。
 
-> **须知：** 
+> [!NOTICE]须知 
 >执行“Ctrl+C”中断命令后，收集信息的动作被终止，此时保存的运维信息不是完整的，不建议进行此操作。
 
 ```ColdFusion
 ^CInterrupted by user.
 ```
 
-> **说明：** 
+> [!NOTE]说明  
 >
 >- 收集的信息会存放在"/var/log/knet/info\_collect"目录下，详情请参见[表1](#OM-table)。
 >- 收集到的信息统一打包为tar包，tar包的命名格式为："时间戳\_info\_collect.tar.gz"。
@@ -47,5 +47,5 @@ The information is collected and stored in /var/log/knet/info_collect/2026020918
 |log|日志信息：<li>K-NET运行日志文件</li><li>K-NET运行日志转储文件</li>|
 |statistic|业务运行状态：<li>配置文件</li><li>统计信息</li>|
 
-> **说明：** 
+> [!NOTE]说明  
 >以上文件名称中的时间戳为示例，具体以实际环境信息为准。

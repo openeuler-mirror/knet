@@ -31,7 +31,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|文件描述符设置了O_NONBLOCK标志，读请求被阻塞。|
+|EAGAIN or EWOULDBLOCK|文件描述符设置了O_NONBLOCK标志，读请求被阻塞。|
 |ECONNRESET|连接被对端终止。|
 |ENOTCONN|套接字未连接。|
 |EOPNOTSUPP|flags不支持，当前仅支持MSG_DONTWAIT、MSG_PEEK。|

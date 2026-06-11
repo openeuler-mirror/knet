@@ -29,7 +29,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|文件描述符设置了O_NONBLOCK标志，读请求被阻塞。|
+|EAGAIN or EWOULDBLOCK|文件描述符设置了O_NONBLOCK标志，读请求被阻塞。|
 |ECONNRESET|连接被对端终止。|
 |EMSGSIZE|入参msg结构体的msg_iovlen大于{IOV_MAX}。|
 |ENOTCONN|套接字未连接。|
