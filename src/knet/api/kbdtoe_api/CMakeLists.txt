@@ -1,0 +1,1 @@
+ADD_MODULE(kbdtoe_api)

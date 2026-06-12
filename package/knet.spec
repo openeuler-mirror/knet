@@ -42,6 +42,11 @@ cp -ar %{_topdir}/BUILD/usr/lib64/libknet_frame.so* %{buildroot}"/usr/lib64"
     cp -rf %{_topdir}/BUILD/usr/bin/knet_mp_daemon %{buildroot}"/usr/bin"
 %elif "%{stack_type}" == "dtoe"
     cp -ar %{_topdir}/BUILD/usr/include/* %{buildroot}"/usr/include"
+%elif "%{stack_type}" == "kbdtoe"
+    cp -ar %{_topdir}/BUILD/usr/lib64/libkbdtoe.so* %{buildroot}"/usr/lib64"
+    cp -ar %{_topdir}/BUILD/usr/include/* %{buildroot}"/usr/include"
+    cp -rf %{_topdir}/SOURCES/kbdtoe_rsyslog.conf %buildroot%{knetsysdir}/rsyslog.d/
+    cp -rf %{_topdir}/SOURCES/logrotate/kbdtoe %buildroot%{knetsysdir}/logrotate.d/
 %endif
 cp -rf %{_topdir}/SOURCES/knet_comm.conf %buildroot%{knetsysdir}/knet/
 cp -rf %{_topdir}/SOURCES/knet_rsyslog.conf %buildroot%{knetsysdir}/rsyslog.d/
@@ -88,6 +93,11 @@ fi
     %attr(550, root, root) /usr/bin/knet_mp_daemon
 %elif "%{stack_type}" == "dtoe"
     %attr(644, root, root) /usr/include/knet_dtoe_api.h
+%elif "%{stack_type}" == "kbdtoe"
+    %attr(550, root, root) /usr/lib64/libkbdtoe.so*
+    %attr(644, root, root) /usr/include/kbdtoe.h
+    %attr(640, root, root) %{knetsysdir}/rsyslog.d/kbdtoe_rsyslog.conf
+    %attr(640, root, root) %{knetsysdir}/logrotate.d/kbdtoe
 %endif
 %attr(600, root, root) %{knetsysdir}/knet/knet_comm.conf
 %attr(640, root, root) %{knetsysdir}/rsyslog.d/knet_rsyslog.conf

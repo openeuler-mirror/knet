@@ -144,6 +144,48 @@ if (${KNET_STACK_TYPE} STREQUAL "dtoe")
     )
 endif()
 
+if (${KNET_STACK_TYPE} STREQUAL "kbdtoe")
+    add_library(${TARGET_CORE} SHARED)
+    set_target_properties(${TARGET_CORE} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
+    add_definitions(-DKNET_STATIC=static)
+
+    if(${KNET_BUILD_TYPE} STREQUAL "Release")
+        add_custom_command(
+            TARGET "${TARGET_CORE}" POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_CORE}> "${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug"
+            COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_CORE}>
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_CORE}>.debug $<TARGET_FILE:${TARGET_CORE}>
+            COMMENT "Stripping debug symbols and generating .debug file"
+            VERBATIM
+        )
+    endif()
+
+    target_link_libraries(${TARGET_CORE}
+        base log
+        libcjson.a
+        -Wl,--whole-archive ${SECURE_LIB_NAME} -Wl,--no-whole-archive
+    )
+
+    set(TARGET_KBDTOE kbdtoe)
+    add_library(${TARGET_KBDTOE} SHARED)
+    set_target_properties(${TARGET_KBDTOE} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
+    if(${KNET_BUILD_TYPE} STREQUAL "Release")
+        add_custom_command(
+            TARGET "${TARGET_KBDTOE}" POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:${TARGET_KBDTOE}> "${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_KBDTOE}>.debug"
+            COMMAND ${CMAKE_OBJCOPY} --strip-all $<TARGET_FILE:${TARGET_KBDTOE}>
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=${LIBRARY_DEBUG_SYMBOL_DIR}/$<TARGET_FILE_NAME:${TARGET_KBDTOE}>.debug $<TARGET_FILE:${TARGET_KBDTOE}>
+            COMMENT "Stripping debug symbols and generating .debug file"
+            VERBATIM
+        )
+    endif()
+    target_link_libraries(${TARGET_KBDTOE}
+        kbdtoe_api base log
+        ${TARGET_CORE}
+        dtoe
+    )
+endif()
+
 add_library(${TARGET_FRAME} SHARED)
 # 每次更新无需手动更新VERSION和RELEASE，自动在knet.spec文件中获取
 set_target_properties(${TARGET_FRAME} PROPERTIES VERSION ${VERSION_NUM} SOVERSION ${VERSION_MAJOR})
@@ -172,6 +214,13 @@ if (${KNET_STACK_TYPE} STREQUAL "dtoe")
         ${TARGET_CORE}
         # 下面都是外部opensource的动态库
         dtoe
+    )
+endif()
+
+if (${KNET_STACK_TYPE} STREQUAL "kbdtoe")
+    target_link_libraries(${TARGET_FRAME}
+        log
+        ${TARGET_CORE}
     )
 endif()
 
