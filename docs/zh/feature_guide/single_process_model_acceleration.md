@@ -51,7 +51,7 @@ vi /etc/knet/knet_comm.conf
     >- --bind：Redis Server侦听的IP地址，为具体网卡配置的IP地址，请用户根据实际情况替换。
     >- redis-server和redis.conf的路径根据实际安装Redis的路径填写。
 
-2. 客户端主机中运行redis-benchmark进行测试。
+2. 客户端主机中运行redis-benchmark进行测试。<a id="客户端set"></a>
 
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
@@ -103,7 +103,7 @@ vi /etc/knet/knet_comm.conf
 
     ![](../figures/zh-cn_image_0000002535826607.png)
 
-4. 客户端主机中运行redis-benchmark进行get测试。
+4. 客户端主机中运行redis-benchmark进行get测试。<a id="客户端get"></a>
 
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
@@ -135,8 +135,37 @@ vi /etc/knet/knet_comm.conf
 
     则性能为305608.11 rps，实际性能以运行为准。
 
->**说明：** 
->测试内核协议栈相同场景下Redis set、get性能，可以与上述K-NET结果进行对比，观测提升效果。
+    >**说明：** 
+    >测试内核协议栈相同场景下Redis set、get性能，可以与上述K-NET结果进行对比，观测提升效果。
+
+5. （可选）使用内核协议栈测试Redis性能对比K-NET加速性能。
+    
+    参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)说明中的取消接管网卡步骤。
+
+    ```bash
+    dpdk-devbind.py -b "hisdk3" 0000:06:00.0
+    ```
+
+    服务端不使用K-NET运行Redis业务：
+
+    ```bash
+    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+    ```
+
+    观察到如下输出，表示启动成功：
+
+    ```text
+     * Ready to accept connections
+    ```
+
+    客户端运行redis-benchmark方式与K-NET场景一致，参考[步骤2](#客户端set)至[步骤4](#客户端get)。
+
+    使用内核协议栈测试后，若需重新使用K-NET特性，需参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)重新接管网卡。
+
+    ```bash
+    dpdk-devbind.py -b vfio-pci 0000:06:00.0
+    dpdk-devbind.py -s                 #确认是否接管
+    ```
 
 ### 虚拟机VF硬直通对Redis业务主从场景加速
 

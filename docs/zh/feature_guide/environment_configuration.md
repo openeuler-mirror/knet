@@ -5,7 +5,7 @@
 > **说明：** 
 >使用大页内存可减少页表与内存管理开销，提升应用程序性能。
 >请用户根据服务端环境具体的大页配置调整参数，服务端环境关闭或重启后需要重新配置和挂载。
->若服务端为物理机，从[步骤1](#查看物理机是否配置大页内存)开始执行；若服务端为虚拟机，可直接从[步骤9](#配置NUMA大页)开始执行
+>若服务端为物理机，从[步骤1](#查看物理机是否配置大页内存)开始执行；若服务端为虚拟机，可直接从[步骤9](#配置NUMA大页)开始执行。
 
 1. 查看物理机是否配置大页内存。<a id="查看物理机是否配置大页内存"></a>
 
@@ -92,35 +92,67 @@
 8. 执行命令，确认要用的网卡。<a id="确认所用网卡"></a>
     - SP670网卡：
 
+        SP670网卡安装驱动后可通过以下两种方式获取网口设备及BDF号，任选一种执行。
+
+        - hinicadm工具直接查询：
+
+            ```bash
+            hinicadm3 info
+            ```
+
+            回显示例如下，获取到可用网口设备网口为"enp6s0"，BDF号为"0000:06:00.0"。
+
+            ```text
+            Card num:1
+            Device Information:
+                Card        PCIe Function
+            |----hinic0(CAL_2X100G)
+                    |--------0000:06:00.2(NIC:bifur)
+                    |--------0000:06:00.0(NIC:enp6s0)
+            ```
+
+        - 通用命令查询BDF号后获取网口：
+
+            ```bash
+            # 虚拟机场景
+            lspci |grep 375f
+            ```
+
+            ```bash
+            # 物理机场景
+            lspci |grep 0222
+            ```
+
+            以虚拟机场景为例：
+
+            ![](../figures/zh-cn_image_0000002478201084.png)
+
+            ```bash
+            ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
+            ```
+
+            ![](../figures/zh-cn_image_0000002478361074.png)
+
+        获取并确认要使用的网口后，执行以下命令获取网口IP地址以及MAC地址。
+        
         ```bash
-        # 虚拟机场景
-        lspci |grep 375f
-        ```
-
-        ```bash
-        # 物理机场景
-        lspci |grep 0222
-        ```
-
-        以虚拟机场景为例：
-
-        ![](../figures/zh-cn_image_0000002478201084.png)
-
-        ```bash
-        ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
-        ```
-
-        ![](../figures/zh-cn_image_0000002478361074.png)
-
-        ```bash
-        ip a  #可以查询到网卡的IP地址以及MAC地址
+        ip a
         ```
 
         ![](../figures/zh-cn_image_0000002510321009.png)
 
+        （可选）若网口不存在IP可手动配置：
+
+        ```bash
+        ip addr add 192.168.*.*/24 dev enp6s0 # 用户根据实际情况替换IP、掩码以及网口设备
+        ```
+
+        >**说明：** 
+        >需记下使用网口的IP、MAC地址，后续DPDK接管网口后该信息不可见。
+
     - TM280网卡：
 
-        在服务器BMC界面可以查询到TM280网卡pci号，后续查询网络接口和网卡的IP地址以及MAC地址步骤与上述SP670网卡操作相同。
+        TM280网卡不可使用hinicadm工具直接查询，需在服务器BMC界面查询到TM280网卡pci号，后续查询网络接口和网卡的IP地址以及MAC地址步骤与上述SP670网卡操作相同。
 
         ![](../figures/zh-cn_image_0000002510201037.png)
 
@@ -145,8 +177,8 @@
         ```
 
         >**说明：** 
-        >此处node1为上一步查询到的网卡所在NUMA节点，具体node编号根据查询到的网卡所在NUMA进行更改
-        >分配的大页数量与单个大页大小根据实际情况替换
+        >此处node1为上一步查询到的网卡所在NUMA节点，具体node编号根据查询到的网卡所在NUMA进行更改。
+        >分配的大页数量与单个大页大小根据实际情况替换。
 
     - 服务端为虚拟机场景：
 
@@ -167,21 +199,36 @@
 10. 确认是否配置成功。
 
     ```bash
-    dpdk-hugepages.py -s # 回显说明在node0节点配置了2个1G类型
+    dpdk-hugepages.py -s
     ```
 
-    ![](../figures/zh-cn_image_0000002535677583.png)
+    回显示例如下：
+
+    ```text
+    Node Pages Size Total
+    1    2     1Gb  2Gb
+    ```
+
+    说明在node1节点配置了2个1G类型
 
 11. 挂载大页。
 
+    若为root用户：
+    直接将大页挂载至系统路径下。
+
+    ```bash
+    mkdir -p /dev/hugepages1G
+    mount -t hugetlbfs -o pagesize=1G hugetlbfs /dev/hugepages1G   #将1G类型大页挂载到/dev/hugepages1G目录下，如果业务环境关闭或重启需要重新执行
+    ```
+
+    若为非root用户：
     用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
-    若为root用户可跳过此步骤。
     > **须知：** 
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
     ```bash
     mkdir -p /home/KNET_USER/hugepages
-    mount -t hugetlbfs -o pagesize=1G hugetlbfs /home/KNET_USER/hugepages   #将1G类型大页挂载到/home/KNET_USER/hugepages目录下，如果虚拟机关闭或重启需要重新执行
+    mount -t hugetlbfs -o pagesize=1G hugetlbfs /home/KNET_USER/hugepages   #将1G类型大页挂载到/home/KNET_USER/hugepages目录下，如果业务环境关闭或重启需要重新执行
     chown -R KNET_USER:KNET_USER_GROUP /home/KNET_USER/hugepages
     ```
 
@@ -191,7 +238,7 @@
     mount | grep huge
     ```
 
-    > 回显如下，表示成功使能1G大页：
+    > 回显示例如下，表示成功使能1G大页：
 
     ```ColdFusion
     cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
@@ -262,7 +309,7 @@
         modprobe vfio-pci
         ```
 
-    3. DPDK接管网卡。
+    3. DPDK接管网卡。<a id="DPDK接管网卡"></a>
 
         ```bash
         dpdk-devbind.py -b vfio-pci 0000:06:00.0
