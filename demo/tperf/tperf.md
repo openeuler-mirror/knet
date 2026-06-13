@@ -19,6 +19,15 @@ client端：
 ## 编译
 Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)。
 
+## 业务配置
+增加大页内存：
+> [!NOTE]说明
+> 由于tperf零拷贝场景需要在大页中进行pbuf的读写，因此需要参考[配置大页内存](../../docs/zh/feature_guide/environment_configuration.md/#配置NUMA大页)增加大页内存，以20G为例，可根据实际情况分配。
+> 以网卡所在node0为例，具体请修改为实际网卡所在NUMA。
+```
+echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages
+```
+
 ## 使用示例
 
 服务端ip以192.168.1.6为例，客户端以192.168.1.7为例；具体需要替换为网卡配置的IP，且与K-NET配置文件中IP保持一致。
