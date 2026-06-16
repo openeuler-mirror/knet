@@ -2,7 +2,7 @@
 
 ## 接口名称
 
-**read(int fd, void \*buf, size\_t count\)**
+**read(int fd, void *buf, size_t count)**
 
 ## 接口描述
 
@@ -18,7 +18,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 正数：实际读取的数据长度，表示成功
 - -1：表示失败，并设置errno以指示错误类型
@@ -28,7 +28,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|当文件描述符设置O_NONBLOCK标志时，非阻塞读取操作无法立即完成。|
+|EAGAIN or EWOULDBLOCK|当文件描述符设置O_NONBLOCK标志时，非阻塞读取操作无法立即完成。|
 |ECONNRESET|连接被对端终止。|
 |ENOTCONN|套接字未连接。|
 |EFAULT|入参buf在用户的地址空间之外。|

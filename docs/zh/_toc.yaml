@@ -27,3 +27,71 @@ sections:
       - href: ./reference/_toc.yaml
   - label: Summary
     href: ./desgin_docs_reference.md
+  - label: API 接口
+    href: ./api/api_menu.md
+  - label: 共线程接口
+    href: ./api/cothread_apis/cothread_api_menu.md
+  - label: accept
+    href: ./api/posix_apis/accept.md
+  - label: knet\_iovec
+    href: ./api/zero_copy_apis/knet_iovec.md
+  - label: accept4
+    href: ./api/posix_apis/accept4.md
+  - label: 共线程接口列表
+    href: ./api/cothread_apis/cothread_list.md
+  - label: knet\_mp\_alloc
+    href: ./api/zero_copy_apis/knet_mp_alloc.md
+  - label: 执行UT用例
+    href: ./dev_guide/ut_test.md
+  - label: 共线程功能
+    href: ./feature_guide/cothread.md
+  - label: 运维信息收集脚本collect.sh
+    href: ./om/collect.md
+  - label: 搭建环境
+    href: ./installation/environment_setup.md
+  - label: K-NET 产品描述
+    href: ./product_descriptions/descriptions_menu.md
+  - label: bind
+    href: ./api/posix_apis/bind.md
+  - label: knet\_init
+    href: ./api/cothread_apis/knet_init.md
+  - label: knet\_mp\_free
+    href: ./api/zero_copy_apis/knet_mp_free.md
+  - label: 日常运维
+    href: ./om/daily_om.md
+  - label: 环境配置
+    href: ./feature_guide/environment_configuration.md
+  - label: 安装
+    href: ./installation/installation.md
+  - label: 批量运维
+    href: ./reference/common_operations/batch_om.md
+  - label: 特性和功能
+    href: ./product_descriptions/features_and_functions.md
+  - label: BIOS调优
+    href: ./reference/performance_tuning/bios_tuning.md
+  - label: 附录
+    href: ./reference/reference_menu.md
+  - label: close
+    href: ./api/posix_apis/close.md
+  - label: knet\_is\_worker\_thread
+    href: ./api/cothread_apis/knet_is_worker_thread.md
+  - label: knet\_zreadv
+    href: ./api/zero_copy_apis/knet_zreadv.md
+  - label: 特性指南
+    href: ./feature_guide/feature_menu.md
+  - label: 常用操作
+    href: ./reference/common_operations/common_menu.md
+  - label: 遥测工具dpdk-telemetry
+    href: ./om/dpdk_telemetry.md
+  - label: 安装
+    href: ./installation/installation_menu.md
+  - label: 产品定位和特点
+    href: ./product_descriptions/product_positioning_and_highlights.md
+  - label: Bond故障
+    href: ./troubleshooting/bond.md
+  - label: 绑核与网卡所在NUMA一致
+    href: ./reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md
+  - label: 安全管理
+    href: ./reference/security.md
+  - label: 用户指南
+    href: ./user_guide.md

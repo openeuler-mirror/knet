@@ -17,99 +17,23 @@ client端：
 -d ：打流时间，为0则不打流。
 
 ## 编译
-Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)。
+Tperf的编译及业务配置可参考[TPerf业务配置](../../docs/zh/feature_guide/environment_configuration.md#可选tperf业务配置)，注意不要遗留前置步骤[配置大页内存](../../docs/zh/feature_guide/environment_configuration.md#配置大页内存)及[通用业务配置](../../docs/zh/feature_guide/environment_configuration.md#通用业务配置)。
+
+## 业务配置
+增加大页内存：
+> [!NOTE]说明
+> 由于tperf零拷贝场景需要在大页中进行pbuf的读写，因此需要参考[配置大页内存](../../docs/zh/feature_guide/environment_configuration.md/#配置NUMA大页)增加大页内存，以20G为例，可根据实际情况分配。
+> 以网卡所在node0为例，具体请修改为实际网卡所在NUMA。
+```
+echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages
+```
 
 ## 使用示例
 
 服务端ip以192.168.1.6为例，客户端以192.168.1.7为例；具体需要替换为网卡配置的IP，且与K-NET配置文件中IP保持一致。
 
-### tperf_os
-
-1并发：
-
-服务端：
-
-```bash
-taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
-```
-
-客户端：
-
-```bash
-taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
-```
-
-服务端回显:
-
-```coldfusion
-Listening on 192.168.1.6:11111
-Accepted connection: fd = 6, cli_addr=192.168.1.6, cli_port=1446
-nr_sock :1
-```
-
-客户端回显：
-
-```coldfusion
-Connection in progress...server prot 11111, sockfd 4, cli_port random
-Connection established with sockfd 4
-      0 w       0.000 read Gbits/sec  11.819 write Gbits/sec
-      1 w       0.000 read Gbits/sec  16.347 write Gbits/sec
-      2 w       0.000 read Gbits/sec  17.650 write Gbits/sec
-      3 w       0.000 read Gbits/sec  17.555 write Gbits/sec
-...
-...
-...
-     30 w       0.000 read Gbits/sec  17.652 write Gbits/sec
----
- 0 nr_conn=1 nr_zero_io_conn=0
-```
-
-2并发:
-
-服务端：
-
-```bash
-taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
-```
-
-客户端：
-
-```bash
-taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
-```
-
-服务端回显:
-
-```coldfusion
-Listening on 192.168.1.6:11111
-Listening on 192.168.1.6:11112
-Accepted connection: fd = 9, cli_addr=192.168.1.7, cli_port=1450
-Accepted connection: fd = 10, cli_addr=192.168.1.7, cli_port=1448
-nr_sock :2
-```
-
-客户端回显：
-
-```coldfusion
-Connection in progress...server prot 11111, sockfd 6, cli_port random
-Connection in progress...server prot 11111, sockfd 5, cli_port random
-Connection established with sockfd 5
-Connection established with sockfd 6
-      0 w    0. 0.000 read Gbits/sec  0.025 write Gbits/sec
-      0 w    1. 0.000 read Gbits/sec  17.405 write Gbits/sec
-      0 w       0.000 read Gbits/sec  17.430 write Gbits/sec
-
-      1 w    0. 0.000 read Gbits/sec  0.000 write Gbits/sec
-      1 w    1. 0.000 read Gbits/sec  17.235 write Gbits/sec
-      1 w       0.000 read Gbits/sec  17.235 write Gbits/sec
-
-      2 w    0. 0.000 read Gbits/sec  0.000 write Gbits/sec
-      2 w    1. 0.000 read Gbits/sec  17.237 write Gbits/sec
-      2 w       0.000 read Gbits/sec  17.237 write Gbits/sec
-...
-...
-...
-```
+> [!NOTE]说明
+> 示例运行完成后在服务端按Ctrl+C结束Tperf进程。
 
 ### KNET无感加速tperf_os
 
@@ -599,4 +523,107 @@ Connection established with sockfd 59
 ...
 ...
 ...
+```
+
+### （可选）tperf_os
+
+若想对比内核协议栈Tperf性能，可执行以下步骤运行tperf_os：
+
+参考[DPDK接管网卡](../../docs/zh/feature_guide/environment_configuration.md#DPDK接管网卡)说明中的取消接管网卡步骤。
+
+```bash
+dpdk-devbind.py -b "hisdk3" 0000:06:00.0
+```
+
+1并发：
+
+服务端：
+
+```bash
+taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
+```
+
+客户端：
+
+```bash
+taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
+```
+
+服务端回显:
+
+```coldfusion
+Listening on 192.168.1.6:11111
+Accepted connection: fd = 6, cli_addr=192.168.1.6, cli_port=1446
+nr_sock :1
+```
+
+客户端回显：
+
+```coldfusion
+Connection in progress...server prot 11111, sockfd 4, cli_port random
+Connection established with sockfd 4
+      0 w       0.000 read Gbits/sec  11.819 write Gbits/sec
+      1 w       0.000 read Gbits/sec  16.347 write Gbits/sec
+      2 w       0.000 read Gbits/sec  17.650 write Gbits/sec
+      3 w       0.000 read Gbits/sec  17.555 write Gbits/sec
+...
+...
+...
+     30 w       0.000 read Gbits/sec  17.652 write Gbits/sec
+---
+ 0 nr_conn=1 nr_zero_io_conn=0
+```
+
+2并发:
+
+服务端：
+
+```bash
+taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+```
+
+客户端：
+
+```bash
+taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
+```
+
+服务端回显:
+
+```coldfusion
+Listening on 192.168.1.6:11111
+Listening on 192.168.1.6:11112
+Accepted connection: fd = 9, cli_addr=192.168.1.7, cli_port=1450
+Accepted connection: fd = 10, cli_addr=192.168.1.7, cli_port=1448
+nr_sock :2
+```
+
+客户端回显：
+
+```coldfusion
+Connection in progress...server prot 11111, sockfd 6, cli_port random
+Connection in progress...server prot 11111, sockfd 5, cli_port random
+Connection established with sockfd 5
+Connection established with sockfd 6
+      0 w    0. 0.000 read Gbits/sec  17.126 write Gbits/sec
+      0 w    1. 0.000 read Gbits/sec  17.208 write Gbits/sec
+      0 w       0.000 read Gbits/sec  34.334 write Gbits/sec
+
+      1 w    0. 0.000 read Gbits/sec  17.231 write Gbits/sec
+      1 w    1. 0.000 read Gbits/sec  17.225 write Gbits/sec
+      1 w       0.000 read Gbits/sec  34.456 write Gbits/sec
+
+      2 w    0. 0.000 read Gbits/sec  17.227 write Gbits/sec
+      2 w    1. 0.000 read Gbits/sec  17.232 write Gbits/sec
+      2 w       0.000 read Gbits/sec  34.459 write Gbits/sec
+...
+...
+...
+```
+
+使用内核协议栈测试后，若需重新使用K-NET特性，需参考[DPDK接管网卡](../../docs/zh/feature_guide/environment_configuration.md#DPDK接管网卡)重新接管网卡。
+
+```bash
+dpdk-devbind.py -b vfio-pci 0000:06:00.0
+dpdk-devbind.py -s                 #确认是否接管
 ```
