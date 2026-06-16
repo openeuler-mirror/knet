@@ -92,7 +92,11 @@
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
         ```
         
-        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
+        观察到如下输出，表示启动成功：
+
+        ```text
+        * Ready to accept connections
+        ```
 
         >**说明：** 
         >- taskset -c  _64-95_  env：将指定的进程绑定到CPU核心64\~95上运行，用户使用时根据[绑核与网卡所在NUMA一致](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)中的步骤1和步骤2确认绑定的CPU范围。
@@ -115,32 +119,120 @@
         taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
         ```
 
-        回显同上。
+        观察到如下输出，表示启动成功：
 
-4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口一致，及IP地址保持一致。
+        ```text
+        * Ready to accept connections
+        ```
+
+    4. 确认第一个运行daemon进程的终端多了以下两行回显，表示上述两个业务进程启动成功。
+        
+        ```text
+        hinic3: Add fdir tcam rule, function_id: 0x1, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x1, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
+        ```
+
+4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口一致，及IP地址保持一致。<a id="客户端打流"></a>
     1. 启动一个终端运行redis-benchmark。
 
         ```bash
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 10000000 -r 100000 -t set --threads 15
+        redis-cli -h 192.168.*.* -p 6379 flushall   #客户端清理set数据，提升性能
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
 
-        结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
+        结果形如以下示例输出：
+
+        ```bash
+        ====== GET ======
+        1000000 requests completed in 64.25 seconds  
+        1000 parallel clients  
+        3 bytes payload  
+        keep alive: 1  
+        host configuration "save": 900 1 300 10 60 10000  
+        host configuration "appendonly": no  
+        multi-thread: yes  
+        threads: 1  
+
+        0.00% <= 0.6 milliseconds  
+        0.00% <= 0.7 milliseconds  
+        0.00% <= 0.8 milliseconds  
+        0.00% <= 2 milliseconds  
+        0.00% <= 3 milliseconds  
+        0.00% <= 4 milliseconds  
+        0.01% <= 5 milliseconds
+        ...
+        305417.23 requests per second
+        ```
+
+        性能以实际环境为准。
 
     2. 再起一个终端，运行第二个redis-benchmark。其余进程重复执行该步骤。
 
         ```bash
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
+        redis-cli -h 192.168.*.* -p 6380 flushall   #客户端清理set数据，提升性能
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 100000000 -r 100000 -t get --threads 15
         ```
 
-        回显同上。
+        结果形如以下示例输出：
 
-5. 客户端清理set数据，提升性能。
+        ```bash
+        ====== GET ======
+        1000000 requests completed in 64.25 seconds  
+        1000 parallel clients  
+        3 bytes payload  
+        keep alive: 1  
+        host configuration "save": 900 1 300 10 60 10000  
+        host configuration "appendonly": no  
+        multi-thread: yes  
+        threads: 1  
+
+        0.00% <= 0.6 milliseconds  
+        0.00% <= 0.7 milliseconds  
+        0.00% <= 0.8 milliseconds  
+        0.00% <= 2 milliseconds  
+        0.00% <= 3 milliseconds  
+        0.00% <= 4 milliseconds  
+        0.01% <= 5 milliseconds
+        ...
+        305417.23 requests per second
+        ```
+
+        性能以实际环境为准。
+
+5. （可选）使用内核协议栈测试Redis性能对比K-NET加速性能。
+    
+    参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)说明中的取消接管网卡步骤。
 
     ```bash
-    redis-cli -h 192.168.*.* -p 6379 flushall
-    redis-cli -h 192.168.*.* -p 6380 flushall
+    dpdk-devbind.py -b "hisdk3" 0000:06:00.0
     ```
 
-    结果形式可参考[单进程模式加速](./single_process_model_acceleration.md#单进程模式加速)。
+    服务端不使用K-NET运行Redis业务进程：
+
+    ```bash
+    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
+    ```
+
+    再新起一个终端运行第二个业务进程，确保端口号不同：
+
+    ```bash
+    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+    ```
+
+    观察到如下输出，表示启动成功：
+
+    ```text
+     * Ready to accept connections
+    ```
+
+    客户端运行redis-benchmark方式与K-NET场景一致，参考[步骤4](#客户端打流)。
+
+    使用内核协议栈测试后，若需重新使用K-NET特性，需参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)重新接管网卡。
+
+    ```bash
+    dpdk-devbind.py -b vfio-pci 0000:06:00.0
+    dpdk-devbind.py -s                 #确认是否接管
+    ```
+    
