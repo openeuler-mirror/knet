@@ -4,10 +4,10 @@
 
 1. 安装Computing ToolKit工具。
 
-    下载安装方式请参见[《Computing ToolKit 25.2.0 用户指南》](https://support.huawei.com/enterprise/zh/management-software/computing-toolkit-pid-264314551)中"安装Computing ToolKit"来操作，使用25.2.0版本的软件安装包。
+    下载安装方式请参见[《Computing ToolKit 25.2.0 用户指南》](https://support.huawei.com/enterprise/zh/management-software/computing-toolkit-pid-264314551)中“安装Computing ToolKit”来操作，使用25.2.0版本的软件安装包。
 
 2. 配置服务器信息。
-    打开Computing ToolKit，进入首页“批量分发”，参见[《Computing ToolKit 25.2.0 用户指南》]中"5.7.3.3 添加设备"，设备类型选择“OS”，添加目标服务器的IP地址、用户名和密码，将需要批量操作的服务器信息全部添加到此列表中。
+    打开Computing ToolKit，进入首页“批量分发”，参见《Computing ToolKit 25.2.0 用户指南》中“5.7.3.3 添加设备”，设备类型选择“OS”，添加目标服务器的IP地址、用户名和密码，将需要批量操作的服务器信息全部添加到此列表中。
 
     ![](../../figures/batch_om_1.png)
 
@@ -32,7 +32,7 @@
     命令示例如下：
     - 鲲鹏架构：
             ```
-      cd /home; rpm -Uvh knet-1.0.0.aarh64.rpm
+      cd /home; rpm -Uvh knet-1.0.0.aarch64.rpm
             ```
     - x86架构：
             ```
@@ -44,6 +44,6 @@
     ![](../../figures/batch_om_9.png)
 
     ![](../../figures/batch_om_10.png)
-    2.  单击“导出报告“，查看批量执行结果。
+    2.  单击“导出报告”，查看批量执行结果。
 
     ![](../../figures/batch_om_11.png)

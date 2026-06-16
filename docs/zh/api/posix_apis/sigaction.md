@@ -8,7 +8,7 @@
 
  设置信号处理方式。
 
-> **说明：** 
+> [!NOTE]说明  
 >
 >- K-NET首先会注册SIGINT、SIGTERM、SIGQUIT三种信号，行为为exit\(0\)，以达到在destructor中断连的目的。如果constructor之后用户有注册相应信号且行为不是SIG\_DFL，则让用户注册覆盖掉。
 >- 目前只支持SIGINT、SIGQUIT、SIGTERM三种信号触发时发送RST报文。

@@ -8,7 +8,7 @@
 
 给socket绑定地址信息。
 
-> **说明：** 
+> [!NOTE]说明 
 >
 >- 设置REUSEADDR后的行为与设置REUSEPORT一致，以下只描述REUSEPORT。
 >- socket绑定一个地址，未开启REUSEPORT选项，另外一个socket绑定重复地址，返回绑定失败。

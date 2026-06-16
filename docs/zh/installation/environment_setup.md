@@ -4,6 +4,8 @@
 
 ### 配置BIOS
 
+仅在配置虚拟机VF硬直通时进行以下操作。
+
 1. 登录iBMC。
 
     1. 在浏览器输入iBMC管理网口地址：https://_ipaddress_，按“Enter”键进入。
@@ -33,12 +35,12 @@
 
     ![](../figures/zh-cn_image_0000002503752648.png)
 
-    >**说明：** 
+    > [!NOTE]说明  
     ><term>SMMU</term>是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
 
 ### 升级BIOS（仅TM280网卡涉及）
 
->**说明：** 
+> [!NOTE]说明  
 >TM280网卡固件集成在提供的BIOS固件中，升级BIOS后网卡固件也会随之更新。
 
 1. 请参见[版本配套关系](../release_note.md)获取BIOS固件。
@@ -49,7 +51,7 @@
 
 ### （可选）配置物理机Yum源
 
->**说明：** 
+> [!NOTE]说明  
 >这里以配置openEuler 22.03 LTS SP4系统物理机的Yum源为例，如果环境已经配置过Yum源，可跳过此章节。
 
 1. 登录服务器节点，下载虚拟机镜像openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso上传至服务器。
@@ -58,20 +60,20 @@
 
     ![](../figures/zh-cn_image_0000002535828147.png)
 
-    > **说明：** 
-    >x86环境需下载操作系统为openEuler 22.03 LTS SP1的镜像。
+    > [!NOTE]说明  
+    >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 2. 使用mount命令挂载ISO文件。
 
-    > **须知：** 
+    > [!NOTICE]须知 
     >每次重启物理机后都要重新执行**mount**命令。
 
     ```bash
     mount /path/to/local/directory/openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso /mnt
     ```
 
-    >**说明：** 
-    >x86环境需下载操作系统为openEuler 22.03 LTS SP1的镜像。
+    > [!NOTE]说明  
+    >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 3. 备份配置文件。
 
@@ -109,22 +111,14 @@
 
 ### 安装SP670驱动（仅SP670网卡涉及）
 
-1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/692f5d74)中“编译/安装驱动”章节。若使用流量分叉，需执行以下命令：
+1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
     sh install.sh -d bifur
     ```
 
-2. 安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
+2. 安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3_master)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
 
-    ```bash
-    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
-    cd dpdk-hinic3
-    sh install.sh ../dpdk-stable-21.11.7 install bifur
-    ```
-
-    以下安装DPDK驱动至指定目录和手动编译DPDK后拷贝so步骤任选一个执行，若第一次安装DPDK，请参考[安装DPDK](./installation.md#dpdk安装)执行步骤1：
-    
     1. 安装DPDK驱动至指定目录：
     
         ```bash
@@ -133,18 +127,31 @@
         ninja -C build
         ninja install -C build
         ```
+
+    2. 获取hinic3 PMD源码：
+
+        ```bash
+        git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
+        cd dpdk-hinic3_master
+        ```
     
-    2. 或手动编译DPDK后拷贝so：
+    3. 编译dpdk-hinic3驱动：
     
         ```bash
+        sh install.sh ../dpdk-stable-21.11.7 install
         sh install.sh ../dpdk-stable-21.11.7 build
+        ```
+
+    4. 安装dpdk-hinic3驱动：
+
+        ```bash
         cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
         ls -l /usr/lib64/librte_net_hinic3.so*
         ldconfig
         ```
 
-        >**说明：** 
-        > {,.22,.22.0} 根据实际DPDK版本替换
+        > [!NOTE]说明  
+        > {,.22,.22.0} 根据实际DPDK版本替换。
     
 3. <a id="step4"></a>查看网卡模板。
 
@@ -154,7 +161,7 @@
 
     ![](../figures/zh-cn_image_0000002487030394.png)
 
-    “Current Info”字段中显示的为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启：
+    “Current Info”字段中的“Cfg template index”显示为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启：
 
     1. 切换网卡模板为0。
 
@@ -170,8 +177,8 @@
 
         重启后请再次查看当前网卡模板。
 
-        >**说明：** 
-        >若使用流量分叉功能，需切换模板为ROCE\_2X100G\_UN\_ADAP，命令如下：
+        > [!NOTE]说明  
+        >若使用流量分叉功能，需切换模板为ROCE_2X100G_UN_ADAP，命令如下：
         >
         >```bash
         >hinicadm3 cfg_template -i hinic0 -s 3
@@ -219,26 +226,26 @@
 
         ![](../figures/zh-cn_image_0000002504019188.png)
 
-    > **说明：** 
-    >x86环境需下载操作系统为openEuler 22.03 LTS SP1的镜像。
+    > [!NOTE]说明  
+    >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 4. 配置Yum源，配置前需要先把虚拟机对应的ISO使用SFTP上传到虚拟机环境。本步骤及子步骤均需在虚拟机中执行。
 
-    >**须知：** 
+    > [!NOTICE]须知
     >- /path/to/remote/file：ISO文件在物理机上的存放路径。
     >- root@remote\_host：用户为root，remote\_host表示物理机的控制IP地址，即物理机上192.168.122.\*的IP地址。
     >- /path/to/local/directory：表示虚拟机存放ISO文件路径。请用户根据实际存放路径修改。
 
     1. 使用mount命令挂载虚拟机对应的ISO文件。
 
-        >**须知：** 
+        > [!NOTICE]须知
         >每次重启虚拟机后都要重新执行**mount**命令。
 
         ```bash
         mount /path/to/local/directory/openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso /mnt
         ```
 
-        >**说明：** 
+        > [!NOTE]说明  
         >本文以鲲鹏环境为例，openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso是安装虚拟机的镜像。x86环境下镜像的操作系统为openEuler 22.03 LTS SP1。
 
     2. 备份repo文件。
@@ -305,7 +312,7 @@
     cat /sys/class/net/enp1s0f0/device/sriov_totalvfs
     ```
 
-    >**说明：** 
+    > [!NOTE]说明  
     >enp1s0f0为前一步骤查询得到的端口名称，请用户根据实际情况修改。
 
     ![](../figures/zh-cn_image_0000002483338178.png)
@@ -344,7 +351,7 @@
 
         ![](../figures/zh-cn_image_0000002515618139.png)
 
-        >**说明：** 
+        > [!NOTE]说明  
         >第一个红框与[步骤1.5](#step1.5)配置的VF相对应，比如这里VF选择01:00.2所对应的端口（即[步骤1.5](#step1.5)图中右边红框），该端口为enp1s0f0v0，第二个红框表示这个VF会在虚拟机里面生成一个网口，网口名为enp6s0。如果需要配置多个VF，就在<device\>字段中添加多个字段。
 
         如下为模板，仅供参考：
@@ -367,11 +374,11 @@
         virsh console vm_perf_2203
         ```
 
-        其中vm\_perf\_2203是虚拟机名字。如果是x86环境需要使用VNC工具接入。
+        其中vm_perf_2203是虚拟机名字。如果是x86环境需要使用VNC工具接入。
 
     3. 给enp6s0配置IP地址。
 
-        >**须知：** 
+        > [!NOTICE]须知 
         >每次重启虚拟机，都需要重新配置一次。
 
         ```bash
@@ -380,29 +387,21 @@
 
         ![](../figures/zh-cn_image_0000002515538143.png)
 
-        注意这里的IP和VF对应的PF要属于同一网段，比如enp1s0f0的网段是192.168.32.0/24那么enp6s0的网段也是192.168.32.0/24。
+        注意这里的IP地址和VF对应的PF要属于同一网段，比如enp1s0f0的网段是192.168.32.0/24，那么enp6s0的网段也是192.168.32.0/24。
 
         ```bash
         ip addr add 192.168.32.2/24 dev enp6s0
         ```
 
-        > **说明：** 
-        >192.168.32.2/24：用户根据实际情况配置IP和掩码。
+        > [!NOTE]说明  
+        >192.168.32.2/24：用户根据实际情况配置IP地址和掩码。
 
 ### 安装SP670驱动
 
 若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
 
-安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
+安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3_master)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
 
-```bash
-git clone https://atomgit.com/openeuler/dpdk.git -b hinic3 dpdk-hinic3
-cd dpdk-hinic3
-sh install.sh ../dpdk-stable-21.11.7 install bifur
-```
-
-以下安装DPDK驱动至指定目录和手动编译DPDK后拷贝so步骤任选一个执行，若第一次安装DPDK，请参考[安装DPDK](./installation.md#安装dpdk)执行步骤1：
-    
 1. 安装DPDK驱动至指定目录：
     
     ```bash
@@ -411,15 +410,28 @@ sh install.sh ../dpdk-stable-21.11.7 install bifur
     ninja -C build
     ninja install -C build
     ```
+
+2. 获取hinic3 PMD源码：
+
+    ```bash
+    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
+    cd dpdk-hinic3_master
+    ```
     
-2. 或手动编译DPDK后拷贝so：
+3. 编译dpdk-hinic3驱动：
     
     ```bash
+    sh install.sh ../dpdk-stable-21.11.7 install
     sh install.sh ../dpdk-stable-21.11.7 build
+    ```
+
+4. 安装dpdk-hinic3驱动：
+
+    ```bash
     cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
     ls -l /usr/lib64/librte_net_hinic3.so*
     ldconfig
     ```
 
-    >**说明：** 
-    > {,.22,.22.0} 根据实际DPDK版本替换
+    > [!NOTE]说明  
+    > {,.22,.22.0} 根据实际DPDK版本替换。

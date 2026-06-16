@@ -6,7 +6,7 @@
 
 |option name|K-NET支持程度|说明|
 |--|--|--|
-|SO_ERROR|支持|只支持两种返回错误的场景，接收数据时TCP连接已断开(ENOTCONN)，UDP发送数据时目的地址不可达(ECONNREFUSED)。|
+|SO_ERROR|支持|只支持两种返回错误的场景，接收数据时TCP连接已断开（ENOTCONN），UDP发送数据时目的地址不可达（ECONNREFUSED）。|
 |SO_KEEPALIVE|支持|-|
 |SO_LINGER|支持|在关闭连接时直接发送RST，不支持设置超时时间，阻塞close接口，发送剩余数据。|
 |SO_RCVBUF|支持|K-NET配置文件/etc/knet/knet_comm.conf中def_recvbuf设置默认值，max_recvbuf约束最大值。|
@@ -36,5 +36,5 @@
 |TCP_KEEPIDLE|int类型 [1, 32767]|支持|-|
 |TCP_KEEPINTVL|int类型 [1, 32767]|支持|-|
 |TCP_MAXSEG|int类型[256, 9600]|支持|-|
-|TCP_NODELAY|int类型 , 0关闭，非0开启|支持|-|
+|TCP_NODELAY|int类型，0关闭，非0开启|支持|-|
 |TCP_USER_TIMEOUT|int类型|支持|-|

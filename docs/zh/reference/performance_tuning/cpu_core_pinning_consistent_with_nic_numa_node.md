@@ -18,7 +18,7 @@
 
 3. 修改绑核配置，使用网卡所在NUMA的CPU。
 
-    > **说明：** 
+    > [!NOTE]说明  
     >以[步骤2](#numa-li2)中查询到使用网卡所在NUMA的CPU编号为64\~95为例，后续绑核的CPU编号要在该区间内。
 
     - 服务端为虚拟机场景
@@ -68,5 +68,5 @@
     taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so redis-server /path/to/redis/redis.conf --port 6380 --bind 192.168.*.*
     ```
 
-    > **说明：** 
+    > [!NOTE]说明  
     >taskset -c 64-95：绑核设置参考前面步骤，应避免跨NUMA。

@@ -1,6 +1,6 @@
 # 抓包工具dumpcap
 
->**说明：** 
+> [!NOTE]说明  
 >
 >- 请用户先参见[安装抓包工具](../installation/installation.md#可选安装抓包工具)后再参考本章节进行使用。
 >- K-NET使用的DPDK版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
@@ -9,7 +9,7 @@
 ## 命令格式
 
 ```shell
-LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci bdf port>] [-c <packet_num_>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>_][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
+LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port>] [-c <packet_num_>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>_][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
 ```
 
 ## 参数说明
@@ -20,10 +20,10 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci bdf port
 |-------------------|------------------|----------------|
 |      -D           |        否        | 显示可用PCI网口。  | 
 |      -h           |         否       | 使用帮助信息。    | 
-| -i \<pci_bdf_port>  |  否   | `-i 0000:06:00.0`：抓取精确指定网口的数据包。例如：`-i 0000:06:00.0`。不加`-i`则查找默认的一个DPDK接管网口。 |
-| -c \<packet_num>  | 否  | `-c 6000`：统计6000包后结束。例如：-c 6000。    |
-|-w \<file_name>    |否  |`-w ./tx.pcap`：将文件写入到当前目录的tx.pcap文件中。例如：`-w ./tx.pcap`。<p>若未指定文件路径，默认写入/tmp目录，例如`/tmp/dumpcap_xxxx.pcap`。</p>|
-|-f \<filter_expression>|否|`-f "host 192.168.1.1 \|\| port 6390"`：抓取数据包中有192.168.1.1或者端口为6390的数据包。
+| -i <pci_bdf_port>  |  否   | 抓取精确指定网口的数据包。例如：`-i 0000:06:00.0`。不加`-i`则查找默认的一个DPDK接管网口。 |
+| -c <packet_num>  | 否  | `-c 6000`：统计6000包后结束。例如：-c 6000。    |
+|-w <file_name>    |否  |`-w ./tx.pcap`：将文件写入到当前目录的tx.pcap文件中。例如：`-w ./tx.pcap`。<p>若未指定文件路径，默认写入/tmp目录，例如`/tmp/dumpcap_xxxx.pcap`。</p>|
+|-f <filter_expression>|否|`-f "host 192.168.1.1 \|\| port 6390"`：抓取数据包中有192.168.1.1或者端口为6390的数据包。
 
 **其他参数说明**
 
@@ -41,7 +41,7 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci bdf port
 
 ## 使用示例
 
->**说明：** 
+> [!NOTE]说明  
 >使用抓包前请先启动K-NET。抓包工具启动前已经运行的业务进程才能被抓包，如果新增业务进程，请重启抓包工具。业务启动命令参见[特性指南](../feature_guide/network_acceleration_verification.md)中各功能示例。
 
 - 进入“dpdk-stable-21.11.7/app/dumpcap”目录再使用抓包定位K-NET劫持的业务。
@@ -77,8 +77,8 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci bdf port
     ```
 
 2. 抓包完成后，“Ctrl + C”结束，在/home/**_<username\>_**/下生成tx.pcap。
-3. 可使用`tcpdump -r /home/_<username\>_/tx.pcap -v`查看抓包文件或使用Wireshark打开查看。
-4. 使用`tcpdump -r /home/<username\>/tx.pcap`读取数据包，查看数据包详情，操作示例如下：
+3. 可使用`tcpdump -r /home/<username>/tx.pcap -v`查看抓包文件或使用Wireshark打开查看。
+4. 使用`tcpdump -r /home/<username>/tx.pcap`读取数据包，查看数据包详情，操作示例如下：
 
     ![](../figures/zh-cn_image_0000002535828395.png)
 

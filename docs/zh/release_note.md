@@ -27,7 +27,7 @@
 | 网卡  | SP670  |
 | CPU  | 1/2个第三代英特尔至强可扩展处理器（lce Lake）（8300/6300/5300/4300系列）  |
 
-> 说明：
+> [!NOTE]说明
 > 以上配套环境需保持服务端与客户端一致。
 > 适配场景请查看[特性支持](./feature_guide/feature_overview.md)。
 > 目前仅兼容性3配套环境支持DPDK23.11.6版本，仅支持DPDK基础功能，不包括流量分叉、Bond卸载等网卡扩展特性。
@@ -41,6 +41,7 @@
 | iPerf3  | 3.16  |[获取链接](https://github.com/esnet/iperf/releases/tag/3.16)|
 | SockPerf  | 3.10  |[获取链接](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
 | TPerf  | 1.0  |[获取链接](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
+| hinic3 | hinic3-26.0.rc1-0331.r1|[获取链接](https://atomgit.com/openeuler/dpdk/tags/hinic3-26.0.rc1-0331.r1) |
 
 ## K-NET 1.2.0
 
@@ -65,8 +66,8 @@
 <term>K-NET</term>作为网络协议加速框架，北向提供统一的Socket API，南向提供统一的数据IO抽象层，同时提供配置文件，允许用户通过配置进行协议路由。<term>K-NET</term>加速框架通过规范协议适配接口，同时内部集成了不同的协议栈，当前已经集成了基于以太的用户态TCP/IP协议，未来会继续集成基于RDMA的用户态协议和基于UB的协议栈，来满足和适配大数据、数据库、分布式存储等多个业务场景。
 
 - K-NET框架Framework
-    - Socket 透明替换：提供Socket透明替换接口支撑业务零侵入修改。
-    - 提供插件化框架：插件化框架可以基于配置适配不同的协议，如用户态TCP协议栈，RDMA和UB协议等系统。
+    - Socket透明替换：提供Socket透明替换接口支撑业务零侵入修改。
+    - 提供插件化框架：插件化框架可以基于配置适配不同的协议，如用户态TCP协议栈、RDMA和UB协议等系统。
     - 提供协议编排能力：协议编排主要提供基础的协议进行编排，业务在启动时加载协议编排的能力使能业务处理。
     - 配置管理：加载协议栈和资源配置信息。
 

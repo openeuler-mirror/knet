@@ -27,7 +27,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|套接字标记为非阻塞，并且不存在要接收的连接。|
+|EAGAIN or EWOULDBLOCK|套接字标记为非阻塞，并且不存在要接收的连接。|
 |EINTR|被信号中断。|
 |EINVAL|入参addrlen的值小于对应地址族长度或大于INT_MAX，或者未侦听，导致套接字不能建立连接。|
 |EOPNOTSUPP|引用的套接字不是TCP类型。|
