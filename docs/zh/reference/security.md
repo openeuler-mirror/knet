@@ -23,7 +23,7 @@
 
 日志查看方式如下：
 
-- 转储后日志解压方式，在root用户下执行,以日志文件“knet_comm.log.1.gz”为例。
+- 转储后日志解压方式，在root用户下执行，以日志文件“knet_comm.log.1.gz”为例。
 
   ```bash
   gzip -dv knet_comm.log.1.gz
@@ -64,7 +64,7 @@
 
 #### 日志规格
 
-在/etc/logrotate.d/knet中约束K-NET日志文件达到2MB就会触发knet_rsyslog.conf，进而触发Lograte（转储），转储后的日志为"knet_comm.log-序号.gz"。达到10个日志文件或者365天后，就会删除最旧的日志。
+在/etc/logrotate.d/knet中约束K-NET日志文件达到2MB就会触发knet_rsyslog.conf，进而触发Lograte（转储），转储后的日志为“knet_comm.log-序号.gz”。达到10个日志文件或者365天后，就会删除最旧的日志。
 
 |  项目   |  限制 |
 |------------|-------------|
@@ -109,7 +109,7 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
 
 ## SELinux配置
 
-> **说明** 
+> [!NOTE]说明 
 >
 >- Linux系统默认开启的SELinux安全机制会显示K-NET部分功能，导致无法正常使用K-NET业务。这是Linux OS本身的行为。如果用户需在自己系统中使用SELinux，则需自行寻找解决方法。
 >- 针对此限制，提供快速禁用SELinux的方法。

@@ -16,7 +16,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
     display qos queue statistics interface interface-type interface-number
     ```
 
-    >**说明：** 
+    > [!NOTE]说明  
     >- interface-type表示接口的类型。
     >- interface-number表示接口的编号。
 
@@ -55,7 +55,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     ![](../figures/zh-cn_image_0000002486509776.png)
 
-    Dropped(Packet/Byte)与Drop Rate(pps/bps)不为0，表示交换机已经丢包。
+    “Dropped(Packet/Byte)”与“Drop Rate(pps/bps)”不为0，表示交换机已经丢包。
 
 ## 处理步骤
 
@@ -71,7 +71,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     interface-number表示接口的编号。命令以及回显示例如下：
 
-    ```ColdFusion
+    ```bash
     display qos buffer-usage interface 100GE 1/0/1
     ```
 
@@ -97,6 +97,6 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
     -----------------------------------------------------------------------------
     ```
 
-    其中，Total (KBytes\)表示接口的总缓存能力。
+    其中，“Total (KBytes)”表示接口的总缓存能力。
 
-2. 尝试调大交换机步骤1的接口的缓存Total (KBytes\)，或者换缓存容量更大的交换机。
+2. 尝试调大交换机步骤1的接口的缓存“Total (KBytes)”，或者换缓存容量更大的交换机。

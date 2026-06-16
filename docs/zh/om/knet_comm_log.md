@@ -15,6 +15,10 @@ vim /var/log/knet/knet_comm.log
 tail <option> /var/log/knet/knet_comm.log
 ```
 
+> [!NOTE]说明
+>
+> 安装K-NET后，会将带有`hinic3:`、`EAL:`、`TELEMETRY:` 和`libknet:`关键字的内核日志重定向到`/var/log/knet/knet_comm.log`。
+
 ## 命令参数
 
 **表 1** **tail**命令参数

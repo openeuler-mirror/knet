@@ -4,7 +4,7 @@
 
 提供内核流量转发功能开关，支持通过用户态协议栈对内核态流量进行转发，支持内核态与K-NET应用的同时使能。主要适用于网卡不支持硬件流量分叉场景。
 
->**须知：** 
+> [!NOTICE]须知  
 >K-NET流转发使能侧的MTU需保证不高于对端网卡及链路上交换机的MTU。
 
 ## 使用示例
@@ -31,9 +31,9 @@
     taskset -c 0-3 env LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
 
-    >**说明：** 
-    >taskset -c 0-3表示对cpu核心0-3绑核，指定进程只能在这些cpu核心上运行，用户根据实际场景替换。
-    >/usr/lib64/libknet_frame.so为K-NET共享库默认安装路径，若不同需根据实际场景替换。
+    > [!NOTE]说明  
+    >- taskset -c 0-3表示对cpu核心0-3绑核，指定进程只能在这些cpu核心上运行，用户根据实际场景替换。
+    >- /usr/lib64/libknet_frame.so为K-NET共享库默认安装路径，若不同需根据实际场景替换。
 
     ![](../figures/zh-cn_image_0000002478219760.png)
 

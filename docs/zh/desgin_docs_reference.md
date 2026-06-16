@@ -1,11 +1,11 @@
 # Summary
 
-提供Socket透明替换接口支撑业务零侵入修改；可提供用户态TCP/IP高性能协议栈，实现数据面高性能加速功能。面向存在网络瓶颈的业务。向下接入多种协议栈，向上提供透明POSIX接口。
+提供Socket透明替换接口支撑业务零侵入修改；可提供用户态TCP/IP高性能协议栈，实现数据面高性能加速功能。面向存在网络瓶颈的业务，向下接入多种协议栈，向上提供透明POSIX接口。
 
 # Usage Example
 
-API参考<term>POSIX</term>接口
-部署文档参考[README](../../README.md)
+API参考<term>POSIX</term>接口。
+部署文档参考[README](../../README.md)。
 配置参考如下：
 
 | 配置项 | 说明 | 默认值 | 取值范围 | 约束说明 |
@@ -45,7 +45,6 @@ API参考<term>POSIX</term>接口
 | **fin_timeout** | FIN_WAIT_2定时器超时时间，单位秒 | 600 | 1-600 | / |
 | **min_port** | 不指定端口号进行绑定时，随机的端口号范围最小值 | 49152 | 1~49152 | / |
 | **max_port** | 不指定端口号进行绑定时，随机的端口号范围最大值 | 65536 |  | / |
-| **msl_time** | 不指定端口号进行绑定时，随机的端口号范围最大值 | 65535 | 50000~65535 | / |
 | **max_sendbuf** | 允许的TCP socket发送缓冲区最大的大小，单位byte | 10485760 | 8192~2147483647 | / |
 | **def_sendbuf** | TCP socket发送缓冲区默认大小，单位byte，且不能大于max_sendbuf | 8192 | 8192~max_sendbuf | / |
 | **max_recvbuf** | 允许的TCP socket接收缓冲区最大的大小，单位byte | 10485760 | 8192~2147483647 | / |
@@ -67,25 +66,26 @@ API参考<term>POSIX</term>接口
 | **huge_dir** | 大页挂载路径 | / | / | / |
 | **base-virtaddr** | dpdk启动基地址 | / | / | / |
 
-# Movitvation
+# Motivation
 
-作为兼容用户态协议栈的框架式加速库，主要有以下设计走向
-1）资源管理：
-    A、提供基础的资源管理能力，如内存、内存池、定时器，配置管理，日志等；
-    B、提供底层加速库DPDK接口封装 ；
-    C、提供软硬件协同抽象接口使能硬件加速特性；    
-2）数据转发转发：用户态DPDK；
-3）协议栈适配层：为协议栈提供基本的资源管理能力；该适配层用于适配协议栈南向接口；
+作为兼容用户态协议栈的框架式加速库，主要有以下设计走向。
+
+1. 资源管理：
+    1. 提供基础的资源管理能力，如内存、内存池、定时器，配置管理，日志等；
+    2. 提供底层加速库DPDK接口封装；
+    3. 提供软硬件协同抽象接口使能硬件加速特性。
+2. 数据转发转发：用户态DPDK；
+3. 协议栈适配层：为协议栈提供基本的资源管理能力；该适配层用于适配协议栈南向接口。
 
 # Design constraints
 
-初始化dpdk控制线程直接走os
-概述：TrafficResourcesInit初始化时，发现是dpdk控制线程，直接返回走os api
-背景/原因：所有线程原先TrafficResourcesInit发现已经在初始化，需要等待初始化完成，然后用dp api。但是bond场景下dpdk控制线程负责bond状态机更新，如果也等待TrafficResourcesInit初始化完成，会导致bond状态机无法更新，所以TrafficResourcesInit初始化线程永远等不到bond状态更新，超时之后bond就初始化失败了。所以修改成TrafficResourcesInit时发现是dpdk控制线程直接走os api
+初始化DPDK控制线程直接走OS。
+概述：TrafficResourcesInit初始化时，发现是DPDK控制线程，直接返回走OS API。
+背景/原因：所有线程原先TrafficResourcesInit发现已经在初始化，需要等待初始化完成，然后用dp API。但是bond场景下DPDK控制线程负责bond状态机更新，如果也等待TrafficResourcesInit初始化完成，会导致bond状态机无法更新，所以TrafficResourcesInit初始化线程永远等不到bond状态更新，超时之后bond就初始化失败了。所以修改成TrafficResourcesInit时发现是DPDK控制线程直接走OS API。
 
-主动建链时，非<term>K-NET</term>的进程不得使用分配给<term>K-NET</term>使用的随机端口，即与<term>K-NET</term>端口区间不要交叉
-背景/原因：<term>K-NET</term>主动建链时，会随机选择端口与对端建链，并下区间流表，如果不进行端口隔离，即内核使用已经下区间流表的port进行主动建链，内核业务进程将不会收到包，包都经由流表发送给K-NET用户态协议栈。
+主动建链时，非<term>K-NET</term>的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉。
+背景/原因：K-NET主动建链时，会随机选择端口与对端建链，并下区间流表，如果不进行端口隔离，即内核使用已经下区间流表的port进行主动建链，内核业务进程将不会收到包，包都经由流表发送给K-NET用户态协议栈。
 
 # Adoption strategy
 
-Redis应用可以无感劫持使用
+Redis应用可以无感劫持使用。

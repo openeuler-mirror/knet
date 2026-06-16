@@ -2,7 +2,7 @@
 
 ## 接口名称
 
-**socket(int domain, int type, int protocol\)**
+**socket(int domain, int type, int protocol)**
 
 ## 接口描述
 
@@ -13,7 +13,7 @@
 |参数|说明|备注|
 |--|--|--|
 |domain|通信域|支持AF_INET。|
-|type|通信语义类型|支持SOCK_STREAM、SOCK_DGRAM、SOCK_CLOEXEC (默认支持该type，且不可修改)、SOCK_NONBLOCK。|
+|type|通信语义类型|支持SOCK_STREAM、SOCK_DGRAM、SOCK_CLOEXEC（默认支持该type，且不可修改）、SOCK_NONBLOCK。|
 |protocol|协议类型|支持IPPROTO_TCP（type必须为SOCK_STREAM）。支持IPPROTO_UDP（type必须为SOCK_DGRAM）。支持IPPROTO_IP，即设置为0。|
 
 ## 返回值

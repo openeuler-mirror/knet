@@ -2,7 +2,7 @@
 
 ## 接口名称
 
-**signal(int signum, sighandler\_t handler\)**
+**signal(int signum, sighandler_t handler)**
 
 ## 接口描述
 
@@ -17,10 +17,10 @@
 
 ## 返回值
 
-类型：sighandler\_t
+类型：sighandler_t
 
 - 对信号的旧处理方式：表示成功
-- SIG\_ERR：表示失败，并设置errno以指示错误类型
+- SIG_ERR：表示失败，并设置errno以指示错误类型
 
 ## 错误码
 

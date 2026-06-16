@@ -2,7 +2,7 @@
 
 ## 接口名称
 
-**listen(int sockfd, int backlog\)**
+**listen(int sockfd, int backlog)**
 
 ## 接口描述
 
