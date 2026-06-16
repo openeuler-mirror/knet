@@ -424,7 +424,7 @@ vi /etc/knet/knet_comm.conf
         "tso": 1,
         "lro": 1,
         "tcp_checksum": 1,
-        "bifur_enable": 1
+        ...
      },
     "proto_stack": {
         "max_mbuf": 204800,
@@ -443,3 +443,6 @@ vi /etc/knet/knet_comm.conf
 ```
 
 完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。
+
+> [!NOTE]说明
+> 如果需要在流分叉场景使用，请参考[流量分叉基础功能](./traffic_bifurcation.md#流量分叉基础功能)。
