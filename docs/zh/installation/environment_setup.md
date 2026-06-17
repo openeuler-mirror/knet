@@ -38,17 +38,6 @@
     > [!NOTE]说明  
     ><term>SMMU</term>是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
 
-### 升级BIOS（仅TM280网卡涉及）
-
-> [!NOTE]说明  
->TM280网卡固件集成在提供的BIOS固件中，升级BIOS后网卡固件也会随之更新。
-
-1. 请参见[版本配套关系](../release_note.md)获取BIOS固件。
-2. 固件升级可以参考[《TaiShan 机架服务器 升级指导书》](https://support.huawei.com/enterprise/zh/doc/EDOC1100048781?idPath=23710424|251364417|9856629|250783947)中的“升级机箱组件固件--升级BIOS--通过iBMC Web升级BIOS”。
-3. 升级完成后确认TM280网卡固件已经更新到所需的版本。
-
-    ![](../figures/zh-cn_image_0000002536427415.png)
-
 ### （可选）配置物理机Yum源
 
 > [!NOTE]说明  

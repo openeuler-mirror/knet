@@ -4,7 +4,7 @@
 >
 >- 请用户先参见[安装抓包工具](../installation/installation.md#可选安装抓包工具)后再参考本章节进行使用。
 >- K-NET使用的DPDK版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
->- 仅SP670网卡用户使用抓包时需要使用**LD\_PRELOAD=/usr/lib64/librte\_net\_hinic3.so**，TM280网卡用户无需使用LD\_PRELOAD加载驱动。
+>- SP670网卡用户抓包时需要使用**LD\_PRELOAD=/usr/lib64/librte\_net\_hinic3.so**。
 
 ## 命令格式
 

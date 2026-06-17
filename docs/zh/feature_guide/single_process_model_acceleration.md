@@ -248,7 +248,7 @@ vi /etc/knet/knet_comm.conf
 
 > [!NOTE]说明  
 >三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
->以6个服务端虚拟机使用的网卡IP分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
+>以6个服务端虚拟机使用的网卡IP地址分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
 
 组网参考:
 
@@ -324,7 +324,7 @@ vi /etc/knet/knet_comm.conf
 
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.* -p 6379 -c 1000 -n 10000000 -r 100000 -t set --threads 15 --cluster
-    redis-cli -h 192.168.0.* -p 6379 flushall  #仅限主节点IP执行该操作
+    redis-cli -h 192.168.0.* -p 6379 flushall  #仅限主节点IP地址执行该操作
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15 --cluster 
     ```
 
