@@ -90,75 +90,44 @@
 
     ![](../figures/zh-cn_image_0000002535717537.png)
 
-8. 执行命令，确认要用的网卡。<a id="确认所用网卡"></a>
-    - SP670网卡：
+8. 执行命令，确认要用的网口。<a id="确认所用网口"></a>
 
-        SP670网卡安装驱动后可通过以下两种方式获取网口设备及BDF号，任选一种执行，推荐使用hinicadm工具直接查询。
+    hinicadm工具直接查询：
 
-        - hinicadm工具直接查询：
+    ```bash
+    hinicadm3 info
+    ```
 
-            ```bash
-            hinicadm3 info
-            ```
+    回显示例如下，获取到可用网口设备网口为“enp6s0”，BDF号为“0000:06:00.0”。
 
-            回显示例如下，获取到可用网口设备网口为"enp6s0"，BDF号为"0000:06:00.0"。
+    ```text
+    Card num:1
+    Device Information:
+        Card        PCIe Function
+    |----hinic0(CAL_2X100G)
+            |--------0000:06:00.2(NIC:bifur)
+            |--------0000:06:00.0(NIC:enp6s0)
+    ```
 
-            ```text
-            Card num:1
-            Device Information:
-                Card        PCIe Function
-            |----hinic0(CAL_2X100G)
-                    |--------0000:06:00.2(NIC:bifur)
-                    |--------0000:06:00.0(NIC:enp6s0)
-            ```
+    获取并确认要使用的网口后，执行以下命令获取网口IP地址以及MAC地址。
+    
+    ```bash
+    ip a
+    ```
 
-        - 通用命令查询BDF号后获取网口：
+    ![](../figures/zh-cn_image_0000002510321009.png)
 
-            ```bash
-            # 虚拟机场景
-            lspci |grep 375f
-            ```
+    （可选）若网口不存在IP地址可手动配置：
 
-            ```bash
-            # 物理机场景
-            lspci |grep 0222
-            ```
+    > [!NOTE]说明
+    > 客户端服务器也需要保证网口存在IP地址，否则网络无法联通。
 
-            以虚拟机场景为例：
+    ```bash
+    ip addr add 192.168.*.*/24 dev enp6s0 # 用户根据实际情况替换IP地址、掩码以及网口设备
+    ```
 
-            ![](../figures/zh-cn_image_0000002478201084.png)
-
-            ```bash
-            ls -al /sys/class/net  # 查看当前系统中所有网络接口，可以获取上一步中查找到BDF号为"06:00.0"的网口名为"enp6s0"
-            ```
-
-            ![](../figures/zh-cn_image_0000002478361074.png)
-
-        获取并确认要使用的网口后，执行以下命令获取网口IP地址以及MAC地址。
-        
-        ```bash
-        ip a
-        ```
-
-        ![](../figures/zh-cn_image_0000002510321009.png)
-
-        （可选）若网口不存在IP可手动配置：
-
-        > [!NOTE]说明
-        > 客户端服务器也需要保证网口存在IP，否则网络无法联通。
-
-        ```bash
-        ip addr add 192.168.*.*/24 dev enp6s0 # 用户根据实际情况替换IP、掩码以及网口设备
-        ```
-
-        > [!NOTE]说明
-        >需记下使用网口的IP、MAC地址，后续DPDK接管网口后该信息不可见。
-
-    - TM280网卡：
-
-        TM280网卡不可使用hinicadm工具直接查询，需在服务器BMC界面查询到TM280网卡pci号，后续查询网络接口和网卡的IP地址以及MAC地址步骤与上述SP670网卡操作相同。
-
-        ![](../figures/zh-cn_image_0000002510201037.png)
+    > [!NOTE]说明
+    >需记下使用网口的IP、MAC地址，后续DPDK接管网口后该信息不可见。
 
 9. 配置NUMA大页内存。从此步骤开始，如果要在虚拟机中运行业务，那就在虚拟机中操作，如果是在物理机中运行业务，则在物理机操作。<a id="配置NUMA大页"></a>
 
@@ -230,7 +199,7 @@
 
     若为非root用户：
     用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
-    > **须知：** 
+    > [!NOTICE]须知 
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
     ```bash
@@ -265,7 +234,7 @@
 ### 通用业务配置
 
 1. 修改配置文件。
-    1. 参考[配置大页内存 步骤8](#确认所用网卡)确认要用的网卡。
+    1. 参考[配置大页内存 步骤8](#确认所用网口)确认要用的网口。
     2. 修改knet\_comm.conf文件。
         1. 打开文件。
 
@@ -331,7 +300,7 @@
         >如果想要取消DPDK接管网卡，执行：
         >
         >```bash
-        >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动，如果是使用TM280网卡则为"hns3"，"0000:06:00.0"为BDF号
+        >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动
         >```
 
 3. 配置<term>K-NET</term>动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。

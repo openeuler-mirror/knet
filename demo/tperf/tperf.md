@@ -30,7 +30,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 ## 使用示例
 
-服务端ip以192.168.1.6为例，客户端以192.168.1.7为例；具体需要替换为网卡配置的IP，且与K-NET配置文件中IP保持一致。
+服务端IP地址以192.168.1.6为例，客户端IP地址以192.168.1.7为例；具体需要替换为网卡配置的IP地址，且与K-NET配置文件中IP地址保持一致。
 
 > [!NOTE]说明
 > 示例运行完成后在服务端按Ctrl+C结束Tperf进程。

@@ -53,7 +53,7 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
 
 > [!NOTE]说明  
->SP670网卡与TM280网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
+>SP670网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
 
 ## 使用前配置
 
