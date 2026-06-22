@@ -279,4 +279,19 @@ int32_t knet_flexda_dtoe_channel_qpc_create(struct knet_send_channel *send_chann
 
 int32_t knet_flexda_dtoe_channel_qpc_destroy(struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel);
 
+/**
+ * @brief 动态使能或去使能通道的接收能力
+ * @param recv_channel [IN] rx channel句柄，具体详见结构体定义
+ * @param rx_invalid_enable [IN] 是否能epoll，1为不使能  0为使能
+ * @retval 0-success, others-failed
+ */
+int32_t knet_flexda_dtoe_channel_qpc_rx_invalid_set(struct knet_recv_channel *recv_channel, uint32_t rx_invalid_enable);
+
+/**
+ * @brief 获取当前通道是否还有有效的事件
+ * @param recv_channel [IN] rx channel句柄，具体详见结构体定义
+ * @retval 1-没有事件，0-有事件，others-failed
+ */
+int knet_flexda_dtoe_receive_channel_scq_is_empty(struct knet_recv_channel *recv_channel);
+
 #endif
