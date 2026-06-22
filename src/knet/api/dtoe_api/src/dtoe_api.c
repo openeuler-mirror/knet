@@ -763,3 +763,13 @@ int32_t knet_flexda_dtoe_channel_qpc_destroy(struct knet_send_channel *send_chan
 {
     return flexda_dtoe_channel_qpc_destroy(g_dtoeRes.dev.devSn, (flexda_send_channel_s*)send_channel, (flexda_recv_channel_s*)recv_channel);
 }
+
+int32_t knet_flexda_dtoe_channel_qpc_rx_invalid_set(struct knet_recv_channel *recv_channel, uint32_t rx_invalid_enable)
+{
+    return flexda_dtoe_channel_qpc_rx_invalid_set(g_dtoeRes.dev.devSn, (flexda_recv_channel_s*)recv_channel, rx_invalid_enable);
+}
+
+int knet_flexda_dtoe_receive_channel_scq_is_empty(struct knet_recv_channel *recv_channel)
+{
+    return flexda_dtoe_receive_channel_scq_is_empty((flexda_recv_channel_s*)recv_channel);
+}
