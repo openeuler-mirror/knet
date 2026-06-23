@@ -292,6 +292,6 @@ int32_t knet_flexda_dtoe_channel_qpc_rx_invalid_set(struct knet_recv_channel *re
  * @param recv_channel [IN] rx channel句柄，具体详见结构体定义
  * @retval 1-没有事件，0-有事件，others-failed
  */
-int knet_flexda_dtoe_receive_channel_scq_is_empty(struct knet_recv_channel *recv_channel);
+int knet_flexda_dtoe_receive_channel_is_empty(struct knet_recv_channel *recv_channel);
 
 #endif
