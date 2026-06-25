@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.14.1)
 project(K-NET C)
+
+# 在build目录下生成 compile_commands.json 文件，clang-tidy依赖该文件进行代码检查和分析
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 set(CMAKE_C_STANDARD 11)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC -Werror -Wall")
