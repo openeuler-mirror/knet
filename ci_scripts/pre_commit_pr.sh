@@ -4,65 +4,22 @@ set -o pipefail
 
 set +x # 执行命令前打印
 
-# 定义需外部传入的参数
-REPO_URL=${REPO_URL} # 代码仓地址，例如https://gitcode.com/xx/xxx.git
-echo "[INFO] 代码仓: ${REPO_URL}"
-
-PR_ID=${PR_ID} # PR号，例如11,取自https://gitcode.com/xx/xxx/pull/11
-echo "[INFO] PR号: ${PR_ID}"
-
-TARGET_BRANCH=${TARGET_BRANCH} # PR待合入的目标分支
-echo "[INFO] 目标分支: ${TARGET_BRANCH}"
-
 # 脚本标题
 echo "================================================"
 echo "          Pre-Commit CI 增量检查"
 echo "================================================"
 
-# 处理凭据认证，仅私仓需要配置，需要外部传入GIT_TOKEN
-if [ -n "${GIT_TOKEN}" ]; then
-	echo "GIT_TOKEN已传入，开始设置代码仓凭据"
-	# 自动从REPO_URL 提取域名
-	REPO_DOMAIN=$(echo "${REPO_URL}" | awk -F/ '{print $3}')
-	# 配置 Git 凭据
-	git config --global credential.helper store
-	echo "https://oauth2:${GIT_TOKEN}@${REPO_DOMAIN}" >~/.git-credentials
-fi
-
-# ================================================================
-
-# 克隆PR目标分支代码仓到指定目录
-SOURCE_CODE_DIR="source_code"                                # 克隆到本地的代码仓目录
-rm -rf ${SOURCE_CODE_DIR}                                    # 清理可能存在的缓存
-git clone ${REPO_URL} -b ${TARGET_BRANCH} ${SOURCE_CODE_DIR} # 克隆代码仓目标分支
-cd ${SOURCE_CODE_DIR}                                        # 切换到本地代码仓根目录
-
-# 通用Git配置
-git config --global user.email "openlibing-robot@openlibing.com"
-git config --global user.name "openlibing-robot"
-git config core.quotePath false # 配置 Git 中文文件名支持
-
-# 拉取PR源分支代码
-echo -e "\n[INFO] 拉取源分支代码"
-LOCAL_SOURCE_BRANCH="pr_${PR_ID}" # 拉取到本地的源分支名称
-git fetch origin refs/merge-requests/${PR_ID}/head:${LOCAL_SOURCE_BRANCH}
-
-# 预合并目标分支代码
-git pull                             # 更新最新的远程分支代码
-git checkout ${LOCAL_SOURCE_BRANCH}  # 切换到本地源分支
-git merge ${TARGET_BRANCH} --no-edit # 合并目标分支
-
 # 配置文件.pre-commit-config.yaml校验
 PRE_COMMIT_CONFIG_YAML=".pre-commit-config.yaml"
 if [ ! -f ${PRE_COMMIT_CONFIG_YAML} ]; then
-	echo "[SUCCESS] 未找到${PRE_COMMIT_CONFIG_YAML}，检查通过"
+	echo "[SUCCESS] 未找到${PRE_COMMIT_CONFIG_YAML}，检查终止"
 	exit 0
 fi
 
 # 获取变更文件列表
 echo -e "\n[INFO] 获取变更文件列表"
 # shellcheck disable=SC2207
-FILES_ARR=($(git diff --name-only --diff-filter=ACMR origin/${TARGET_BRANCH} HEAD | sort -u))
+FILES_ARR=($(git diff --name-only --diff-filter=ACMR ${BEFORE_MERGE} HEAD | sort -u))
 
 # 无变更文件直接退出
 if [ ${#FILES_ARR[@]} -eq 0 ]; then
@@ -81,6 +38,7 @@ pip config set global.index-url https://repo.huaweicloud.com/repository/pypi/sim
 pip config set global.trusted-host repo.huaweicloud.com
 pip install pre-commit # 安装pre-commit
 pre-commit --version
+pre-commit install --install-hooks # 安装扫描工具
 
 # 执行pre-commit检查
 echo -e "\n[INFO] 开始 pre-commit 检查"
