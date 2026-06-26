@@ -37,6 +37,9 @@ echo -e "\n[INFO] 安装 pre-commit"
 pip config set global.index-url https://repo.huaweicloud.com/repository/pypi/simple # 配置国内pip源加速
 pip config set global.trusted-host repo.huaweicloud.com
 pip install pre-commit # 安装pre-commit
+
+export PATH="/home/jenkins/.local/bin:$PATH"  # 流水线环境工具默认安装路径在/home/jenkins/.local/bin
+
 pre-commit --version
 pre-commit install --install-hooks # 安装扫描工具
 
