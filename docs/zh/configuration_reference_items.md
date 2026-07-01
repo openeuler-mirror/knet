@@ -9,7 +9,7 @@
 
 |  配置项    |   说明 |缺省值 |
 |----------|--------|-----|
-|  version |  K-NET版本信息|"1.0.0"|
+|  version |  K-NET版本信息|"1.2.0"|
 
 ## 通用配置项
 
@@ -44,8 +44,8 @@
 |----------|--------|-----|-----|
 | tso          |  TCP Segmentation Offload使能标志，默认关闭。<li> 0：表示不使能<term>TSO</term>。</li><li> 1：表示使能TSO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>   | 0 |0，1|
 | lro          | Large Receive Offload使能标志，默认关闭。<li> 0：表示不使能<term>LRO</term>。</li><li> 1：表示使能LRO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>  | 0 |0，1|
-| tcp_checksum | TCP/IP硬件校验和特性开关，默认关闭。<li> 0：表示关闭。</li><li>  1：表示使能。 </li>| 0 |0，1|
-| bifur_enable | 流量分叉特性开关，默认关闭。<li>0：表示关闭。</li><li> 1：表示使能网卡硬件流量分叉功能。 </li><li>  2：表示使能软件内核流量转发功能。 </li>| 0 |0，1，2|
+| tcp_checksum | TCP/IP硬件校验和特性开关，默认关闭。<li> 0：表示关闭。</li><li>  1：表示使能。</li>| 0 |0，1|
+| bifur_enable | 流量分叉特性开关，默认关闭。<li>0：表示关闭。</li><li> 1：表示使能网卡硬件流量分叉功能。</li><li>  2：表示使能软件内核流量转发功能。</li>| 0 |0，1，2|
 
 ## 用户态TCP/IP协议栈配置项
 
@@ -81,8 +81,8 @@
 |----------|--------|-----|-----|
 |core_list_global|数据面绑核，将数据面绑定的核号固定。<p>用数字列表设置应用程序使用的CPU核，例如：“0,1”，表示绑定0号核和1号核。</p><p>多进程模式下，绑多个核时，可以使用“-”，如“1-10”，表示绑定1号核到10号核。</p><p> **注意：**</p> <li>绑定核的个数必须等于max_worker_num，仅除开启cothread_enable后，此配置项不会进行读取与校验。</li><li>ctrl_vcpu_ids指定的控制线程核号和此配置项指定的核号必须不同。</li>|"1"|0~服务器的CPU个数-1|
 |queue_num|所有worker使用的队列数。<li>单进程：总的队列个数，均分到每个worker上。</li><li>多进程：无效，每个从进程默认一个队列。</li><p> **说明：**</p> 单进程模式下：<p>- 仅单进程，可配置`queue_num>=max_worker_num`，此时worker会共享使能的队列。</p><p>  - 开共线程时，即“cothread_enable”: 1时：max_worker_num为1，queue_num可配置大于等于1；max_worker_num大于1，queue_num需要与max_worker_num一致。</p><p>- 开流分叉时，即“bifur_enable”：1时：默认queue_num最大值为8；用户可根据实际需要配置32队列，参考[流量分叉支持配置32队列](./feature_guide/traffic_bifurcation.md#流量分叉支持配置32队列)支持配置32队列，此时queue_num最大值为32。</p>|1|1~64|
-|tx_cache_size|发送缓存大小，单位个。<p> **约束：**</p>tx_cache_size *业务实例个数 + rx_cache_size* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
-|rx_cache_size|接收缓存大小，单位个。<p> **约束：**</p>tx_cache_size *业务实例个数 + rx_cache_size* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
+|tx_cache_size|发送缓存大小，单位个。<p> **约束：**</p> tx_cache_size \* 业务实例个数 + rx_cache_size \* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
+|rx_cache_size|接收缓存大小，单位个。<p> **约束：**</p>tx_cache_size \*业务实例个数 + rx_cache_size\* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
 |socket_mem   |预分配每个socket大页内存大小，单位MB。<p>多个参数间请使用“,”分隔。例如：</p>`"socket_mem" : "--socket-mem=1024,2048"`<p>表示在0号socket上预分配1024M，在1号socket上分配2048M。</p>|--socket-mem=1024|0~服务器分配现有的可用大页内存总量|
 |socket_limit |限制每个socket上可分配的最大内存。不支持传统内存模式。单位MB。<p> **约束：**</p>socket_limit大于等于socket_mem的内存数。|--socket-limit=1024|0~服务器分配现有的可用大页内存总量|
 |external_driver|不同场景填写不同的PMD驱动。注意前面有个-d。<p>SP670</p>`"external_driver" : "-dlibrte_net_hinic3.so"`|-dlibrte_net_hinic3.so|-dlibrte_net_hinic3.so，置空|

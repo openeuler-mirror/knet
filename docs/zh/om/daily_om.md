@@ -12,7 +12,7 @@
 
     ![](../figures/zh-cn_image_0000002519162195.png)
 
-    若不存在请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)或[《SP200&SP600 网卡 驱动源码 编译指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100429557/edc0a769)进行驱动的安装。
+    若不存在请参考[《华为 SP600 智能网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9?idPath=23710424|251364417|9856629|253287505)进行驱动的安装。
 
 2. 网卡驱动存在后还需要进一步确认驱动已经加载到系统。
 

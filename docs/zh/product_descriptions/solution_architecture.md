@@ -3,8 +3,11 @@
 ## 架构描述
 
 <term>K-NET</term>网络加速套件，主要面向通用协议加速、网络安全加速业务场景，同时也面向通用计算业务、安全通信业务，基于SP670网卡，提供用户态TCP/IP协议栈加速。
+网络安全加速详情介绍和使用请参见[https://atomgit.com/src-openeuler/strongswan](https://atomgit.com/src-openeuler/strongswan)。
 
 ![](../figures/knetall.png)
+
+TM280相关内容请参见[历史版本](https://gitcode.com/openeuler/knet/blob/docs_archive_260330/docs/zh/product_descriptions/solution_architecture.md)。
 
 ## 通信协议加速
 
@@ -22,9 +25,10 @@ K-NET通信协议加速子系统中包含框架层、用户态TCP/IP协议栈、
 
 ## 运维管理
 
-- K-NET通信协议加速用户态TCP/IP协议栈特性：
-    - 支持数据传输抓包
-    - 支持查询协议栈统计信息
+K-NET通信协议加速用户态TCP/IP协议栈特性：
+
+- 支持数据传输抓包
+- 支持查询协议栈统计信息
 
 ## 硬件平台
 
