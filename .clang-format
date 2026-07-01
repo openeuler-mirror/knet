@@ -1,0 +1,81 @@
+#BasedOnStyle: Google
+Language: Cpp
+
+# ========== 缩进设置（强制4空格） ==========
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+
+# ========== 函数大括号换行 ==========
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  AfterClass: false
+  AfterControlStatement: false
+  AfterEnum: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  IndentBraces: false
+
+# ========== 指针对齐 ==========
+PointerAlignment: Left
+DerivePointerAlignment: false
+
+# ========== 参数换行 ==========
+AlignAfterOpenBracket: Align
+BinPackArguments: false
+BinPackParameters: true
+
+# ========== 大括号和语句 ==========
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+
+# ========== 列表初始化 ==========
+Cpp11BracedListStyle: false
+
+# ========== 行长度 ==========
+ColumnLimit: 120
+PenaltyExcessCharacter: 100
+
+# ========== include排序 ==========
+SortIncludes: false
+
+# ========== 其他 ==========
+IndentCaseLabels: true
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 2
+MaxEmptyLinesToKeep: 1
+NamespaceIndentation: None
+AlwaysBreakTemplateDeclarations: true
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+Standard: Auto
+
+# ========== 惩罚值 ==========
+PenaltyBreakBeforeFirstCallParameter: 120
+PenaltyBreakComment: 30
+PenaltyBreakString: 1000
+PenaltyBreakFirstLessLess: 120
+PenaltyReturnTypeOnItsOwnLine: 60
+
+# ========== 空格 ==========
+SpaceBeforeAssignmentOperators: true
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+
+# ========== 宏定义 ==========
+MacroBlockBegin: "^ *PROG *$|CATCH_ALL_ERROR.*$"
+MacroBlockEnd: "^ *END_PROG *$|END_CATCH_ERROR$"
+CommentPragmas: '^lint'
