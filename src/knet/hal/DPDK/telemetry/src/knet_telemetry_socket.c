@@ -243,9 +243,12 @@ KNET_STATIC KNET_SocketState *GetNetStat()
         if (KNET_IsFdHijack(i) && KNET_GetFdType(i) == KNET_FD_TYPE_SOCKET) {
             int dpFd = KNET_OsFdToDpFd(i);
             DP_SocketState_t dpSocketState = {0};
-            if (g_dpTelemetryHooks.dpGetSocketStateHook(dpFd, &dpSocketState) != 0) {
-                KNET_ERR("K-NET telemetry get net stat failed, osFd %d, dpFd %d ", i, dpFd);
-                goto abnormal;
+            int ret = g_dpTelemetryHooks.dpGetSocketStateHook(dpFd, &dpSocketState);
+            if (ret != 0 && errno != EBADF) {
+                KNET_WARN("K-NET telemetry get net stat failed, osFd %d, dpFd %d ", i, dpFd);
+            }
+            if (ret != 0) {
+                continue;
             }
             uint32_t tid = 0;
             if (dpSocketState.workerId == UNCONNECTED_FLAG) {
