@@ -1,4 +1,3 @@
-#BasedOnStyle: Google
 Language: Cpp
 
 # ========== 缩进设置（强制4空格） ==========
@@ -24,12 +23,12 @@ BraceWrapping:
   IndentBraces: false
 
 # ========== 指针对齐 ==========
-PointerAlignment: Left
+PointerAlignment: Right
 DerivePointerAlignment: false
 
 # ========== 参数换行 ==========
 AlignAfterOpenBracket: Align
-BinPackArguments: false
+BinPackArguments: true
 BinPackParameters: true
 
 # ========== 大括号和语句 ==========
@@ -38,9 +37,9 @@ AllowShortFunctionsOnASingleLine: false
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 AllowShortCaseLabelsOnASingleLine: false
-
+AllowShortEnumsOnASingleLine: false
 # ========== 列表初始化 ==========
-Cpp11BracedListStyle: false
+Cpp11BracedListStyle: true
 
 # ========== 行长度 ==========
 ColumnLimit: 120
@@ -52,7 +51,7 @@ SortIncludes: false
 # ========== 其他 ==========
 IndentCaseLabels: true
 AlignTrailingComments: true
-SpacesBeforeTrailingComments: 2
+SpacesBeforeTrailingComments: 1
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 AlwaysBreakTemplateDeclarations: true
