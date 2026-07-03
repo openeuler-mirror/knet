@@ -31,6 +31,7 @@ repos:
     rev: v20.1.7
     hooks:
       - id: clang-format # C/C++ 代码格式化
+        files: ^src/.*\.(c|cpp|cc|cxx|h|hpp|hxx)$ # 只扫描src目录下的特定类型文件
         types_or: [ c, c++ ] # 参考：https://pre-commit.com/#filtering-files-with-types
         args: [ "--style=File", "--verbose" ] # 主流风格：LLVM/Google/File(读取根目录.clang-format配置)
 
