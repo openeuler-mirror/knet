@@ -142,32 +142,32 @@ vi /etc/knet/knet_comm.conf
 
 5. （可选）使用内核协议栈测试Redis性能对比K-NET加速性能。
     
-    参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)说明中的取消接管网卡步骤。
+    1. 参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)说明中的取消接管网卡步骤。
 
-    ```bash
-    dpdk-devbind.py -b "hisdk3" 0000:06:00.0
-    ```
+        ```bash
+        dpdk-devbind.py -b "hisdk3" 0000:06:00.0
+        ```
 
-    服务端不使用K-NET运行Redis业务：
+    2. 服务端不使用K-NET运行Redis业务：
 
-    ```bash
-    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
-    ```
+        ```bash
+        /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+        ```
 
-    观察到如下输出，表示启动成功：
+        观察到如下输出，表示启动成功：
 
-    ```text
-     * Ready to accept connections
-    ```
+        ```text
+         * Ready to accept connections
+        ```
 
-    客户端运行redis-benchmark方式与K-NET场景一致，参考[步骤2](#客户端set)至[步骤4](#客户端get)。
+        客户端运行redis-benchmark方式与K-NET场景一致，参考[步骤2](#客户端set)至[步骤4](#客户端get)。
 
-    使用内核协议栈测试后，若需重新使用K-NET特性，需参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)重新接管网卡。
+    3. 使用内核协议栈测试后，若需重新使用K-NET特性，需参考[DPDK接管网卡](./environment_configuration.md#DPDK接管网卡)重新接管网卡。
 
-    ```bash
-    dpdk-devbind.py -b vfio-pci 0000:06:00.0
-    dpdk-devbind.py -s                 #确认是否接管
-    ```
+        ```bash
+        dpdk-devbind.py -b vfio-pci 0000:06:00.0
+        dpdk-devbind.py -s                 #确认是否接管
+        ```
 
 6. 完成后在服务端结束K-NET进程，按Ctrl+C结束Redis进程。
 
@@ -192,7 +192,7 @@ vi /etc/knet/knet_comm.conf
     > ```
 
     ```bash
-    LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.0.1
+    taskset -c 33-62 LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.0.1
     ```
 
 2. 服务端虚拟机（从）运行Redis服务端。
@@ -340,7 +340,7 @@ vi /etc/knet/knet_comm.conf
 5. 服务端删除运行目录下的dump.rdb文件以及运行生成的nodes-\*.conf文件。
 
     > [!NOTE]说明  
-    >这两个文件包含集群配置缓存信息，如果不删除，下次在客户端进行执行创建集群会有异常报错
+    >这两个文件包含集群配置缓存信息，如果不删除，下次在客户端进行执行创建集群会有异常报错。
 
     - 虚拟机1：
 

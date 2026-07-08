@@ -31,16 +31,16 @@
 
     ![](../figures/1.png)
 
-7. 将“Support Smmu“设置为“Enabled”，将“Smmu Work Around”设置为“Enabled”，按**F10**键保存退出。
+7. 将“Support Smmu”设置为“Enabled”，将“Smmu Work Around”设置为“Enabled”，按**F10**键保存退出。
 
     ![](../figures/zh-cn_image_0000002503752648.png)
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     ><term>SMMU</term>是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
 
 ### （可选）配置物理机Yum源
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >这里以配置openEuler 22.03 LTS SP4系统物理机的Yum源为例，如果环境已经配置过Yum源，可跳过此章节。
 
 1. 登录服务器节点，下载虚拟机镜像openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso上传至服务器。
@@ -49,7 +49,7 @@
 
     ![](../figures/zh-cn_image_0000002535828147.png)
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 2. 使用mount命令挂载ISO文件。
@@ -61,7 +61,7 @@
     mount /path/to/local/directory/openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso /mnt
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 3. 备份配置文件。
@@ -79,7 +79,7 @@
         vi local.repo
         ```
 
-    2. 按“i“进入编辑模式，将下面的内容拷贝到local.repo中。
+    2. 按“i”进入编辑模式，将下面的内容拷贝到local.repo中。
 
         ```text
         [local]
@@ -91,14 +91,14 @@
 
     3. 按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-5. 更新源。
+5. 更新Yum源。
 
     ```bash
     yum clean all
     yum makecache
     ```
 
-### 安装SP670驱动（仅SP670网卡涉及）
+### 安装SP670驱动
 
 1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。若使用流量分叉，需执行以下命令：
 
@@ -106,43 +106,7 @@
     sh install.sh -d bifur
     ```
 
-2. 安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3_master)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
-
-    1. 安装DPDK驱动至指定目录：
-    
-        ```bash
-        cd ../dpdk-stable-21.11.7
-        meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
-        ninja -C build
-        ninja install -C build
-        ```
-
-    2. 获取hinic3 PMD源码：
-
-        ```bash
-        git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
-        cd dpdk-hinic3_master
-        ```
-    
-    3. 编译dpdk-hinic3驱动：
-    
-        ```bash
-        sh install.sh ../dpdk-stable-21.11.7 install
-        sh install.sh ../dpdk-stable-21.11.7 build
-        ```
-
-    4. 安装dpdk-hinic3驱动：
-
-        ```bash
-        cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
-        ls -l /usr/lib64/librte_net_hinic3.so*
-        ldconfig
-        ```
-
-        > [!NOTE]说明  
-        > {,.22,.22.0} 根据实际DPDK版本替换。
-    
-3. <a id="step4"></a>查看网卡模板。
+2. <a id="step4"></a>查看网卡模板。
 
     ```bash
     hinicadm3 cfg_template -i hinic0
@@ -220,7 +184,7 @@
 
 4. 配置Yum源，配置前需要先把虚拟机对应的ISO使用SFTP上传到虚拟机环境。本步骤及子步骤均需在虚拟机中执行。
 
-    > [!NOTICE]须知
+    > [!NOTE]说明
     >- /path/to/remote/file：ISO文件在物理机上的存放路径。
     >- root@remote\_host：用户为root，remote\_host表示物理机的控制IP地址，即物理机上192.168.122.\*的IP地址。
     >- /path/to/local/directory：表示虚拟机存放ISO文件路径。请用户根据实际存放路径修改。
@@ -264,7 +228,7 @@
 
         3. 按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    4. 更新源。
+    4. 更新Yum源。
 
         ```bash
         yum clean all
@@ -382,45 +346,13 @@
         ip addr add 192.168.32.2/24 dev enp6s0
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >192.168.32.2/24：用户根据实际情况配置IP地址和掩码。
 
 ### 安装SP670驱动
 
-若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动。虚拟机中只需要安装dpdk-hinic3驱动。
+若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动,可参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。虚拟机中无需重新安装固件，请执行以下命令安装驱动。
 
-安装dpdk-hinic3驱动请参考[DPDK驱动源码](https://atomgit.com/openeuler/dpdk/tree/hinic3_master)编译安装。将[DPDK源码](../release_note.md#软件配套关系)下载解压后放在当前目录下，之后执行命令如下所示：
-
-1. 安装DPDK驱动至指定目录：
-    
-    ```bash
-    cd ../dpdk-stable-21.11.7
-    meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
-    ninja -C build
-    ninja install -C build
-    ```
-
-2. 获取hinic3 PMD源码：
-
-    ```bash
-    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
-    cd dpdk-hinic3_master
-    ```
-    
-3. 编译dpdk-hinic3驱动：
-    
-    ```bash
-    sh install.sh ../dpdk-stable-21.11.7 install
-    sh install.sh ../dpdk-stable-21.11.7 build
-    ```
-
-4. 安装dpdk-hinic3驱动：
-
-    ```bash
-    cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
-    ls -l /usr/lib64/librte_net_hinic3.so*
-    ldconfig
-    ```
-
-    > [!NOTE]说明  
-    > {,.22,.22.0} 根据实际DPDK版本替换。
+```bash
+sh install.sh -i driver_only
+```
