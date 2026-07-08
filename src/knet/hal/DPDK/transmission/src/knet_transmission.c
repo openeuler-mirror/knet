@@ -22,6 +22,11 @@
 #include "knet_transmission_hash.h"
 #include "knet_transmission.h"
 
+// 对于问题：删除流表hash表项，在rte_flow_deatroy，此时驱动未返回时，又下一个相同表项的流表，导致驱动报错filter exists。
+// 通过锁解决，避免同一个流表在删除未完成时创建。
+#define FDIR_LOCK_TABLE_SIZE 1024
+KNET_SpinLock g_flowLocks[FDIR_LOCK_TABLE_SIZE] = {0};
+
 #define SINGLE_MODE_CLIENT_ID 0
 
 enum AccConnectType {
@@ -310,12 +315,14 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
     for (int i = 0; i < flowReq->queueIdSize; i++) {
         oldEntry->map.queueId[i] = flowReq->queueId[i];
     }
-
+    KNET_SpinLock *flowLock = &g_flowLocks[(*key) % FDIR_LOCK_TABLE_SIZE];
+    KNET_SpinlockLock(flowLock);
     int32_t ret = 0;
     ret = KnetFdirHashTblAdd(oldEntry);
     if (ret != 0) {
         KNET_ERR("FdirHashTblAdd failed. key %lu", *key);
         free(oldEntry);
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
 
@@ -327,8 +334,10 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
         if (ret != 0) {
             free(oldEntry);
         }
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
+    KNET_SpinlockUnlock(flowLock);
     oldEntry->map.flow = flow;
     oldEntry->map.arpFlow = arpFlow;
     oldEntry->map.dPortMask = flowReq->dstPortMask;
@@ -367,11 +376,14 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
     uint64_t ip_port = oldEntry->ip_port;
     uint16_t queueIdSize = oldEntry->map.queueIdSize;
     int clientId = oldEntry->map.clientId;
-    
+    KNET_SpinLock *flowLock = &g_flowLocks[(*key) % FDIR_LOCK_TABLE_SIZE];
+    KNET_SpinlockLock(flowLock);
+
     // 删除哈希表条目, 先删哈希表防止查表耗时导致单进程+流量分叉+iperf场景下的流规则并发问题
     ret = KnetFdirHashTblDel(key);
     if (ret != 0) {
         KNET_ERR("Delete Fdirhash table failed. ret %d, key %lu", ret, *key);
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
 
@@ -380,6 +392,7 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
     if (ret != 0) {
         KNET_ERR("Delete port %hu flow rule failed, entry ip_port %lu, queueIdSize %hu, clientId %d",
             KNET_GetNetDevCtx()->xmitPortId, ip_port, queueIdSize, clientId);
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
 
@@ -388,10 +401,11 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
         ret = CtrFlowChange(arpFlowQueueID, arpFlow);
         if (ret != 0) {
             KNET_ERR("QueueId %hu ctrFlow change failed", arpFlowQueueID);
+            KNET_SpinlockUnlock(flowLock);
             return -1;
         }
     }
-
+    KNET_SpinlockUnlock(flowLock);
     return 0;
 }
 /**

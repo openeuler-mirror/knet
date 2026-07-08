@@ -64,10 +64,12 @@ KNET_SocketState *GetNetStatMp(KNET_TelemetryInfo *telemetryInfo, int queId)
         if (KNET_IsFdHijack(i) && KNET_GetFdType(i) == KNET_FD_TYPE_SOCKET) {
             int dpFd = KNET_OsFdToDpFd(i);
             DP_SocketState_t dpSocketState = {0};
-            if (DP_GetSocketState(dpFd, &dpSocketState) != 0) {
-                KNET_ERR("K-NET telemetry get net stat failed, osFd %d, dpFd %d ", i, dpFd);
-                rte_free(sockets);
-                return NULL;
+            int ret = DP_GetSocketState(dpFd, &dpSocketState);
+            if (ret != 0 && errno != EBADF) {
+                KNET_WARN("K-NET telemetry get net stat failed, osFd %d, dpFd %d ", i, dpFd);
+            }
+            if (ret != 0) {
+                continue;
             }
             if (dpSocketState.workerId == UNCONNECTED_FLAG) {
                 sockets[index].tid = 0;
