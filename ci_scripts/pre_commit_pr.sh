@@ -19,7 +19,7 @@ fi
 # 获取变更文件列表
 echo -e "\n[INFO] 获取变更文件列表"
 # shellcheck disable=SC2207
-FILES_ARR=($(git diff --name-only --diff-filter=ACMR ${BEFORE_MERGE} HEAD | grep '^src/'|sort -u))
+FILES_ARR=($(git diff --name-only --diff-filter=ACMR ${BEFORE_MERGE} HEAD | (grep '^src/' || true) |sort -u))
 
 # 无变更文件直接退出
 if [ ${#FILES_ARR[@]} -eq 0 ]; then

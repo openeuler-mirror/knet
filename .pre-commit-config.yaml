@@ -27,7 +27,7 @@ repos:
 
   # ===================== C/C++ 语言 =====================
   # clang-format: C/C++最主流的代码格式化工具
-  - repo: https://github.com/pre-commit/mirrors-clang-format
+  - repo: https://gitcode.com/lyontang/mirrors-clang-format # 源:https://github.com/pre-commit/mirrors-clang-format，使用gitcode镜像仓加速下载
     rev: v20.1.7
     hooks:
       - id: clang-format # C/C++ 代码格式化
@@ -36,7 +36,7 @@ repos:
         args: [ "--style=File", "--verbose" ] # 主流风格：LLVM/Google/File(读取根目录.clang-format配置)
 
   # clang-tidy：静态分析工具
-  - repo: https://github.com/cpp-linter/cpp-linter-hooks
+  - repo: https://gitcode.com/lyontang/cpp-linter-hooks # 源:https://github.com/cpp-linter/cpp-linter-hooks，使用gitcode镜像仓加速下载
     rev: v1.1.3
     hooks:
       - id: clang-tidy
