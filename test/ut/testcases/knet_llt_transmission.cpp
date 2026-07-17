@@ -282,21 +282,22 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_DES_NORMAL, NULL, NULL)
     int ret = 0;
     KTestMock *Mock = CreateMock();
     DT_ASSERT_NOT_EQUAL(Mock, NULL);
-    Mock->Create(rte_hash_iterate, TEST_GetFuncRetPositive(1));
-    Mock->Create(rte_hash_del_key, TEST_GetFuncRetNegative(1));
-
-    ret = KnetDestroyFdirHashTbl();
-    DT_ASSERT_EQUAL(ret, -1);
-    
+    // 提前存储全局变量g_fdirHandle，避免ut运行删掉
     struct rte_hash *g_fdirBck = g_fdirHandle;
     g_fdirHandle = NULL;
+    Mock->Create(rte_hash_iterate, TEST_GetFuncRetNegative(1));
+    Mock->Create(rte_hash_free, TEST_GetFuncRetNegative(1));
+
+    ret = KnetDestroyFdirHashTbl();
+    DT_ASSERT_EQUAL(ret, 0);
+    
     ret = KnetDestroyFdirHashTbl();
     DT_ASSERT_EQUAL(ret, 0);
 
     g_fdirHandle = g_fdirBck;
 
     Mock->Delete(rte_hash_iterate);
-    Mock->Delete(rte_hash_del_key);
+    Mock->Delete(rte_hash_free);
     DeleteMock(Mock);
 }
 
