@@ -134,7 +134,7 @@ struct ConfKeyHandle g_dpdkConfHandler[CONF_DPDK_MAX - CONF_DPDK_MIN] = {
         "huge_dir",
         {.strValue = ""},
         StringSetter,
-        {.pattern = "^(--huge-dir=/([a-zA-Z0-9_/-]+)*)?"}},
+        {.pattern = "^(--huge-dir=/([a-zA-Z0-9_/-]+)*)?$"}},
     {CONF_DPDK_BASE_VIRTADDR,
         "base-virtaddr",
         {.strValue = ""},
