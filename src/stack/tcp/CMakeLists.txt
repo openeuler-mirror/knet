@@ -22,12 +22,15 @@ set(CMAKE_C_FLAGS
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -pipe \
-    -freg-struct-return \
     -fPIC \
     -fstack-protector-strong \
     -fsigned-char \
     -ftrapv"
 )
+# 仅在 x86/x86_64 架构下添加 -freg-struct-return
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|i[3-6]86)$")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -freg-struct-return")
+endif()
 #如果Release版本，-O2优化
 if (${KNET_BUILD_TYPE} STREQUAL "Release")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FORTIFY_SOURCE=2 -O2 -s")
