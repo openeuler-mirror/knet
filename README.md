@@ -2,6 +2,7 @@
 
 ## 最新消息
 
+- [2026.06.30]：K-NET新增支持DPDK 23.11.6版本。
 - [2026.03.30]：K-NET首次发布到openEuler社区。
 
 ## 简介
@@ -27,7 +28,7 @@ K-NET版本说明包含版本配套关系和每个版本的特性变更说明，
 可以使用如下方式下载K-NET源码。
 
 ```shell
-$ git clone https://atomgit.com/openeuler/knet.git
+git clone https://atomgit.com/openeuler/knet.git
 ```
 
 ## 源码目录结构
