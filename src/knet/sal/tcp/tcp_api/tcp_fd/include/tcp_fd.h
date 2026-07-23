@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "dp_posix_epoll_api.h"
+#include "dp_posix_poll_api.h"
 #include "knet_atomic.h"
 
 #ifdef __cplusplus
@@ -51,6 +52,15 @@ struct KNET_EpollNotify {
 
 union KNET_FdPrivateData {
     struct KNET_EpollNotify epollData;
+};
+
+struct KNET_PollNotifyData {
+    int eventFd;
+    KNET_ATOMIC64_T active;  /* active为1表示已经被激活，无需再次唤醒。为0表示未激活，需要唤醒 */
+};
+
+struct KNET_PollNotify {
+    DP_PollNotify_t notify;
 };
 
 struct KNET_Fd {

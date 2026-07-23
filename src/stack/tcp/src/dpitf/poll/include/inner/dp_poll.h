@@ -25,6 +25,15 @@ struct DP_Pollfd {
     short int revents;
 };
 
+#ifndef DP_POSIX_POLL_API_H
+typedef void (*DP_PollNotifyFn_t)(void *);
+
+typedef struct DP_PollNotify {
+    DP_PollNotifyFn_t fn;
+    void *data; /* 回调函数私有数据协议栈不关心 */
+} DP_PollNotify_t;
+#endif // DP_POSIX_POLL_API_H
+
 #define DP_POLLIN       0x001
 #define DP_POLLOUT      0x004
 #define DP_POLLERR      0x008
@@ -42,6 +51,11 @@ struct DP_Pollfd {
 #define DP_POLL_REMOVE  0x1000
 
 int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout);
+
+#ifndef DP_POSIX_POLL_API_H
+int DP_PollCreateNotify(struct DP_Pollfd* fds, DP_Nfds_t nfds, DP_PollNotify_t* notify, void **pollCtx);
+void DP_PollDestroyNotify(void *pollCtx);
+#endif // DP_POSIX_POLL_API_H
 
 #ifdef __cplusplus
 }

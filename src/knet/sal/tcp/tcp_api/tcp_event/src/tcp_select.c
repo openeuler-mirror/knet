@@ -19,6 +19,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/eventfd.h>
 
 #include "dp_posix_socket_api.h"
 #include "dp_posix_poll_api.h"
@@ -54,6 +55,7 @@ static int SelectPollingOnce(struct pollfd *osPollFds, nfds_t osPollNfds, struct
         return fdInfo->dpPollRet;
     }
 
+    KNET_DEBUG("Select polling once, Os poll ret %d, dp poll ret %d", fdInfo->osPollRet, fdInfo->dpPollRet);
     return fdInfo->osPollRet + fdInfo->dpPollRet;
 }
 
@@ -88,6 +90,12 @@ int SelectPollingLoops(
     (void)gettimeofday(&timeBegin, NULL);
     int64_t timeBeginMs = (int64_t)timeBegin.tv_sec * 1000 + timeBegin.tv_usec / 1000;  // 1000为时间转换倍数。无需考虑溢出，溢出需要2亿年
     do {
+        /* 在SelectPollingOnce的DP_PosixPoll信号延迟处理流程中，判断是否有信号触发 */
+        int curSig = KNET_DpSignalGetSigDelayCurSig();
+        if (KNET_UNLIKELY(curSig != 0)) {
+            errno = ((pollRet == 0) ? EINTR : 0);
+            return (pollRet == 0) ? -1 : pollRet;
+        }
         /* 主线程等待其他线程退出 */
         if (KNET_UNLIKELY(KNET_DpSignalGetWaitExit())) {
             break;
@@ -110,6 +118,108 @@ int SelectPollingLoops(
 
     return pollRet;
 }
+
+static void PollCallback(void *data)
+{
+    struct KNET_PollNotifyData *notifyData = (struct KNET_PollNotifyData *)data;
+    int eventFd = notifyData->eventFd;
+    int ret;
+
+    /* 避免一直调用浪费CPU */
+    ret = KNET_HalAtomicTestSet64(&notifyData->active);
+    if (ret == 0) {
+        return;
+    }
+
+    ret = eventfd_write(eventFd, 1);
+    if (ret < 0) {
+        KNET_ERR("OS eventFd %d write ret %d, errno %d, %s", eventFd, ret, errno, strerror(errno));
+        return;
+    }
+}
+
+static inline int ResetPollCallbackData(struct KNET_PollNotifyData *notifyData)
+{
+    uint64_t value = 0;
+    int oriErrno = errno;
+
+    (void)eventfd_read(notifyData->eventFd, &value);
+    errno = oriErrno;
+
+    KNET_HalAtomicSet64(&notifyData->active, 0);
+    return 0;
+}
+
+int SelectPollWait(struct pollfd *osPollFds, nfds_t osPollNfds, int64_t timeoutMs, struct SelectFdInfo *fdInfo)
+{
+    /* 进来先获取一次，如果有事件直接返回，可以减少一次获取时间的开销 */
+    int pollRet = SelectPollingOnce(osPollFds, osPollNfds, fdInfo);
+    if (pollRet > 0) {
+        return pollRet;
+    } else if (pollRet < 0) {
+        if (errno != EINTR) {
+            KNET_ERR("select polling failed, ret %d, errno %d, osPollNfds %d, timeoutMs %lld", pollRet, errno, osPollNfds, timeoutMs);
+        }
+        return pollRet;
+    }
+
+    struct KNET_PollNotifyData notifyData = {0};
+    notifyData.eventFd = eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+    if (notifyData.eventFd == -1) {
+        KNET_ERR("Failed alloc eventfd, errno %d, %s", errno, strerror(errno));
+        return -1;
+    }
+
+    /* eventfd 占用 osPollFds[osPollNfds] 槽位，调用方需保证数组长度 >= osPollNfds + 1 */
+    osPollFds[osPollNfds].fd = notifyData.eventFd;
+    osPollFds[osPollNfds].events = POLLIN;
+    osPollFds[osPollNfds].revents = 0;
+
+    /* 注册 eventfd 回调，用于通知有 dpFd 就绪 */
+    struct KNET_PollNotify notify = {0};
+    notify.notify.fn = PollCallback;
+    notify.notify.data = &notifyData;
+
+    void *notifyCtx = NULL;
+    if (DP_PollCreateNotify(fdInfo->dpPollFds, fdInfo->dpPollNfds, &notify.notify, &notifyCtx) != 0) {
+        KNET_ERR("DP_PollCreateNotify failed, errno %d, %s", errno, strerror(errno));
+        close(notifyData.eventFd);
+        return -1;
+    }
+
+    fdInfo->osPollRet = g_origOsApi.poll(osPollFds, osPollNfds + 1, (int)timeoutMs);
+    DP_PollDestroyNotify(notifyCtx);
+    if (fdInfo->osPollRet < 0) {
+        if (errno != EINTR) {
+            KNET_ERR("OS poll failed, ret %d, errno %d, %s", fdInfo->osPollRet, errno, strerror(errno));
+        }
+        close(notifyData.eventFd);
+        return fdInfo->osPollRet;
+    }
+
+    /* eventfd 命中说明有 dp fd 就绪，读取清零并执行 dp poll */
+    int eventfdHit = ((osPollFds[osPollNfds].revents & POLLIN) != 0) ? 1 : 0;
+    if (eventfdHit) {
+        ResetPollCallbackData(&notifyData);
+        --fdInfo->osPollRet; // eventfd不包含在结果中
+    }
+
+    fdInfo->dpPollRet = 0;
+    if (eventfdHit) {
+        BEFORE_DPFUNC();
+        fdInfo->dpPollRet = DP_PosixPoll(fdInfo->dpPollFds, fdInfo->dpPollNfds, 0);
+        AFTER_DPFUNC();
+        if (fdInfo->dpPollRet < 0) {
+            KNET_ERR("Dp poll failed, ret %d, errno %d, %s", fdInfo->dpPollRet, errno, strerror(errno));
+            fdInfo->dpPollRet = 0; //  dp poll 失败时，不影响 os poll 结果
+        }
+    }
+
+    KNET_DEBUG("PollWait, Os poll ret %d, dp poll ret %d, eventfdHit %d", fdInfo->osPollRet, fdInfo->dpPollRet, eventfdHit);
+    close(notifyData.eventFd);
+    return fdInfo->osPollRet + fdInfo->dpPollRet;
+}
+
 static void CheckEvent(uint8_t *events, bool checkRead, bool checkWrite, bool checkExcept, int fd)
 {
     if (checkRead) {

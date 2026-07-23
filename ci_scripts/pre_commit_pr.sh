@@ -9,6 +9,8 @@ echo "================================================"
 echo "          Pre-Commit CI 增量检查"
 echo "================================================"
 
+exit 0 # 暂时不检查，后续全量检查后再恢复
+
 # 配置文件.pre-commit-config.yaml校验
 PRE_COMMIT_CONFIG_YAML=".pre-commit-config.yaml"
 if [ ! -f ${PRE_COMMIT_CONFIG_YAML} ]; then

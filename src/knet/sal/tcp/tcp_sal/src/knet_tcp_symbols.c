@@ -55,6 +55,8 @@ int (*g_dPPosixEpollCtl)(int epfd, int op, int fd, struct epoll_event *event);
 int (*g_dPPosixEpollWait)(int epfd, struct epoll_event *events, int maxevents, int timeout);
 int (*g_dPPosixFcntl)(int fd, int cmd, int val);
 int (*g_dPPosixPoll)(struct pollfd *fds, nfds_t nfds, int timeout);
+int (*g_dPPollCreateNotify)(struct pollfd *fds, nfds_t nfds, DP_PollNotify_t *notify, void **pollCtx);
+void (*g_dPPollDestroyNotify)(void *pollCtx);
 int (*g_dPPosixIoctl)(int fd, int request, void* arg);
 void* (*g_dPZcopyAlloc)(size_t size);
 void (*g_dPZcopyFree)(void *addr);
@@ -119,6 +121,8 @@ static struct KnetSymbolsInfo g_tcp[] = {
     KNET_ADD_SYMBOL(DP_PosixEpollCtl, dPPosixEpollCtl),
     KNET_ADD_SYMBOL(DP_PosixEpollWait, dPPosixEpollWait),
     KNET_ADD_SYMBOL(DP_PosixPoll, dPPosixPoll),
+    KNET_ADD_SYMBOL(DP_PollCreateNotify, dPPollCreateNotify),
+    KNET_ADD_SYMBOL(DP_PollDestroyNotify, dPPollDestroyNotify),
     KNET_ADD_SYMBOL(DP_PosixIoctl, dPPosixIoctl),
     KNET_ADD_SYMBOL(DP_ZcopyAlloc, dPZcopyAlloc),
     KNET_ADD_SYMBOL(DP_ZcopyFree, dPZcopyFree),
@@ -316,6 +320,16 @@ int DP_PosixFcntl(int fd, int cmd, int val)
 int DP_PosixPoll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
     return g_dPPosixPoll(fds, nfds, timeout);
+}
+
+int DP_PollCreateNotify(struct pollfd *fds, nfds_t nfds, DP_PollNotify_t *notify, void **pollCtx)
+{
+    return g_dPPollCreateNotify(fds, nfds, notify, pollCtx);
+}
+
+void DP_PollDestroyNotify(void *pollCtx)
+{
+    return g_dPPollDestroyNotify(pollCtx);
 }
 
 int DP_PosixIoctl(int fd, int request, void* arg)

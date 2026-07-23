@@ -30,6 +30,7 @@ typedef struct {
     struct DP_Pollfd* fds;
     DP_Nfds_t         nfds;
     int               readyFds;
+    DP_PollNotify_t  userNotify;
 } PollCtx_t;
 
 static inline int CopyFdsFromUser(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
@@ -184,7 +185,11 @@ void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint
 
     if (pollCtx->readyFds != 0) {
         SPINLOCK_Unlock(&pollCtx->lock);
-        SEM_SIGNAL(pollCtx->sem);
+        if (pollCtx->userNotify.fn != NULL) {
+            pollCtx->userNotify.fn(pollCtx->userNotify.data);
+        } else {
+            SEM_SIGNAL(pollCtx->sem);
+        }
     } else {
         SPINLOCK_Unlock(&pollCtx->lock);
     }
@@ -405,6 +410,9 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
 
     ret = Wait(ctx, timeout);
     FdsDisableNotify(ctx, ctx->nfds);
+    if (errno == ETIMEDOUT) { // SEM_WAIT信号超时有errno，但是poll超时errno为0，所以需要恢复为0
+        DP_SET_ERRNO(0);
+    }
 
     if (ret != 0) {
         DP_LOG_DBG("DP_Poll failed by wait err, errno = %d.", errno);
@@ -419,4 +427,53 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
 out:
     DestroyPollCtx(ctx);
     return ret;
+}
+
+int DP_PollCreateNotify(struct DP_Pollfd* fds, DP_Nfds_t nfds, DP_PollNotify_t* notify, void** pollCtx)
+{
+    PollCtx_t *ctx;
+    if (fds == NULL || notify == NULL || notify->fn == NULL || pollCtx == NULL) {
+        DP_SET_ERRNO(EINVAL);
+        return -1;
+    }
+
+    if (nfds > (DP_Nfds_t)FD_GetFileLimit()) {
+        DP_LOG_DBG("Poll create notify failed, invalid parameter, nfds %d exceeds file limit %d.", nfds, FD_GetFileLimit());
+        DP_SET_ERRNO(EINVAL);
+        return -1;
+    }
+
+    if (CreatePollCtx(fds, nfds, &ctx) != 0) {
+        return -1;
+    }
+
+    ctx->userNotify = *notify;
+
+    if (FdsEnableNotify(ctx) != 0) {
+        DestroyPollCtx(ctx);
+        return -1;
+    }
+
+    /* 注册过程中若已有 fd 就绪，立即触发一次回调，避免调用方无谓阻塞 */
+    SPINLOCK_Lock(&ctx->lock);
+    int ready = ctx->readyFds;
+    DP_PollNotifyFn_t notifyFn = ctx->userNotify.fn;
+    void* notifyData = ctx->userNotify.data;
+    SPINLOCK_Unlock(&ctx->lock);
+    if (ready > 0 && notifyFn != NULL) {
+        notifyFn(notifyData); // todo: 后续优化为返回值告知KNET，不要通过notifyFn。若已经有就绪的fd，则直接DP_Poll。
+    }
+
+    *pollCtx = ctx;
+    return 0;
+}
+
+void DP_PollDestroyNotify(void* pollCtx)
+{
+    if (pollCtx == NULL) {
+        return;
+    }
+    PollCtx_t* ctx = (PollCtx_t*)pollCtx;
+    FdsDisableNotify(ctx, ctx->nfds);
+    DestroyPollCtx(ctx);
 }
