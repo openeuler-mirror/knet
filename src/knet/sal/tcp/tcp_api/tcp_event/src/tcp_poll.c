@@ -37,8 +37,8 @@
 
 static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    struct pollfd osPollFds[nfds];
-    struct pollfd dpPollFds[nfds];
+    struct pollfd osPollFds[nfds + 1]; // +1是预留给eventfd
+    struct pollfd dpPollFds[nfds + 1]; // +1是预留给eventfd
     int osPollNfds = 0;
     int dpPollNfds = 0;
     int dpPollIdx2FdsIdx[nfds]; // dp轮询到的事件，映射到fds的索引
@@ -77,6 +77,7 @@ static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
     }
 
     if (dpPollNfds == 0) { // 性能优化：无hijackFd，直接走os
+        KNET_DEBUG("Dp poll nfds is 0, go to os poll");
         return g_origOsApi.poll(fds, nfds, timeout);
     }
 
@@ -84,7 +85,21 @@ static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
     fdInfo.dpPollNfds = dpPollNfds;
     fdInfo.dpPollFds = dpPollFds;
 
-    int pollRet = SelectPollingLoops(osPollFds, osPollNfds, timeout, &fdInfo);
+    if (osPollNfds == 0) { // 性能优化：无osFd，直接走dpPoll
+        KNET_DEBUG("Os poll nfds is 0, go to dp poll");
+        BEFORE_DPFUNC();
+        fdInfo.dpPollRet = DP_PosixPoll(dpPollFds, dpPollNfds, timeout);
+        AFTER_DPFUNC();
+        if (fdInfo.dpPollRet < 0) {
+            if (errno != EINTR) {
+                KNET_ERR("Dp poll failed, ret %d, errno %d, error %s", fdInfo.dpPollRet, errno, strerror(errno));
+                return fdInfo.dpPollRet;
+            }
+        }
+        goto dpPollResCopy;
+    }
+
+    int pollRet = SelectPollWait(osPollFds, osPollNfds, timeout, &fdInfo);
     if (pollRet < 0) {
         return pollRet;
     }
@@ -94,13 +109,14 @@ static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
             fds[osPollIdx2FdsIdx[i]].revents = osPollFds[i].revents;
         }
     }
+dpPollResCopy:
     if (fdInfo.dpPollRet > 0) {
         for (int i = 0; i < dpPollNfds; ++i) {
             fds[dpPollIdx2FdsIdx[i]].revents = dpPollFds[i].revents;
         }
     }
 
-    return pollRet;
+    return fdInfo.osPollRet + fdInfo.dpPollRet;
 }
 
 int KNET_DpPoll(struct pollfd *fds, nfds_t nfds, int timeout)

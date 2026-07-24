@@ -27,6 +27,13 @@ extern "C" {
  * @ingroup socket
  */
 
+typedef void (*DP_PollNotifyFn_t)(void *);
+
+typedef struct DP_PollNotify {
+    DP_PollNotifyFn_t fn;
+    void *data; /* 回调函数私有数据协议栈不关心 */
+} DP_PollNotify_t;
+
 /**
  * @ingroup poll
  * @brief 标准poll接口，获取指定事件的socket集合
@@ -50,6 +57,28 @@ extern "C" {
 
  */
 int DP_PosixPoll(struct pollfd *fds, nfds_t nfds, int timeout);
+
+/**
+ * @ingroup poll
+ * @brief 注册 poll 通知回调，当指定 fd 就绪时通过回调通知调用方
+ *
+ * @param fds [IN] 监听的 fd 集合
+ * @param nfds [IN] fds 数量
+ * @param fn [IN] 回调函数
+ * @param data [IN] 回调私有数据
+ * @param pollCtx [OUT] 返回的上下文句柄，用于销毁
+ * @retval 0 成功
+ * @retval -1 失败
+ */
+int DP_PollCreateNotify(struct pollfd *fds, nfds_t nfds, DP_PollNotify_t *notify, void **pollCtx);
+
+/**
+ * @ingroup poll
+ * @brief 销毁 poll 通知回调上下文
+ *
+ * @param pollCtx [IN] DP_PollCreateNotify 返回的上下文句柄
+ */
+void DP_PollDestroyNotify(void *pollCtx);
 
 #ifdef __cplusplus
 }

@@ -33,6 +33,7 @@ struct SelectFdInfo {
 };
 
 int SelectPollingLoops(struct pollfd *osPollFds, nfds_t osPollNfds, int64_t timeoutMs, struct SelectFdInfo *fdInfo);
+int SelectPollWait(struct pollfd *osPollFds, nfds_t osPollNfds, int64_t timeoutMs, struct SelectFdInfo *fdInfo);
 
 #ifdef __cplusplus
 }
