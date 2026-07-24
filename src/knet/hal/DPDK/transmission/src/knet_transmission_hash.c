@@ -69,6 +69,7 @@ KNET_STATIC struct rte_ring *RteRingCreateAndStartQueue(uint16_t portId, uint16_
     }
     
     // 如果已经存在ring，不需要创建，否则创建ring，再去start queue
+    bool ringCreated = false;
     struct rte_ring *cpdTapRing = rte_ring_lookup(name);
     if (cpdTapRing == NULL) {
         cpdTapRing = rte_ring_create(name, DEFAULT_RING_SIZE, rte_socket_id(), 0);
@@ -77,12 +78,16 @@ KNET_STATIC struct rte_ring *RteRingCreateAndStartQueue(uint16_t portId, uint16_
                 portId, queueId, rte_strerror(rte_errno));
             return NULL;
         }
+        ringCreated = true;
     }
 
     ret = rte_eth_dev_rx_queue_start(portId, queueId);
     if (ret != 0) {
         KNET_ERR("Failed to start port %hu RX queue %hu, ret %d", portId, queueId, ret);
-        rte_ring_free(cpdTapRing);
+        /* 仅释放本函数创建的 ring，避免释放 lookup 到的由其他进程创建的共享 ring 导致 use-after-free */
+        if (ringCreated) {
+            rte_ring_free(cpdTapRing);
+        }
         return NULL;
     }
 

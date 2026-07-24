@@ -518,7 +518,7 @@ uint32_t KnetRegDebug(void)
  * @param queueId
  * @return int 0:正常获取qid数组与size，-1:异常场景失败
  */
-int SetFdirDpQueInfo(uint32_t type, const unsigned int *queMap, uint16_t *queueIdSize, uint16_t *queueId)
+KNET_STATIC int SetFdirDpQueInfo(uint32_t type, const unsigned int *queMap, uint16_t *queueIdSize, uint16_t *queueId)
 {
     if (KNET_GetCfg(CONF_COMMON_COTHREAD)->intValue == 1 && type == DP_ADDR_EVENT_CREATE) {
         unsigned __int128 queMapNum = 0;

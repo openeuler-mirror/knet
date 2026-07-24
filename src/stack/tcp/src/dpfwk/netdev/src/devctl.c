@@ -328,7 +328,7 @@ int DP_ProcIfreq(Netdev_t* dev, int request, struct DP_Ifreq* ifreq)
 
     if (fn != NULL) {
         ret = fn(dev, ifreq);
-    } else if (g_devOps[dev->devType]->ctrl != NULL) {
+    } else if (g_devOps[dev->devType] != NULL && g_devOps[dev->devType]->ctrl != NULL) {
         DP_LOG_INFO("DP_ProcIfreq with unsupport request, use g_devOps->ctrl. request = %d.", request);
         ret = g_devOps[dev->devType]->ctrl(dev, request, ifreq);
     }

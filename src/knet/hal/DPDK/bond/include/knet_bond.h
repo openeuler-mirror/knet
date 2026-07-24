@@ -19,6 +19,8 @@ extern "C" {
 
 #define KNET_BOND_SLAVE_NUM 2
 
+#define KNET_BOND_PORT_NAME "net_bonding0"
+
 #define KNET_SECONDARY_BOND_PORT_ID 2 // todo: 从进程bond port id打桩为2，后续需要通过进程间通信从主进程获取
 
 /**

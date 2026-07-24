@@ -78,7 +78,7 @@ int KNET_BondCreate(uint16_t* slavePortIds, uint16_t slavePortNum)
 {
     int bondMode = KNET_GetCfg(CONF_INTERFACE_BOND_MODE)->intValue;
     /* 第三个参数为numa节点id，0表示any */
-    int bondPortID = rte_eth_bond_create("net_bonding0", bondMode, 0);
+    int bondPortID = rte_eth_bond_create(KNET_BOND_PORT_NAME, bondMode, 0);
     if (bondPortID < 0) {
         KNET_ERR("Create dpdk bond port failed, ret %d", bondPortID);
         return -1;
@@ -86,19 +86,19 @@ int KNET_BondCreate(uint16_t* slavePortIds, uint16_t slavePortNum)
 
     int ret = AddSlavesToBond(bondPortID, slavePortIds, slavePortNum);
     if (ret != 0) {
-        return -1; // 详细日志已在AddSlavesToBond中打印
+        goto err_free_bond; // 详细日志已在AddSlavesToBond中打印
     }
 
     ret = rte_eth_promiscuous_enable(bondPortID);
     if (ret != 0) {
         KNET_ERR("Bond port promiscuous enable failed, ret %d", ret);
-        return -1;
+        goto err_free_bond;
     }
 
     ret = BondXmitPolicySet(bondPortID, bondMode);
     if (ret != 0) {
         KNET_ERR("Bond port xmit policy set failed, ret %d", ret);
-        return -1;
+        goto err_free_bond;
     }
 
     uint8_t* macAddr = (uint8_t*)KNET_GetCfg(CONF_INTERFACE_MAC)->strValue;
@@ -107,10 +107,16 @@ int KNET_BondCreate(uint16_t* slavePortIds, uint16_t slavePortNum)
     ret = rte_eth_bond_mac_address_set(bondPortID, &bondMac);
     if (ret != 0) {
         KNET_ERR("Bond port mac set failed, ret %d", ret);
-        return -1;
+        goto err_free_bond;
     }
 
     return bondPortID;
+
+err_free_bond:
+    if (rte_eth_bond_free(KNET_BOND_PORT_NAME) != 0) {
+        KNET_ERR("Bond port %d free failed", bondPortID);
+    }
+    return -1;
 }
 
 KNET_STATIC int GetBondXmitPolicy(int bondPortID)

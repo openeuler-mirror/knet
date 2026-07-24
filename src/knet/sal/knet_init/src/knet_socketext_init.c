@@ -127,6 +127,9 @@ EpollTelemetryContext *GetEpollStatMp(KNET_TelemetryInfo *telemetryInfo, int que
             DP_EpollDetails_t *sockDetails =
                 KNET_GetEpollSockDetails(epollDpFd, &workerId, &maxSockFd, &sockCount, isSecondary);
             if (sockDetails == NULL) {
+                for (int i = 0; i < index; i++) {
+                    rte_free(epollDetailCtx[i].details);
+                }
                 rte_free(epollDetailCtx);
                 KNET_ERR("K-NET telemetry epoll details callback failed, get epoll sock details failed");
                 return NULL;

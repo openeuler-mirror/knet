@@ -27,7 +27,6 @@
 #include "knet_rpc.h"
 #include "knet_hash_rpc.h"
 
-#define HASH_TABLE_NAME_LEN 2
 #define HASH_TABLE_QUEUE_NAME_LEN_MAX 32 // DPDK中的限制
 
 /**
@@ -182,27 +181,6 @@ static int ParameterCheck(KNET_HashTblCfg *cfg, uint32_t *tableId)
     return 0;
 }
 
-static int GetHashTblName(char *queueName, char *hashTblName)
-{
-    int32_t ret = 0;
-    int8_t mode = KNET_GetCfg(CONF_COMMON_MODE)->intValue;
-    if (mode == KNET_RUN_MODE_SINGLE) {
-        ret = sprintf_s(queueName, HASH_TABLE_QUEUE_NAME_LEN_MAX, "hash_table_%s", hashTblName);
-        if (ret < 0) {
-            KNET_ERR("Single mode get hash table name err");
-            return -1;
-        }
-    } else {
-        int32_t queueId = KNET_GetCfg(CONF_INNER_QID)->intValue;
-        ret = sprintf_s(queueName, HASH_TABLE_QUEUE_NAME_LEN_MAX, "%d_%s", queueId, hashTblName);
-        if (ret < 0) {
-            KNET_ERR("Multiple mode get hash table name err");
-            return -1;
-        }
-    }
-    return 0;
-}
-
 struct rte_hash *CreateHashTblSingle(KNET_HashTblCfg *cfg, char *queueName, int queueNameSize)
 {
     struct rte_hash_parameters params = {0};
@@ -242,11 +220,17 @@ int KNET_CreateHashTbl(KNET_HashTblCfg *cfg, uint32_t *tableId)
     tblInfo->keySize = cfg->keySize;
     tblInfo->entrySize = cfg->entrySize;
 
-    static char hashTblName[HASH_TABLE_NAME_LEN] = "0";
-    char queueName[HASH_TABLE_QUEUE_NAME_LEN_MAX] = "0";
-    ret = GetHashTblName(queueName, hashTblName);
-    if (ret != 0) {
-        KNET_ERR("Get hash table name failed %d", ret);
+    /* 用 tableId 作为 name 后缀，天然唯一
+     * 多进程额外拼接 queueId 保证跨进程唯一。 */
+    char queueName[HASH_TABLE_QUEUE_NAME_LEN_MAX];
+    if (mode == KNET_RUN_MODE_SINGLE) {
+        ret = sprintf_s(queueName, HASH_TABLE_QUEUE_NAME_LEN_MAX, "hash_table_%u", localTableId);
+    } else {
+        int32_t queueId = KNET_GetCfg(CONF_INNER_QID)->intValue;
+        ret = sprintf_s(queueName, HASH_TABLE_QUEUE_NAME_LEN_MAX, "%d_%u", queueId, localTableId);
+    }
+    if (ret < 0) {
+        KNET_ERR("Get hash table name failed, ret %d. (TableId %u)", ret, localTableId);
         ReleaseHashTblId(localTableId);
         return -1;
     }
@@ -275,7 +259,6 @@ int KNET_CreateHashTbl(KNET_HashTblCfg *cfg, uint32_t *tableId)
     KNET_INFO("Hash tableId %u tableName %s create, entries %u, key_len %u",
         *tableId, queueName, cfg->entryNum, cfg->keySize);
 
-    ++hashTblName[0]; // rte_hash_create要求name不能重复，所以每次成功名称+1
     return 0;
 }
 
@@ -318,17 +301,30 @@ int KNET_DestroyHashTbl(uint32_t tableId)
     return ret;
 }
 
-int KNET_HashTblAddEntry(uint32_t tableId, const uint8_t *key, const uint8_t *data)
+static HashTblCb *GetValidHashTbl(uint32_t tableId)
 {
     if (g_tblMng.tableIdNum == 0) {
         KNET_ERR("Hash table not init");
-        return -1;
+        return NULL;
     }
-
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || key == NULL || data == NULL) {
-        KNET_ERR("Add entry invalid params. (TableId %u, MaxTableId %u)",
+    if (tableId >= g_tblMng.tableIdNum) {
+        KNET_ERR("Invalid tableId. (TableId %u, MaxTableId %u)",
                  tableId, g_tblMng.tableIdNum - 1);
+        return NULL;
+    }
+    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
+    if (tblInfo->initFlag == 0) {
+        KNET_ERR("Hash table not initialized. (TableId %u)", tableId);
+        return NULL;
+    }
+    return tblInfo;
+}
+
+int KNET_HashTblAddEntry(uint32_t tableId, const uint8_t *key, const uint8_t *data)
+{
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL || data == NULL) {
+        KNET_ERR("Add entry invalid params. (TableId %u)", tableId);
         return -1;
     }
 
@@ -367,15 +363,9 @@ int KNET_HashTblAddEntry(uint32_t tableId, const uint8_t *key, const uint8_t *da
 
 int KNET_HashTblDelEntry(uint32_t tableId, const uint8_t *key)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0) {
-        KNET_ERR("Del entry invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL) {
+        KNET_ERR("Del entry invalid params. (TableId %u)", tableId);
         return -1;
     }
 
@@ -406,14 +396,9 @@ int KNET_HashTblDelEntry(uint32_t tableId, const uint8_t *key)
 
 int KNET_HashTblModifyEntry(uint32_t tableId, const uint8_t *key, const uint8_t *data)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || key == NULL || data == NULL) {
-        KNET_ERR("Modify entry invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL || data == NULL) {
+        KNET_ERR("Modify entry invalid params. (TableId %u)", tableId);
         return -1;
     }
     KNET_RwlockWriteLock(&tblInfo->rwLock);
@@ -435,14 +420,9 @@ int KNET_HashTblModifyEntry(uint32_t tableId, const uint8_t *key, const uint8_t 
 
 int KNET_HashTblLookupEntry(uint32_t tableId, const uint8_t *key, uint8_t *data)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || key == NULL || data == NULL) {
-        KNET_ERR("Look up entry invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL || data == NULL) {
+        KNET_ERR("Look up entry invalid params. (TableId %u)", tableId);
         return -1;
     }
 
@@ -462,14 +442,9 @@ int KNET_HashTblLookupEntry(uint32_t tableId, const uint8_t *key, uint8_t *data)
 
 int KNET_GetHashTblInfo(uint32_t tableId, KNET_HashTblInfo *info)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || info == NULL) {
-        KNET_ERR("Get hashTbl info invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || info == NULL) {
+        KNET_ERR("Get hashTbl info invalid params. (TableId %u)", tableId);
         return -1;
     }
 
@@ -485,14 +460,9 @@ int KNET_GetHashTblInfo(uint32_t tableId, KNET_HashTblInfo *info)
 
 int KNET_GetHashTblFirstEntry(uint32_t tableId, uint8_t *key, uint8_t *data)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || key == NULL || data == NULL) {
-        KNET_ERR("GetHashTblFirstEntry invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL || data == NULL) {
+        KNET_ERR("GetHashTblFirstEntry invalid params. (TableId %u)", tableId);
         return -1;
     }
     KNET_RwlockReadLock(&tblInfo->rwLock);
@@ -513,14 +483,9 @@ int KNET_GetHashTblFirstEntry(uint32_t tableId, uint8_t *key, uint8_t *data)
 
 int KNET_GetHashTblNextEntry(uint32_t tableId, const uint8_t *curKey, uint8_t *key, uint8_t *data)
 {
-    if (g_tblMng.tableIdNum == 0) {
-        KNET_ERR("Hash table not init");
-        return -1;
-    }
-    HashTblCb *tblInfo = g_tblMng.infoCbs + tableId;
-    if (tableId >= g_tblMng.tableIdNum || tblInfo->initFlag == 0 || key == NULL || data == NULL || curKey == NULL) {
-        KNET_ERR("Get next entry invalid params. (TableId %u, MaxTableId %u)",
-                 tableId, g_tblMng.tableIdNum - 1);
+    HashTblCb *tblInfo = GetValidHashTbl(tableId);
+    if (tblInfo == NULL || key == NULL || data == NULL || curKey == NULL) {
+        KNET_ERR("Get next entry invalid params. (TableId %u)", tableId);
         return -1;
     }
     KNET_RwlockReadLock(&tblInfo->rwLock);

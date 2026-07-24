@@ -332,7 +332,9 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
         KNET_ERR("Generate flow failed.");
         ret = KnetFdirHashTblDel(key);
         if (ret != 0) {
-            free(oldEntry);
+            /* 删除失败时 hash 表仍持有 oldEntry 指针，不能 free，否则会造成悬空指针；
+            oldEntry 由 KnetDestroyFdirHashTbl 在进程退出时统一回收 */
+            KNET_ERR("KnetFdirHashTblDel failed, oldEntry retained by hash table, may leak until process exit");
         }
         KNET_SpinlockUnlock(flowLock);
         return -1;
@@ -468,10 +470,12 @@ KNET_STATIC void RteRingFree(uint16_t queueId)
     ret = snprintf_s(name, MAX_CPD_NAME_LEN, MAX_CPD_NAME_LEN - 1, "cpdtaprx%hu", queueId);
     if (ret < 0) {
         KNET_ERR("Ring name %s get error, ret %d", name, ret);
+        return;
     }
     struct rte_ring *cpdTapRing = rte_ring_lookup(name);
     if (cpdTapRing == NULL) {
         KNET_WARN("Cpd tap %s does not exist", name);
+        return;
     }
     rte_ring_free(cpdTapRing);
 }

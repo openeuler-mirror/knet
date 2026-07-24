@@ -336,7 +336,7 @@ KNET_STATIC int ValidAndRegister(const struct PdumpRequest *pr, uint16_t port, s
         KNET_ERR("Not Found mempool for packet capture, mempool name %s", MEMPOOL_NAME);
         return -1;
     }
-    
+
     args.ver = pr->ver;
     args.port = port;
     args.filter = filter;
@@ -403,6 +403,7 @@ KNET_STATIC int SetPdumpRxTxCbs(const struct rte_memzone *pdumpRequestMz)
     uint16_t port;
     if (rte_eth_dev_get_port_by_name(pr->device, &port) < 0) {
         KNET_ERR("Failed to get port id for non-existent device name");
+        rte_bpf_destroy(filter);
         return -EINVAL;
     }
 
@@ -411,8 +412,12 @@ KNET_STATIC int SetPdumpRxTxCbs(const struct rte_memzone *pdumpRequestMz)
         SetPdumpLock((KNET_SpinLock*)&pr->sharedLock);
         spinlockInited = 1;
     }
-    
+
     int ret = ValidAndRegister(pr, port, filter);
+    if (ret < 0) {
+        rte_bpf_destroy(filter);
+        return ret;
+    }
     oldOp = newOp;
     return ret;
 }

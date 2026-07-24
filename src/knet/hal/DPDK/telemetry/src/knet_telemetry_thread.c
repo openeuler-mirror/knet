@@ -59,7 +59,7 @@
 #define DUMP_FILE_PREFIX "knet_persist-"  // 转储文件前缀
 #define DUMP_FILE_EXT ".json"             // 转储文件扩展名
 
-#define BIT_TEST(value, pos) (((value) & (1 << (pos))) != 0)
+#define BIT_TEST(value, pos) (((value) & (1ULL << (pos))) != 0)
 
 KNET_STATIC bool g_persistThreadExit = false;
 
@@ -866,7 +866,7 @@ int TelemetryRefreshPerSubprocess(FILE *file, int fileOffset, struct KnetProcess
             offset += processInfo[i].offset; // 偏移到下一个进程开始的地方
             continue;
         }
-        knetProcessInfo->writeBitMap |= (1 << i); // 标记当前进程已写入文件
+        knetProcessInfo->writeBitMap |= (1ULL << i); // 标记当前进程已写入文件
         offset += processDataOffset;
     }
     offset -= fileOffset; // 这里减去初始offset,得到实际写入的长度
