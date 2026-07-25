@@ -118,6 +118,9 @@ static int AddrAttrCheck(uint8_t family, DP_TbmAttr_t** attrs, int attrCnt)
     int local = 0;
 
     for (int i = 0; i < attrCnt; i++) {
+        if (attrs[i] == NULL) {
+            return -EINVAL;
+        }
         if (attrs[i]->type >= DP_IFA_MAX) {
             return -EINVAL;
         }

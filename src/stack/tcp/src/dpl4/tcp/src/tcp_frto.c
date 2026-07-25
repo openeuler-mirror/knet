@@ -96,7 +96,7 @@ void TcpFrtoRcvAck(TcpSk_t* tcp, TcpPktInfo_t* pi, uint32_t acked)
 
         uint32_t inflight = tcp->sndMax - tcp->sndUna;
         // 如果可以发送新数据，发送新数据
-        if ((tcp->sndQue.pktCnt > 0 || TcpSk2Sk(tcp)->sndBuf.pktCnt > 0) && tcp->sndWnd - inflight > 0) {
+        if ((tcp->sndQue.pktCnt > 0 || TcpSk2Sk(tcp)->sndBuf.pktCnt > 0) && tcp->sndWnd > inflight) {
             tcp->force  = 1;
             tcp->sndNxt = tcp->sndMax;
             tcp->cwnd   = inflight + tcp->mss * 2; // 2: 最多发送 2 个报文
