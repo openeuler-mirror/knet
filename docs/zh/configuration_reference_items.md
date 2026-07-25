@@ -67,7 +67,7 @@
 |def_sendbuf  |TCP socket发送缓冲区默认大小，单位byte，且不能大于max_sendbuf。|8192|8192~max_sendbuf|
 |max_recvbuf  |允许的TCP socket接收缓冲区最大的大小，单位byte。此配置会影响setsockopt、SO_RCVBUF可配置的大小。|10,485,760|8192~2147483647|
 |def_recvbuf  |TCP socket接收缓冲区默认大小，单位byte，且不能大于max_recvbuf。|8192|8192~max_recvbuf|
-|tcp_cookie   |TCP是否支持COOKIE功能开关。<li> 0：表示不支持COOKIE功能。</li><li> 1：表示支持COOKIE功能。开启COOKIE功能后如果同时建链达到门限则触发COOKIE机制。</li>|0|0，1|
+|tcp_cookie   |TCP是否支持SYN COOKIE功能开关。<li> 0：表示不支持SYN COOKIE功能。</li><li> 1：表示支持SYN COOKIE功能。开启SYN COOKIE功能后如果同时建链达到门限则触发SYN COOKIE机制。</li>|0|0，1|
 |reass_max    |系统缓存真重组节点总个数，单位个。一个节点缓存一条流的分片报文，目前缓存分片报文的最大个数为系统缓存的真重组节点个数的两倍。|1000|1~4096|
 |reass_timeout|真重组节点超时时间，单位秒。|30|1~30|
 |synack_retries|SYN-ACK重传次数。|5|1~255|

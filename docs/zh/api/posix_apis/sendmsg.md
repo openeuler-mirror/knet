@@ -31,7 +31,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|套接字被标记为非阻塞，请求的操作将阻塞。|
+|EAGAIN or EWOULDBLOCK|套接字被标记为非阻塞，请求的操作将阻塞。|
 |ECONNRESET|连接被对端终止。|
 |EDESTADDRREQ|套接字不是连接模式，也没有设置对端地址。|
 |EFAULT|参数在用户的地址空间之外。|
