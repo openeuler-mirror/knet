@@ -140,7 +140,11 @@ knet_collect_info()
 {
     timestamp=$(date +"%Y%m%d%H%M%S")
     folder=${timestamp}_info_collect
-    mkdir -p ${KNET_COMM_LOG_PATH}/info_collect/${folder}
+    # 只在首次创建info_collect目录时设置 750 权限，后续执行时直接跳过
+    if [ ! -d "${KNET_COMM_LOG_PATH}/info_collect" ]; then
+        mkdir -p -m 750 "${KNET_COMM_LOG_PATH}/info_collect"
+    fi
+    mkdir -p "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
 
     collect_hw_info "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
     collect_sw_info "${KNET_COMM_LOG_PATH}/info_collect/${folder}"
