@@ -74,6 +74,10 @@ fi
 
 %files
 %defattr(-,root,root,-)
+%attr(750, root, root) %dir "/etc/knet/"
+%attr(750, root, root) %dir "/etc/knet/run/"
+%attr(750, root, root) %dir "/etc/knet/tools/"
+%attr(750, root, root) %dir "/usr/include/knet/"
 
 %attr(550, root, root) /usr/lib64/libknet_core.so*
 %attr(550, root, root) /usr/lib64/libknet_frame.so*
@@ -83,8 +87,6 @@ fi
 %attr(600, root, root) %{knetsysdir}/knet/knet_comm.conf
 %attr(640, root, root) %{knetsysdir}/rsyslog.d/knet_rsyslog.conf
 %attr(640, root, root) %{knetsysdir}/logrotate.d/knet
-%dir %{knetsysdir}/knet/run
-%dir %{knetsysdir}/knet/tools
 %attr(500, root, root) %{knetsysdir}/knet/tools/merge_conf.sh
 %attr(500, root, root) %{knetsysdir}/knet/tools/collect.sh
 
