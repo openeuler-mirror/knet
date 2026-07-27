@@ -25,4 +25,6 @@
 
 |错误码|描述|
 |--|--|
+|EAFNOSUPPORT|K-NET TCP 模块未初始化。|
 |EINVAL|入参size大于配置"zcopy_sge_len"的值。|
+|ENOMEM|内存申请失败。|

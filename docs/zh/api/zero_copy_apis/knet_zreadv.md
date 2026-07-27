@@ -27,6 +27,7 @@
 
 |错误码|描述|
 |--|--|
+|EAFNOSUPPORT|K-NET TCP 模块未初始化。|
 |EINVAL|入参iovcnt小于0，或大于1024。|
 |EFAULT|入参iov为空指针。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|

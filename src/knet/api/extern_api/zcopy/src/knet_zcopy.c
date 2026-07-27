@@ -26,6 +26,7 @@ void *knet_mp_alloc(size_t size)
 {
     if (!g_tcpInited) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "K-NET zero copy read buffer alloc failed, tcp is not initialized");
+        errno = EAFNOSUPPORT;
         return NULL;
     }
 
@@ -47,6 +48,7 @@ void knet_mp_free(void *addr, void *opaque)
 
     if (!g_tcpInited) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "K-NET zero copy read buffer free failed, tcp is not initialized");
+        errno = EAFNOSUPPORT;
         return;
     }
 
@@ -61,11 +63,13 @@ static ssize_t KnetZWritevNotHijackPath(int sockfd, const struct knet_iovec *iov
 {
     if (iovcnt < 0 || iovcnt > ZCOPY_IOV_CNT_MAX) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iovcnt %d is invalid", iovcnt);
+        errno = EINVAL;
         return -1;
     }
 
     if (iov == NULL) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iov invalid");
+        errno = EFAULT;
         return -1;
     }
 
@@ -112,6 +116,7 @@ ssize_t knet_zwritev(int sockfd, const struct knet_iovec *iov, int iovcnt)
 {
     if (!g_tcpInited) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "K-NET zero copy writev failed, tcp is not initialized");
+        errno = EAFNOSUPPORT;
         return -1;
     }
 
@@ -144,6 +149,7 @@ ssize_t knet_zreadv(int sockfd, struct knet_iovec *iov, int iovcnt)
     ssize_t ret = 0;
     if (!g_tcpInited) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_DEBUG, "K-NET zero copy readv failed, tcp is not initialized");
+        errno = EAFNOSUPPORT;
         return -1;
     }
 
@@ -152,11 +158,13 @@ ssize_t knet_zreadv(int sockfd, struct knet_iovec *iov, int iovcnt)
 
         if (iovcnt < 0 || iovcnt > ZCOPY_IOV_CNT_MAX) {
             KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy readv failed, iovcnt %d is invalid", iovcnt);
+            errno = EINVAL;
             return -1;
         }
 
         if (iov == NULL) {
             KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy readv failed, iov invalid");
+            errno = EFAULT;
             return -1;
         }
 

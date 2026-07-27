@@ -29,7 +29,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|套接字标记为非阻塞，并且不存在要接收的链接。|
+|EAGAIN or EWOULDBLOCK|套接字标记为非阻塞，并且不存在要接收的链接。|
 |EINTR|被信号中断。|
 |EINVAL|入参addrlen的值小于对应地址族长度或大于INT_MAX，或者未侦听，导致套接字不能建立连接。|
 |EINVAL|flags参数非0、SOCK_CLOEXEC、SOCK_NONBLOCK。|

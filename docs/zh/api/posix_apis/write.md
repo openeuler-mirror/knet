@@ -30,7 +30,7 @@
 
 |错误码|描述|
 |--|--|
-|EAGAINEWOULDBLOCK|套接字被标记为非阻塞，写操作将阻塞。|
+|EAGAIN or EWOULDBLOCK|套接字被标记为非阻塞，写操作将阻塞。|
 |EDESTADDRREQ|套接字不是连接模式，也没有设置对端地址。|
 |EINTR|被信号中断。|
 |ECONNRESET|连接被对端终止。|
