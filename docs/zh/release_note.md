@@ -41,7 +41,7 @@
 | iPerf3  | 3.16  |[获取链接](https://github.com/esnet/iperf/releases/tag/3.16)|
 | SockPerf  | 3.10  |[获取链接](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
 | TPerf  | 1.0  |[获取链接](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
-| hinic3 | hinic3-26.0.rc1-0331.r1|[获取链接](https://atomgit.com/openeuler/dpdk/tags/hinic3-26.0.rc1-0331.r1) |
+| hinic3 | hinic3-26.1.rc1-0331.r1|[获取链接](https://gitcode.com/openeuler/dpdk/tags/hinic3-26.1.rc1-0630.r1) |
 
 ## K-NET 1.2.0
 

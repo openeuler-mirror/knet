@@ -43,7 +43,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     cat /proc/sys/kernel/randomize_va_space
     ```
     
-    若结果不为2，请执行以下命令开启ASLR：
+    若结果不等于2，请执行以下命令开启ASLR：
     
     ```bash
     bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
@@ -74,8 +74,8 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         wget https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz
         ```
 
-        > [!NOTE]说明 
-        > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”。
+        > [!NOTE]说明
+        > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”参数。
 
     3. 解压软件包。
         
@@ -183,11 +183,11 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     git clone https://atomgit.com/openeuler/knet.git
     ```
 
-3. 切换到配套版本tag。K-NET版本为[26.0.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.0.rc1-0331)，跳转查看commitid为95c4ef17。
+3. 切换到配套版本tag。K-NET版本为[26.1.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.1.rc1-0630)，跳转查看commitid为63f60f93。
     
     ```bash
     cd knet
-    git checkout 95c4ef17
+    git checkout 63f60f93
     ```
 
 4. 构建RPM包。
