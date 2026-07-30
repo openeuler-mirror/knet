@@ -40,7 +40,7 @@ typedef struct {
     KNET_SpinLock lock;
 } KnetMbufBatch;
 
-#define MBUF_BATCH_THREAD_NUM 32
+#define MBUF_BATCH_THREAD_NUM 256
 static KnetMbufBatch g_mbufBatch[MBUF_BATCH_THREAD_NUM] = {0};
 
 /*

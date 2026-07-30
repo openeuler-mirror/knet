@@ -33,29 +33,13 @@ typedef struct {
     DP_PollNotify_t  userNotify;
 } PollCtx_t;
 
-static inline int CopyFdsFromUser(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
-{
-    if (memcpy_s(ctx->fds, ctx->nfds * sizeof(struct DP_Pollfd), fds, nfds * sizeof(struct DP_Pollfd)) != 0) {
-        return -1;
-    }
-    return 0;
-}
-
-static inline int CopyFdsToUser(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
-{
-    if (memcpy_s(fds, nfds * sizeof(struct DP_Pollfd), ctx->fds, ctx->nfds * sizeof(struct DP_Pollfd)) != 0) {
-        return -1;
-    }
-    return 0;
-}
-
 static PollCtx_t* AllocPollCtx(DP_Nfds_t nfds)
 {
     size_t     allocSize;
     PollCtx_t* ctx = NULL;
-    allocSize      = sizeof(PollCtx_t) + sizeof(struct DP_Pollfd) * nfds + SEM_Size;
+    allocSize      = sizeof(PollCtx_t) + SEM_Size;
 
-    ctx = SHM_MALLOC(allocSize, MOD_POLL, DP_MEM_FREE);
+    ctx = OS_MALLOC(allocSize);
     if (ctx == NULL) {
         DP_LOG_ERR("Malloc memory failed for poll.");
         return NULL;
@@ -63,7 +47,6 @@ static PollCtx_t* AllocPollCtx(DP_Nfds_t nfds)
     (void)memset_s(ctx, allocSize, 0, allocSize);
 
     ctx->sem  = (DP_Sem_t)(ctx + 1);
-    ctx->fds  = (struct DP_Pollfd*)((uint8_t*)ctx->sem + SEM_Size);
     ctx->nfds = nfds;
 
     return ctx;
@@ -77,12 +60,8 @@ static int InitPollCtx(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
 
     SPINLOCK_Init(&ctx->lock);
 
-    if (CopyFdsFromUser(ctx, fds, nfds) != 0) {
-        DP_LOG_ERR("InitPollCtx failed, copy err.");
-        SPINLOCK_Deinit(&ctx->lock);
-        SEM_DEINIT(ctx->sem);
-        return -ENOMEM;
-    }
+    ctx->fds     = fds;
+    ctx->nfds    = nfds;
     ctx->readyFds = 0;
     return 0;
 }
@@ -98,7 +77,7 @@ static int CreatePollCtx(struct DP_Pollfd* fds, DP_Nfds_t nfds, PollCtx_t** out)
     int ret = InitPollCtx(ctx, fds, nfds);
     if (ret != 0) {
         DP_SET_ERRNO(-ret);
-        SHM_FREE(ctx, DP_MEM_FREE);
+        OS_FREE(ctx);
         return -1;
     }
 
@@ -110,7 +89,7 @@ static void DestroyPollCtx(PollCtx_t* ctx)
 {
     SPINLOCK_Deinit(&ctx->lock);
     SEM_DEINIT(ctx->sem);
-    SHM_FREE(ctx, DP_MEM_FREE);
+    OS_FREE(ctx);
 }
 
 static inline uint8_t GetExpectState(struct DP_Pollfd* pollFd)
@@ -419,10 +398,7 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
         goto out;
     }
 
-    ret = CopyFdsToUser(ctx, fds, nfds);
-    if (ret == 0) {
-        ret = ctx->readyFds;
-    }
+    ret = ctx->readyFds;
 
 out:
     DestroyPollCtx(ctx);

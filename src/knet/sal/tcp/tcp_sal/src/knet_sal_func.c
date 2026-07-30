@@ -69,7 +69,7 @@ KNET_SAL_REG_FUNC_S g_knetSalRegFuncs[] = {
 #define MSEC_PER_SEC  (1000)
 #define NSEC_PER_MSEC (1000 * 1000)
 #define NSEC_PER_SEC  (1000LL * 1000LL * 1000LL)
-#define KNET_WAITTIME (50)
+#define KNET_WAITTIME (1000)
 
 
 int KNET_ACC_DelayInputEnque(void* pbuf, int cpdRingId)
@@ -148,7 +148,7 @@ uint32_t SemWaitBlocking(DP_Sem_t sem, int timeout)
             return 0;
         }
 
-        /* knet对每个信号都会捕获,在这里判断是否有信号中断需要退出 */
+        /* knet对每个信号都会捕获,在这里判断是否有信号中断需要退出。while循环非sem_timedwait执行时来信号，通过curSig判断是否需要退出 */
         /* 主线程被中断,其他线程也需要退出 */
         curSig = KNET_DpSignalGetSigDelayCurSig();
         if (KNET_UNLIKELY(curSig) || KNET_UNLIKELY(KNET_DpSignalGetWaitExit())) {

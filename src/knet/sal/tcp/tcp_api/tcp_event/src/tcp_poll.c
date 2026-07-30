@@ -47,7 +47,7 @@ static int DpPollHelper(struct pollfd *fds, nfds_t nfds, int timeout)
     // 区分os轮询和dp轮询的fd
     struct pollfd *curPollFd = NULL;
     for (int i = 0; i < nfds; ++i) {
-        if (fds[i].fd < 0) {
+        if (!KNET_IsFdValid(fds[i].fd)) {
             continue;
         }
 
