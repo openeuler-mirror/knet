@@ -143,8 +143,8 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     4. 编译。
         
         ```bash
-        sh install.sh /path/to/local/directory/dpdk-stable-21.11.9 install
-        sh install.sh /path/to/local/directory/dpdk-stable-21.11.9 build
+        sh install.sh /path/to/local/directory/dpdk-stable-21.11.7 install
+        sh install.sh /path/to/local/directory/dpdk-stable-21.11.7 build
         ```
 
     5. 安装。
