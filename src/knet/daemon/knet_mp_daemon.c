@@ -75,6 +75,7 @@ int DaemonInitResource(void)
     ret = KNET_InitCfg(KNET_PROC_TYPE_PRIMARY);
     if (ret != 0) {
         KNET_ERR("K-NET init cfg failed");
+        KNET_LogUninit();
         return -1;
     }
 
@@ -82,12 +83,14 @@ int DaemonInitResource(void)
     if (KNET_GetCfg(CONF_COMMON_MODE)->intValue != KNET_RUN_MODE_MULTIPLE) {
         KNET_ERR("K-NET conf is Single process");
         KNET_UninitCfg();                 /* 回滚 InitCfg */
+        KNET_LogUninit();
         return -1;
     }
 
     if (KNET_GetCfg(CONF_INTERFACE_BOND_ENABLE)->intValue == 1) {
         KNET_ERR("K-NET multi-process mode not support bond, please not use bond or use the single-process mode");
         KNET_UninitCfg();                 /* 回滚 InitCfg */
+        KNET_LogUninit();
         return -1;
     }
 
@@ -95,13 +98,15 @@ int DaemonInitResource(void)
     if (ret != 0) {
         KNET_ERR("K-NET init public resource failed");
         KNET_UninitCfg();                 /* 回滚 InitCfg */
+        KNET_LogUninit();
         return -1;
     }
 
     /* 创建telemetry持久化线程 */
     if (KNET_TelemetryStartPersistThread() == 0) {
         KNET_ERR("K-NET daemon init telemetry persist thread failed");
-        KNET_UninitCfg();
+        KNET_UninitCfg();                 /* 回滚 InitCfg */
+        KNET_LogUninit();
         return -1;
     }
     return 0;
