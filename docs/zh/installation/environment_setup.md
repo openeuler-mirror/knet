@@ -169,7 +169,7 @@
         virsh vncdisplay vm_perf_2203
         ```
 
-        启动虚拟机。
+        连接到虚拟机。
 
         ```bash
         virsh console vm_perf_2203
