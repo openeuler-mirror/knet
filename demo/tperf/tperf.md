@@ -447,9 +447,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0, promisc: 0
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0, promisc: 0
         [Client] Thread [281459888938064]: in knet user space thread
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  25.424 write Gbits/sec
@@ -497,11 +497,11 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         Listening on 192.168.1.6:11111
         [Server] Thread [281469707809728]: in knet user space thread
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Accepted connection: fd = 47, cli_addr=192.168.1.7, cli_port=49618
         nr_sock :1
@@ -613,8 +613,8 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         Connection in progress...server port 11111, sockfd 62, cli_port 58532
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  54.859 write Gbits/sec
@@ -659,11 +659,11 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
         Listening on 192.168.1.6:11111
         [Server] Thread [281469707809728]: in knet user space thread
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Accepted connection: fd = 74, cli_addr=192.168.1.7, cli_port=49452
         nr_sock :1
@@ -686,10 +686,10 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
         Connection in progress...server port 11111, sockfd 66, cli_port 49452
         Connection established with sockfd 66
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
         Connection in progress...server port 11112, sockfd 69, cli_port 51507
         Connection established with sockfd 69
             0 w    0. 0.000 read Gbits/sec  53.242 write Gbits/sec
@@ -787,8 +787,8 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         Connection in progress...server port 11111, sockfd 57, cli_port 49631
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  76.219 write Gbits/sec
@@ -832,9 +832,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Listening on 192.168.1.6:11111
         Accepted connection: fd = 66, cli_addr=192.168.1.7, cli_port=49162
@@ -858,8 +858,8 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
-        sp6: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
         Connection in progress...server port 11111, sockfd 66, cli_port 49154
         Connection in progress...server port 11112, sockfd 69, cli_port 49162
         Connection established with sockfd 60
