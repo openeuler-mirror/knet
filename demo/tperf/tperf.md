@@ -78,7 +78,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        Connection in progress...server prot 11111, sockfd 4, cli_port random
+        Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  20.819 write Gbits/sec
             1 w       0.000 read Gbits/sec  20.347 write Gbits/sec
@@ -125,8 +125,8 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        Connection in progress...server prot 11111, sockfd 6, cli_port random
-        Connection in progress...server prot 11112, sockfd 5, cli_port random
+        Connection in progress...server port 11111, sockfd 6, cli_port random
+        Connection in progress...server port 11112, sockfd 5, cli_port random
         Connection established with sockfd 5
         Connection established with sockfd 6
             0 w    0. 0.000 read Gbits/sec  21.126 write Gbits/sec
@@ -245,14 +245,14 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         >- -s：运行模式为服务端。 
         >- -p 11111：指定在11111端口进行侦听。
         >- -n 1：指定一个线程（即一个并发连接数）。
-        >- -S 17：指定CPU绑核的起始值。
+        >- -S 16：指定CPU绑核的起始值。
 
         示例回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
@@ -280,7 +280,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        Connection in progress...server prot 11111, sockfd 4, cli_port random
+        Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  18.424 write Gbits/sec
             1 w       0.000 read Gbits/sec  18.337 write Gbits/sec
@@ -316,9 +316,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
@@ -349,8 +349,8 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        Connection in progress...server prot 11111, sockfd 4, cli_port random
-        Connection in progress...server prot 11111, sockfd 6, cli_port random
+        Connection in progress...server port 11111, sockfd 4, cli_port random
+        Connection in progress...server port 11111, sockfd 6, cli_port random
         Connection established with sockfd 6
         Connection established with sockfd 4
             0 w    0. 0.000 read Gbits/sec  17.845 write Gbits/sec
@@ -387,7 +387,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 使用K-NET共线程特性的Tperf demo。
 
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 已完成K-NET配置文件修改和DPDK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -398,7 +398,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
     按“i”进入编辑模式，修改以下配置项：
 
     ```text
-    "cothread_enable": 1；
+    "cothread_enable": 1;
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -410,7 +410,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
     echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range
     ```
 
-4. 运行并发数连接数为1，使用K-NET共线程特性的Tperf。
+4. 运行并发连接数为1，使用K-NET共线程特性的Tperf。
 
     1. 服务端启动Tperf。
 
@@ -421,9 +421,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
@@ -441,16 +441,16 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0, promisc: 0
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0, promisc: 0
         [Client] Thread [281459888938064]: in knet user space thread
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
-        Connection in progress...server prot 11111, sockfd 4, cli_port random
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  25.424 write Gbits/sec
             1 w       0.000 read Gbits/sec  25.337 write Gbits/sec
@@ -491,17 +491,17 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         Listening on 192.168.1.6:11111
         [Server] Thread [281469707809728]: in knet user space thread
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Accepted connection: fd = 47, cli_addr=192.168.1.7, cli_port=49618
         nr_sock :1
@@ -518,14 +518,14 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        Connection in progress...server prot 11111, sockfd 41, cli_port 49300
-        Connection in progress...server prot 11112, sockfd 42, cli_port 49618
+        Connection in progress...server port 11111, sockfd 41, cli_port 49300
+        Connection in progress...server port 11112, sockfd 42, cli_port 49618
         Connection established with sockfd 41
         Connection established with sockfd 42
             0 w    0. 0.000 read Gbits/sec  0.000 write Gbits/sec
@@ -562,7 +562,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 ### K-NET零拷贝特性加速tperf_knetzcopy
 
 使用K-NET零拷贝特性的Tperf demo。
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 已完成K-NET配置文件修改和DPDK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -587,9 +587,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
@@ -607,15 +607,15 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
-        Connection in progress...server prot 11111, sockfd 62, cli_port 58532
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        Connection in progress...server port 11111, sockfd 62, cli_port 58532
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  54.859 write Gbits/sec
             1 w       0.000 read Gbits/sec  54.574 write Gbits/sec
@@ -653,17 +653,17 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
         Listening on 192.168.1.6:11111
         [Server] Thread [281469707809728]: in knet user space thread
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Accepted connection: fd = 74, cli_addr=192.168.1.7, cli_port=49452
         nr_sock :1
@@ -680,17 +680,17 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
-        Connection in progress...server prot 11111, sockfd 66, cli_port 49452
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 3, tcam_rule_nums: 1 succeed
+        Connection in progress...server port 11111, sockfd 66, cli_port 49452
         Connection established with sockfd 66
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
-        Connection in progress...server prot 11112, sockfd 69, cli_port 51507
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 3, tcam_rule_nums: 2 succeed
+        Connection in progress...server port 11112, sockfd 69, cli_port 51507
         Connection established with sockfd 69
             0 w    0. 0.000 read Gbits/sec  53.242 write Gbits/sec
             0 w    1. 0.000 read Gbits/sec  52.811 write Gbits/sec
@@ -726,7 +726,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 ### K-NET共线程和零拷贝特性加速tperf_knetcozcopy
 
 使用K-NET共线程加零拷贝特性的Tperf demo。
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 已完成K-NET配置文件修改和DPDK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -761,9 +761,9 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
@@ -781,15 +781,15 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
-        Connection in progress...server prot 11111, sockfd 57, cli_port 49631
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
+        Connection in progress...server port 11111, sockfd 57, cli_port 49631
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  76.219 write Gbits/sec
             1 w       0.000 read Gbits/sec  76.461 write Gbits/sec
@@ -826,15 +826,15 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         服务端回显:
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Disable allmulticuous succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
+        hinic3: Disable allmulticast succeed, nic_dev: dbdf-000:01:00.5, port_id: 0
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
         Listening on 192.168.1.6:11112
         Listening on 192.168.1.6:11111
         Accepted connection: fd = 66, cli_addr=192.168.1.7, cli_port=49162
@@ -852,16 +852,16 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         客户端回显：
 
         ```coldfusion
-        EAL: Detectd CPU lcores: 128
-        EAL: Detectd NUMA nodes: 4
-        EAL: Detectd shared linkage of DPDK
+        EAL: Detected CPU lcores: 128
+        EAL: Detected NUMA nodes: 4
+        EAL: Detected shared linkage of DPDK
         ...
         ...
         ...
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
-        sp6: Add fdir tcam rule, fuction_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
-        Connection in progress...server prot 11111, sockfd 66, cli_port 49154
-        Connection in progress...server prot 11112, sockfd 69, cli_port 49162
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 1, tcam_rule_nums: 1 succeed
+        hinic3: Add fdir tcam rule, function_id: 0x22, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 0, tcam_rule_nums: 2 succeed
+        Connection in progress...server port 11111, sockfd 66, cli_port 49154
+        Connection in progress...server port 11112, sockfd 69, cli_port 49162
         Connection established with sockfd 60
         Connection established with sockfd 59
             0 w    0. 0.000 read Gbits/sec  72.071 write Gbits/sec

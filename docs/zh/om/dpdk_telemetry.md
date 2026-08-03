@@ -50,7 +50,7 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/flow/list,<start_flow_index> <flow_cnt>`|所有参数必填|/knet/flow/list,0 1|获取从索引start_flow_index开始的最多flow_cnt条流表信息。|
 |`/knet/ethdev/queue`|否|-|获取队列被分配使用的进程、线程号。|
 |`/knet/stack/epoll_stat,<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>`|所有参数必填|/knet/stack/epoll_stat,12345 0 1 0 1|获取从start_epoll_fd开始的epoll_fd_cnt个epoll实例的详细信息，每个epoll实例中包含从start_socket_fd开始、最多socket_fd_cnt个有效的socket描述符信息。pid取值必须为有效的进程ID。|
-|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
+|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
 
 > [!NOTE]说明  
 >SP670网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
@@ -161,7 +161,7 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
 
 K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
-查看协议栈测统计信息命令（单进程模式下pid参数可忽略，多进程模式下需要指定pid参数）：
+查看协议栈侧统计信息命令（单进程模式下pid参数可忽略，多进程模式下需要指定pid参数）：
 
 ```bash
 /knet/stack/tcp_stat,[pid]     # TCP相关统计
@@ -243,7 +243,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 {"/knet/ethdev/queue": {"queue0": {"pid": 5837, "tid": 5840, "lcoreId": 18}, "queue1": {"pid": 5837, "tid": 5841, "lcoreId": 38}, "queue2": {"pid": 5837, "tid": 5842, "lcoreId": 68}, "queue3": {"pid": 5837, "tid": 5843, "lcoreId": 98}}}
 ```
 
-`queue0`表示队列号从0开的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用, `lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
+`queue0`表示队列号从0开始的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用, `lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
 
 ### 获取TCP/UDP/epoll句柄个数
 
@@ -285,7 +285,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
-支持获取所有TCP/UDP连接信息命令：
+支持获取TCP/UDP连接信息的命令：
 
 ```bash
 /knet/stack/socket_info,[pid] <fd>
@@ -323,7 +323,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 {"/knet/stack/epoll_stat": {"epoll_73": {"pid": "26058", "tid": "-", "osFd": "73", "inner_fd": "0", "details": {"socket_2": {"fd": "2", "expectEvents": "0x1", "readyEvents": "0", "notifiedEvents": "0", "shoted": "0"}}}}}
 ```
 
-tid仅在开启共线程时有意义，主要查看details条目中每个连接的套接字的侦听事件expectedEvents，就绪事件readyEvents，上报事件notifiedEvents（边缘触发模式下有效），进行问题定位。
+tid仅在开启共线程时有意义，主要查看details条目中每个连接的套接字的侦听事件expectEvents，就绪事件readyEvents，上报事件notifiedEvents（边缘触发模式下有效），进行问题定位。
 
 ### 查看网卡带宽、包率
 
@@ -340,47 +340,47 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 一般使用流程如下：
 
-1.查询当前DPDK管理的端口。
+1. 查询当前DPDK管理的端口。
 
-```bash
-/ethdev/list
-```
+    ```bash
+    /ethdev/list
+    ```
 
-回显：
+    回显：
 
-```json
--->/ethdev/list
-{"ethdev_list": [0]}
-```
+    ```json
+    -->/ethdev/list
+    {"ethdev_list": [0]}
+    ```
 
-一般为回显内容的第一个。
+    一般为回显内容的第一个。
 
-2.根据查询到的port号，查询带宽核包率。
+2. 根据查询到的port号，查询带宽和包率。
 
-```bash
-/knet/ethdev/usage,0 1
-```
+    ```bash
+    /knet/ethdev/usage,0 1
+    ```
 
-回显：
+    回显：
 
-```json
---> /knet/ethdev/usage,0 1
-{"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18453 p/s", "rx": "640.22 Mbit/s, 50450 p/s"}}}
+    ```json
+    --> /knet/ethdev/usage,0 1
+    {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18453 p/s", "rx": "640.22 Mbit/s, 50450 p/s"}}}
 
-```
+    ```
 
-3.第二个输出参数time可以控制查看多长时间段的带宽和包率：
+3. 第二个输出参数time可以控制查看多长时间段的带宽和包率：
 
-```bash
-/knet/ethdev/usage,0 5
-```
+    ```bash
+    /knet/ethdev/usage,0 5
+    ```
 
-回显：
+    回显：
 
-```json
---> /knet/ethdev/usage,0 5
-{"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18455 p/s", "rx": "643.83 Mbit/s, 50792 p/s"}, "1-2s": {"tx": "9.73 Mbit/s, 18434 p/s", "rx": "648.21 Mbit/s, 51287 p/s"}, "2-3s": {"tx": "9.76 Mbit/s, 18477 p/s", "rx": "649.77 Mbit/s, 51331 p/s"}, "3-4s": {"tx": "9.75 Mbit/s, 18464 p/s", "rx": "645.81 Mbit/s, 50949 p/s"}, "4-5s": {"tx": "9.75 Mbit/s, 18460 p/s", "rx": "643.58 Mbit/s, 50752 p/s"}}}
-```
+    ```json
+    --> /knet/ethdev/usage,0 5
+    {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18455 p/s", "rx": "643.83 Mbit/s, 50792 p/s"}, "1-2s": {"tx": "9.73 Mbit/s, 18434 p/s", "rx": "648.21 Mbit/s, 51287 p/s"}, "2-3s": {"tx": "9.76 Mbit/s, 18477 p/s", "rx": "649.77 Mbit/s, 51331 p/s"}, "3-4s": {"tx": "9.75 Mbit/s, 18464 p/s", "rx": "645.81 Mbit/s, 50949 p/s"}, "4-5s": {"tx": "9.75 Mbit/s, 18460 p/s", "rx": "643.58 Mbit/s, 50752 p/s"}}}
+    ```
 
 ### 查看持久化统计信息
 
@@ -1106,7 +1106,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 |details|套接字集合条目的键名。|
 |socket_<socket_fd>|单个套接字条目的键名，<socket_fd>为套接字文件描述符。|
 |fd|协议栈Epoll侦听的套接字文件描述符。|
-|expectedEvents|协议栈Epoll侦听的事件。|
+|expectEvents|协议栈Epoll侦听的事件。|
 |readyEvents|已就绪的事件，边缘触发模式上报事件后将同步至notifiedEvents，readyEvents的值保留至下次事件更新。|
 |notifiedEvents|套接字已经上报过的事件（边缘触发模式下有效）。|
 |shoted|套接字上报事件后置为1（one shot模式下有效）。|

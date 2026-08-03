@@ -114,7 +114,7 @@
     Hugepages mounted on /dev/hugepages /dev/hugepages1G
     ```
 
-    若不存在对应大页，需要挂载相应大小大页，建议配置1G大页或者512MB大页，大页配置参考[配置大页内存](../feature_guide/environment_configuration.md#配置大页内存)配置大页内存部分。
+    若不存在对应大页，需要挂载相应大小大页，建议配置1GB大页或者512MB大页，大页配置参考[配置大页内存](../feature_guide/environment_configuration.md#配置大页内存)配置大页内存部分。
 
 3. 检查熵池。
     1. 检查是否安装rng-tools：
