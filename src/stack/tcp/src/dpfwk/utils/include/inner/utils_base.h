@@ -107,6 +107,11 @@ DP_Hooks_t* UTILS_GetBaseFunc(void);
 #define MEMPOOL_CONSTRUCT(mempool, addr, offset, len) DP_MempoolConstruct( \
     (mempool), (addr), (offset), (len))
 
+/** 内存申请 */
+#define OS_MALLOC(size) malloc((size))
+/** 内存释放 */
+#define OS_FREE(ptr)    free((ptr))
+
 /** 模块ID信息 */
 enum {
     MOD_INIT,    /**< 初始化 */
