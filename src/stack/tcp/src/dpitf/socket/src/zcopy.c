@@ -17,7 +17,7 @@
 #include "pbuf.h"
 #include "sock.h"
 
-ssize_t DP_ZWritev(int sockfd, const struct DP_ZIovec* iov, int iovcnt)
+ssize_t DP_ZWritev(int sockfd, const struct DP_ZIovec* iov, int iovcnt, ssize_t totalLen)
 {
     struct DP_ZMsghdr msg;
 
@@ -44,7 +44,7 @@ ssize_t DP_ZWritev(int sockfd, const struct DP_ZIovec* iov, int iovcnt)
     msg.msg_iov        = (struct DP_ZIovec*)iov;
     msg.msg_iovlen     = (size_t)iovcnt;
 
-    return DP_ZSendmsg(sockfd, &msg, 0);
+    return DP_ZSendmsg(sockfd, &msg, 0, totalLen);
 }
 
 ssize_t DP_ZReadv(int sockfd, struct DP_ZIovec* iov, int iovcnt)
@@ -101,6 +101,9 @@ void DP_ZcopyFree(void* addr)
 {
     if (CFG_GET_VAL(DP_CFG_ZERO_COPY) == 0) {
         DP_LOG_DBG("Zero copy iovec free failed, zero copy not enable.");
+        return;
+    }
+    if (addr == NULL) {
         return;
     }
 

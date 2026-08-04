@@ -32,6 +32,10 @@ void* DP_MempoolAlloc(DP_Mempool mp);
 void DP_MempoolFree(DP_Mempool mp, void* ptr);
 void DP_MempoolDestory(DP_Mempool mp);
 void* DP_MempoolConstruct(DP_Mempool mp, void* addr, uint64_t offset, uint16_t len);
+void* DP_EbufGetNextPbuf(void* ebuf, uint32_t len, uint16_t idx);
+uint16_t DP_EbufRefCntUpdate(void* ptr, int16_t value);
+void DP_EbufCallback(void* ptr);
+void DP_EbufSetRefCnt(void* ptr, uint16_t cnt);
 
 void MempoolHookClr(void);
 
