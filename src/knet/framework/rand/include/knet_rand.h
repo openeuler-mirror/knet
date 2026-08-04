@@ -27,6 +27,17 @@ extern "C" {
  */
 int64_t KNET_GetRandomNum(uint8_t *data, uint32_t len);
 
+/**
+ * @brief 初始化随机数生成器
+ * @return int32_t 成功返回0；失败时返回-1
+ */
+int KNET_RandInit(void);
+
+/**
+ * @brief 反初始化随机数生成器
+ */
+void KNET_RandUninit(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -41,6 +41,7 @@
 #include "knet_telemetry.h"
 #include "knet_lock.h"
 #include "knet_utils.h"
+#include "knet_rand.h"
 #include "knet_signal_tcp.h"
 #include "knet_socketext_init.h"
 #include "knet_sal_tcp.h"
@@ -262,7 +263,7 @@ KNET_STATIC void *MultiPdumpThreadFunc(void* args)
         if (g_threadStop) {
             return NULL;
         }
-        usleep(usSleepGap);
+        KNET_Usleep(usSleepGap);
 
         if (pdumpRequestMz == NULL) {
             continue;
@@ -297,7 +298,7 @@ KNET_STATIC void *CpThreadFunc(void *args)
             return NULL;
         }
         if (kernelForwardEnabled != KERNEL_FORWARD_ENABLE) {
-            usleep(KNET_NO_KERNELFORWARD_FREQ);
+            KNET_Usleep(KNET_NO_KERNELFORWARD_FREQ);
         }
     }
 }
@@ -622,7 +623,7 @@ KNET_STATIC int32_t DpdkStackInit(void)
 jointhreads:
     g_threadStop = true;
     KNET_TelemetrySetPersistThreadExit();
-    usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
+    KNET_Usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
     JoinDpdkAndStackThread();
 uninitdpdk:
     if (KNET_GetCfg(CONF_COMMON_MODE)->intValue == KNET_RUN_MODE_SINGLE) {
@@ -715,7 +716,14 @@ void ConfigInit(void)
 {
     KNET_LogInit();
 
-    int32_t ret = KNET_InitCfg(KNET_PROC_TYPE_SECONDARY);
+    int32_t ret = KNET_RandInit();
+    if (ret != 0) {
+        KNET_ERR("K-NET init rand failed, ret %d", ret);
+        g_cfgInit = false;
+        return;
+    }
+
+    ret = KNET_InitCfg(KNET_PROC_TYPE_SECONDARY);
     if (ret != 0) {
         KNET_ERR("K-NET init cfg failed");
         g_cfgInit = false;
@@ -746,10 +754,10 @@ void Uninit(void)
         KNET_MemSetFlagInSignalQuiting();
         if (KNET_DpIsForkedParent()) {
             KNET_DpExit();
-            usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
+            KNET_Usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
             g_threadStop = true;
             KNET_TelemetrySetPersistThreadExit();
-            usleep(200 * 1000); // 通过延时保证数据面和控制面线程已退出，200 * 1000表示200ms
+            KNET_Usleep(200 * 1000); // 通过延时保证数据面和控制面线程已退出，200 * 1000表示200ms
             (void)KNET_FreeTapGlobal();
             KNET_PktBatchFree();
             return;
@@ -767,11 +775,11 @@ void Uninit(void)
     if (KNET_DpIsForkedParent()) {
         KNET_INFO("All hijack fds close");
         KNET_DpExit();
-        usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
+        KNET_Usleep(10 * 1000); // 通过延时保证数据面线程已经将RST报文发送出去，10 * 1000表示10ms
 
         g_threadStop = true;        // 置此标志位，控制面和数据面线程才会退出,抓包线程也会退出
         KNET_TelemetrySetPersistThreadExit();
-        usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
+        KNET_Usleep(10 * 1000); // 通过延时保证数据面和控制面线程已退出，10 * 1000表示10ms
         int ret = JoinDpdkAndStackThread();
         if (ret != 0) {
             KNET_ERR("K-NET join thread failed");
@@ -791,6 +799,7 @@ void Uninit(void)
 END:
     KNET_UninitDp();
     KNET_UninitCfg();
+    KNET_RandUninit();
 }
 
 #ifdef KNET_TEST

@@ -25,6 +25,7 @@
 #include "knet_config.h"
 #include "knet_lock.h"
 #include "knet_log.h"
+#include "knet_utils.h"
 #include "knet_rpc.h"
 #include "knet_types.h"
 #include "knet_telemetry.h"
@@ -411,7 +412,7 @@ cJSON *GetDpStateByTypeSingle(DP_StatType_t type)
     (void)memset_s(g_knetTeleToFileDpOutput, MAX_OUTPUT_LEN, 0, MAX_OUTPUT_LEN);
     
     if (g_dpShowStatisticsHookPersist == NULL) {
-        KNET_ERR("K-NET telemetry persist get dp state json by type %d failed. Show stats hook is null");
+        KNET_ERR("K-NET telemetry persist get dp state json by type %d failed. Show stats hook is null", type);
         return NULL;
     }
     g_dpShowStatisticsHookPersist(type, -1, KNET_STAT_OUTPUT_TO_FILE);
@@ -443,7 +444,7 @@ cJSON *GetDpStateByTypeMulti(DP_StatType_t type)
             msgReady = true;
             break;
         }
-        usleep(PERSIST_MULTI_PROCESS_WAIT_TIME); // 100ms
+        KNET_Usleep(PERSIST_MULTI_PROCESS_WAIT_TIME); // 100ms
     }
     if (!msgReady) {
         KNET_ERR("K-NET telemetry persist get dp state json by type failed, pid %d, state %d,type %d",

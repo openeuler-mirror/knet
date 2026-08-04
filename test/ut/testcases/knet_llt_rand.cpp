@@ -49,8 +49,13 @@ DTEST_CASE_F(RAND, TEST_KNET_GET_RAND_NUM_NORMAL, NULL, NULL)
     uint32_t len = RAND_DATA_LENGTH;
     int64_t ret = 0;
 
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
     ret = KNET_GetRandomNum(data, len);
     DT_ASSERT_EQUAL(1, ret <= (int64_t)len);
+
+    KNET_RandUninit();
 }
 
 DTEST_CASE_F(RAND, TEST_KNET_GET_RAND_NUM_OPEN_ABNORMAL, NULL, NULL)
