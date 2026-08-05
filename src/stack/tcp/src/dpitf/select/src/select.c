@@ -273,21 +273,21 @@ static void ClrFdSet(int fd, SelectCtx_t* ctx)
     SPINLOCK_Unlock(&ctx->lock);
 }
 
-void SELECT_Notify(Sock_t* sk, SelectCtx_t* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
+void SELECT_Notify(Sock_t* sk, SelectCtx_t* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd)
 {
     ASSERT(ctx != NULL);
+    (void)sk;
     (void)oldState;
     (void)event;
 
     SelectCtx_t* selectCtx = ctx;
-    int          fd        = sk->associateFd;
-
+     
+    int fd = (int) associateFd;
     if ((newState & SOCK_STATE_CLOSE) != 0) {
         ClrFdSet(fd, selectCtx);
     } else if (SetEvents(fd, selectCtx, newState) == 0) {
         return;
     }
-
     SEM_SIGNAL(selectCtx->sem);
 }
 
@@ -308,9 +308,13 @@ static int EnableNotify(int fd, SelectCtx_t* ctx)
 
     if (SetEvents(fd, ctx, sk->state) == 0) {
         // 还没有事件
-        SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_SELECT, ctx, fd);
+        if (SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_SELECT, ctx, fd) != 0) {
+            DP_LOG_DBG("EnableNotify failed.");
+            SOCK_Unlock(sk);
+            FD_Put(skFile);
+            return -1;
+        }
     }
-
     SOCK_Unlock(sk);
 
     FD_Put(skFile);
@@ -318,7 +322,23 @@ static int EnableNotify(int fd, SelectCtx_t* ctx)
     return 0;
 }
 
-static void DisableNotify(int fd)
+static void DisableNotifySafe(Sock_t *sk, SelectCtx_t *ctx)
+{
+    SOCK_Lock(sk);
+    SockNotify_t *notify = NULL;
+    SockNotify_t *next = NULL;
+    for (notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
+        next = LIST_NEXT(notify, node);
+        if (notify->notifyType == SOCK_NOTIFY_TYPE_SELECT && notify->notifyCtx == ctx) {
+            LIST_REMOVE(&sk->notifyList, notify, node);
+            SHM_FREE(notify, DP_MEM_FREE);
+            break;
+        }
+    }
+    SOCK_Unlock(sk);
+}
+
+static void DisableNotify(SelectCtx_t* ctx, int fd)
 {
     Sock_t* sk;
     Fd_t*   skFile;
@@ -331,7 +351,7 @@ static void DisableNotify(int fd)
 
     sk = (Sock_t*)skFile->priv;
 
-    SOCK_DisableNotifySafe(sk);
+    DisableNotifySafe(sk, ctx);
 
     FD_Put(skFile);
 }
@@ -342,7 +362,7 @@ static void FdsDisableNotify(SelectCtx_t* ctx, int nfds)
         if (!FdIsMonitored(i, ctx)) {
             continue;
         }
-        DisableNotify(i);
+        DisableNotify(ctx, i);
     }
 }
 

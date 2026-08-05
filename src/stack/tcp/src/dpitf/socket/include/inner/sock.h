@@ -102,6 +102,14 @@ typedef struct SOCK_Pacing {
     uint32_t cbs;       // 令牌桶深度
 } SOCK_Pacing_t;
 
+// sock回调通知结构
+typedef struct SockNotify {
+    uint64_t    associateFd;  // 关联FD(epoll->epfd; select->fd; poll->&DP_PollFd)
+    int         notifyType;   // 回调函数类型
+    void*       notifyCtx;
+    LIST_ENTRY(SockNotify) node;
+} SockNotify_t;
+
 struct Sock {
     union {
         LIST_ENTRY(Sock) node;
@@ -170,9 +178,7 @@ struct Sock {
 
     int priority;
 
-    int   associateFd; // 关联FD
-    void* notifyCtx;
-    int   notifyType; // 回调函数类型
+    LIST_HEAD(, SockNotify) notifyList;
 
     int32_t wid;
     void* userData;
@@ -251,14 +257,13 @@ void SOCK_DeinitSk(Sock_t* sk);
 
 #define SOCK_CAN_REUSE(sk) ((sk)->reuseAddr != 0 || (sk)->reusePort != 0)
 
-void SOCK_Notify(Sock_t* sk, uint8_t oldState, uint8_t event);
+void SOCK_Notify(Sock_t *sk, uint8_t oldState, uint8_t event, bool includeHook);
+
+void SOCK_DisableNotifyWithoutHook(Sock_t* sk);
 
 static inline void SOCK_NotifyEvent(Sock_t* sk, uint8_t event)
 {
-    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
-        return;
-    }
-    SOCK_Notify(sk, 0, event);
+    SOCK_Notify(sk, 0, event, true);
 }
 
 static inline void SOCK_SetState(Sock_t* sk, uint8_t state)
@@ -269,9 +274,7 @@ static inline void SOCK_SetState(Sock_t* sk, uint8_t state)
     }
     sk->state |= state;
 
-    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
-        SOCK_Notify(sk, old, SOCK_EVENT_NONE);
-    }
+    SOCK_Notify(sk, old, SOCK_EVENT_NONE, false);
 
     sk->state &= ~SOCK_STATE_ET;
 }
@@ -284,11 +287,7 @@ static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
     }
     sk->state &= ~state;
 
-    if (sk->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
-        return;
-    }
-
-    SOCK_Notify(sk, old, SOCK_EVENT_NONE);
+    SOCK_Notify(sk, old, SOCK_EVENT_NONE, false);
 }
 
 #define SOCK_SET_READABLE(sk)  SOCK_SetState((sk), SOCK_STATE_READ | SOCK_STATE_READ_ET)

@@ -137,40 +137,35 @@ static inline int SetRevents(struct DP_Pollfd* pollFd, uint8_t state)
     return pollFd->revents;
 }
 
-void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
+void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd)
 {
     ASSERT(ctx != NULL);
+    (void)sk;
     (void)oldState;
     (void)event;
 
-    PollCtx_t* pollCtx = ctx;
-    int        fd      = sk->associateFd;
+    PollCtx_t* pollCtx = (PollCtx_t*) ctx;
 
     SPINLOCK_Lock(&pollCtx->lock);
 
-    for (DP_Nfds_t i = 0; i < pollCtx->nfds; i++) {
-        struct DP_Pollfd* pollFd = &pollCtx->fds[i];
-        if (pollFd->fd == fd) {
-            if ((newState & SOCK_STATE_CLOSE) != 0) {
-                pollFd->revents = (short)((unsigned short)pollFd->revents | DP_POLLRDHUP);
-            } else {
-                SetRevents(pollFd, newState);
-            }
-            if (pollFd->revents != 0) {
-                pollCtx->readyFds++;
-            }
-        }
+    struct DP_Pollfd* pollFd = (struct DP_Pollfd*)(uintptr_t) associateFd;
+    if ((newState & SOCK_STATE_CLOSE) != 0) {
+        pollFd->revents = (short)((unsigned short)pollFd->revents | DP_POLLRDHUP);
+    } else {
+        SetRevents(pollFd, newState);
     }
+    if (pollFd->revents != 0) {
+        pollCtx->readyFds++;
+    }
+    
+    SPINLOCK_Unlock(&pollCtx->lock);
 
     if (pollCtx->readyFds != 0) {
-        SPINLOCK_Unlock(&pollCtx->lock);
         if (pollCtx->userNotify.fn != NULL) {
             pollCtx->userNotify.fn(pollCtx->userNotify.data);
         } else {
             SEM_SIGNAL(pollCtx->sem);
         }
-    } else {
-        SPINLOCK_Unlock(&pollCtx->lock);
     }
 }
 
@@ -192,7 +187,12 @@ static int EnableNotify(struct DP_Pollfd* pollFd, PollCtx_t* ctx)
 
     if (SetRevents(pollFd, sk->state) == 0) {
         // 还没有事件
-        SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_POLL, ctx, pollFd->fd);
+        if (SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_POLL, ctx, (uint64_t)(uintptr_t)pollFd) != 0) {
+            DP_LOG_DBG("EnableNotify failed.");
+            SOCK_Unlock(sk);
+            FD_Put(skFile);
+            return -1;
+        }
     }
 
     SOCK_Unlock(sk);
@@ -202,7 +202,23 @@ static int EnableNotify(struct DP_Pollfd* pollFd, PollCtx_t* ctx)
     return 0;
 }
 
-static int DisableNotify(struct DP_Pollfd* pollFd)
+static void DisableNotifySafe(Sock_t *sk, struct DP_Pollfd *pollFd)
+{
+    SOCK_Lock(sk);
+    SockNotify_t *notify = NULL;
+    SockNotify_t *next = NULL;
+    for (notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
+        next = LIST_NEXT(notify, node);
+        if (notify->notifyType == SOCK_NOTIFY_TYPE_POLL && notify->associateFd == (uint64_t)(uintptr_t)pollFd) {
+            LIST_REMOVE(&sk->notifyList, notify, node);
+            SHM_FREE(notify, DP_MEM_FREE);
+            break;
+        }
+    }
+    SOCK_Unlock(sk);
+}
+
+static void DisableNotify(struct DP_Pollfd *pollFd)
 {
     Sock_t* sk;
     Fd_t*   skFile;
@@ -210,16 +226,14 @@ static int DisableNotify(struct DP_Pollfd* pollFd)
 
     if ((ret = FD_Get(pollFd->fd, FD_TYPE_SOCKET, &skFile)) != 0) {
         // fd 可能已经关闭，不做处理
-        return 0;
+        return;
     }
 
     sk = (Sock_t*)skFile->priv;
 
-    SOCK_DisableNotifySafe(sk);
+    DisableNotifySafe(sk, pollFd);
 
     FD_Put(skFile);
-
-    return 0;
 }
 
 static void FdsDisableNotify(PollCtx_t* ctx, DP_Nfds_t nfds)

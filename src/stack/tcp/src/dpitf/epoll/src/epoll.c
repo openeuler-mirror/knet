@@ -62,6 +62,19 @@ typedef struct EpollItem {
     uint32_t notifiedEvents;
 } EpollItem_t;
 
+
+static SockNotify_t* GetEpollNotify(Sock_t* sk, int epfd)
+{
+    SockNotify_t* notify = NULL;
+    LIST_FOREACH(&sk->notifyList, notify, node)
+    {
+        if (notify->notifyType == SOCK_NOTIFY_TYPE_EPOLL && notify->associateFd == epfd) {
+            return notify;
+        }
+    }
+    return NULL;
+}
+
 static void DisableSockNotify(EpollItem_t* item)
 {
     Sock_t*  sk;
@@ -71,7 +84,13 @@ static void DisableSockNotify(EpollItem_t* item)
     }
 
     sk = (Sock_t*)(skFile->priv);
-    SOCK_DisableNotifySafe(sk);
+    SOCK_Lock(sk);
+    SockNotify_t* notify = GetEpollNotify(sk, item->epfd);
+    if (notify != NULL) {
+        LIST_REMOVE(&sk->notifyList, notify, node);
+        SHM_FREE(notify, DP_MEM_FREE);
+    }
+    SOCK_Unlock(sk);
     FD_Put(skFile);
 }
 
@@ -371,7 +390,7 @@ static void RemoveEpList(EpollItem_t* item)
     SPINLOCK_Unlock(&ep->lock);
 }
 
-void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event)
+void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd)
 {
     EpollItem_t* item = (EpollItem_t*)ctx;
 
@@ -379,6 +398,7 @@ void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uin
     (void)sk;
     (void)oldState;
     (void)event;
+    (void)associateFd;
 
     if ((newState & SOCK_STATE_CLOSE) != 0) {
         RemoveEpList(item);
@@ -400,16 +420,10 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
     }
 
     // socket已注册过
-    if (sk->notifyType == SOCK_NOTIFY_TYPE_EPOLL && sk->notifyCtx != NULL) {
-        item = (EpollItem_t*)sk->notifyCtx;
-        if (item->epfd == epfd) {
-            DP_LOG_DBG("the supplied file descriptor fd is already registered with this epoll instance.");
-            return EEXIST;
-        }
-    }
-
-    if (sk->notifyCtx != NULL) { // socket已经注册过notify，报错告知。后续需要链表适配
-        DP_LOG_ERR("fd is already added to another notifyType %d, associateFd %d", sk->notifyType, sk->associateFd);
+    SockNotify_t* notify = GetEpollNotify(sk, epfd);
+    if (notify != NULL) {
+        DP_LOG_DBG("the supplied file descriptor fd is already registered with this epoll instance.");
+        return EEXIST;
     }
 
     /* 在该函数及InsertEpList中全字段赋值，无需初始化 */
@@ -430,11 +444,14 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
     item->notifiedEvents = 0;
     item->shoted         = 0;
 
-    SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_EPOLL, item, epfd);
-
+    int ret = SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_EPOLL, item, epfd);
+    if (ret != 0) {
+        DP_LOG_ERR("CreateEpollItem failed, SOCK_EnableNotify failed, fd = %d, epfd = %d.", fd, epfd);
+        SHM_FREE(item, DP_MEM_FREE);
+        return ret;
+    }
     InsertEpList(item);
-
-    return 0;
+    return ret;
 }
 
 static int EpollGetEvents(Epoll_t* ep, struct DP_EpollEvent* events, int maxevents)
@@ -469,41 +486,37 @@ static int EpollGetEvents(Epoll_t* ep, struct DP_EpollEvent* events, int maxeven
 
 static int UpdateEpollItem(Sock_t* sk, int epfd, EpollEvent_t* event)
 {
-    EpollItem_t* item = (EpollItem_t*)sk->notifyCtx;
-
     if (event == NULL) {
-        DP_LOG_DBG("UpdateEpollItem failed, event is NULL.");
+        DP_LOG_DBG("UpdateEpollItem failed, event is NULL, epfd = %d.", epfd);
         return EFAULT;
     }
 
-    if (item == NULL || sk->associateFd != epfd) {
-        DP_LOG_DBG("UpdateEpollItem failed, item is NULL or fd is not same, "
-                   "epfd = %d, associateFd = %d.", epfd, sk->associateFd);
-        return ENOENT;
+    SockNotify_t* notify = GetEpollNotify(sk, epfd);
+    if (notify != NULL) {
+        EpollItem_t* item = (EpollItem_t*) notify->notifyCtx;
+        UpdateEpList(item, item->state, event);
+        return 0;
     }
 
-    UpdateEpList(item, item->state, event);
-
-    return 0;
+    DP_LOG_DBG("UpdateEpollItem failed, item is NULL, epfd = %d.", epfd);
+    return ENOENT;
 }
 
 static int DeleteEpollItem(Sock_t* sk, int epfd)
 {
-    EpollItem_t* item = (EpollItem_t*)sk->notifyCtx;
-
-    if (item == NULL || sk->associateFd != epfd) {
-        DP_LOG_DBG("DeleteEpollItem failed, item is NULL or fd is not same, "
-                   "epfd = %d, associateFd = %d.", epfd, sk->associateFd);
-        return ENOENT;
+    SockNotify_t* notify = GetEpollNotify(sk, epfd);
+    if (notify != NULL) {
+        EpollItem_t* item = (EpollItem_t*) notify->notifyCtx;
+        RemoveEpList(item);
+        SHM_FREE(item, DP_MEM_FREE);
+        
+        LIST_REMOVE(&sk->notifyList, notify, node);
+        SHM_FREE(notify, DP_MEM_FREE);
+        return 0;
     }
 
-    SOCK_DisableNotify(sk);
-
-    RemoveEpList(item);
-
-    SHM_FREE(item, DP_MEM_FREE);
-
-    return 0;
+    DP_LOG_DBG("DeleteEpollItem failed, can't find item, epfd = %d.", epfd);
+    return ENOENT;
 }
 
 static int EpollCreateWithCallback(int size, DP_EpollNotify_t* callback)
