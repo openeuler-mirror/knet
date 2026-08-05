@@ -16,6 +16,7 @@
 #include <rte_ethdev.h>
 #include <rte_pdump.h>
 #include "securec.h"
+#include "knet_rand.h"
 #include "knet_thread.h"
 #include "knet_dpdk_init.h"
 #include "knet_fmm.h"
@@ -64,52 +65,55 @@ int DaemonInitPublicResource(void)
 
 int DaemonInitResource(void)
 {
-    int ret;
-
     /* initialise the system */
     KNET_LogInit();
 
     printf("knet_mp_daemon version : %s\n", KNET_VERSION);
     KNET_LogNormal("knet_mp_daemon version : %s", KNET_VERSION);
 
+    int ret = KNET_RandInit();
+    if (ret != 0) {
+        KNET_ERR("K-NET init rand failed, ret %d", ret);
+        goto uninitLog;
+    }
+
     ret = KNET_InitCfg(KNET_PROC_TYPE_PRIMARY);
     if (ret != 0) {
         KNET_ERR("K-NET init cfg failed");
-        KNET_LogUninit();
-        return -1;
+        goto uninitRand;
     }
 
     KNET_LogLevelSetByStr(KNET_GetCfg(CONF_COMMON_LOG_LEVEL)->strValue);
     if (KNET_GetCfg(CONF_COMMON_MODE)->intValue != KNET_RUN_MODE_MULTIPLE) {
         KNET_ERR("K-NET conf is Single process");
-        KNET_UninitCfg();                 /* 回滚 InitCfg */
-        KNET_LogUninit();
-        return -1;
+        goto uninitCfg;
     }
 
     if (KNET_GetCfg(CONF_INTERFACE_BOND_ENABLE)->intValue == 1) {
         KNET_ERR("K-NET multi-process mode not support bond, please not use bond or use the single-process mode");
-        KNET_UninitCfg();                 /* 回滚 InitCfg */
-        KNET_LogUninit();
-        return -1;
+        goto uninitCfg;
     }
 
     ret = DaemonInitPublicResource();
     if (ret != 0) {
         KNET_ERR("K-NET init public resource failed");
-        KNET_UninitCfg();                 /* 回滚 InitCfg */
-        KNET_LogUninit();
-        return -1;
+        goto uninitCfg;
     }
 
     /* 创建telemetry持久化线程 */
     if (KNET_TelemetryStartPersistThread() == 0) {
         KNET_ERR("K-NET daemon init telemetry persist thread failed");
-        KNET_UninitCfg();                 /* 回滚 InitCfg */
-        KNET_LogUninit();
-        return -1;
+        goto uninitCfg;
     }
     return 0;
+
+uninitCfg:
+    KNET_UninitCfg();
+uninitRand:
+    KNET_RandUninit();
+uninitLog:
+    KNET_LogUninit();
+    return -1;
 }
 
 int DaemonMainLooper(void)
@@ -164,6 +168,7 @@ int DaemonUninitResource(void)
     }
 
     KNET_UninitCfg();                     /* 释放 g_primaryCfg */
+    KNET_RandUninit();
     KNET_LogUninit();
 
     if (flag == 1) {

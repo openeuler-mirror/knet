@@ -17,6 +17,7 @@
 #include <errno.h>
 
 #include "knet_types.h"
+#include "knet_utils.h"
 #include "knet_log.h"
 #include "knet_osapi.h"
 #include "knet_init.h"
@@ -134,7 +135,7 @@ static void KnetSigHandlerSigInfo(int signum, siginfo_t *info, void *secret)
 
     if (KNET_DpIsForkedParent()) {
         KNET_SetDpdkAndStackThreadStop();
-        usleep(KNET_SIGQUIT_WAIT); // 等待10ms
+        KNET_Usleep(KNET_SIGQUIT_WAIT); // 等待10ms
     }
     if (g_knetSignalHandler[signum].sa_sigaction != NULL) {
         g_knetSignalHandler[signum].sa_sigaction(signum, info, secret);
@@ -386,12 +387,12 @@ void KNET_DpSigProcUserSigHandler(void)
     int curSignum = g_knetDpSignalFlags.curExitSig;
     if (curSignum != SIGINT && curSignum != SIGTERM && curSignum != SIGQUIT) {
         /* 正常不会走到这里,不过还是拦截一下 */
-        KNET_ERR("Received stop signal %d which should not be catched!");
+        KNET_ERR("Received stop signal %d which should not be catched!", curSignum);
         return;
     }
     if (g_knetSignalHandler[curSignum].sa_handler == NULL) {
         /* 正常不会走到这里,不过还是拦截一下 */
-        KNET_ERR("Received stop signal %d but user handler is NULL!");
+        KNET_ERR("Received stop signal %d but user handler is NULL!", curSignum);
         return;
     }
     g_knetDpSignalFlags.inExitUserHandler = true;

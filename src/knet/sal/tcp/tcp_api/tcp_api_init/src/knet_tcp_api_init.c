@@ -13,6 +13,7 @@
 #include "dp_posix_socket_api.h"
 #include "dp_debug_api.h"
 
+#include "knet_utils.h"
 #include "knet_log.h"
 #include "knet_osapi.h"
 #include "knet_signal_tcp.h"
@@ -80,7 +81,7 @@ void KNET_DpExit(void)
     }
 
     KNET_DpSignalSetWaitExit(); // 设置主线程等待标记
-    usleep(DP_EXIT_WAIT_SLEEP_TIME);   // 先等待50ms让其他线程都退出来
+    KNET_Usleep(DP_EXIT_WAIT_SLEEP_TIME);   // 先等待50ms让其他线程都退出来
     KNET_AllHijackFdsClose();   // 关闭所有tcp协议栈的fd
     int tryTimes = 0;
 
@@ -90,7 +91,7 @@ void KNET_DpExit(void)
         if (tcpSockCnt == 0) {
             break;
         }
-        usleep(DP_EXIT_WAIT_SLEEP_TIME); //  每50ms判断一次
+        KNET_Usleep(DP_EXIT_WAIT_SLEEP_TIME); //  每50ms判断一次
 
         ++tryTimes;
         if (tryTimes > DP_EXIT_WAIT_TRY_TIMES) {

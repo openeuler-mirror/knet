@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 #include <regex.h>
 #include <sys/prctl.h>
 
@@ -94,6 +95,23 @@ const char *KNET_GetSelfThreadName(char *name, size_t len)
     }
 
     return name;
+}
+
+void KNET_Usleep(uint64_t usec)
+{
+    struct timespec req, rem;
+    req.tv_sec = usec / 1000000;
+    req.tv_nsec = (usec % 1000000) * 1000;
+
+    while (nanosleep(&req, &rem) == -1) {
+        if (errno == EINTR) {
+            // 被信号中断，继续睡眠剩余时间
+            req = rem;
+        } else {
+            KNET_ERR("Nanosleep failed, errno %d", errno);
+            return;
+        }
+    }
 }
 
 #ifdef __cplusplus

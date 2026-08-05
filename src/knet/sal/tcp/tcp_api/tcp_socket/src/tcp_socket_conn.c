@@ -256,6 +256,12 @@ int KNET_DpBind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         return g_origOsApi.bind(sockfd, addr, addrlen);
     }
 
+    if (addr == NULL || addrlen < sizeof(struct sockaddr_in)) {
+        KNET_ERR("Fd %d bind addr is NULL or addrlen %u is invalid", sockfd, addrlen);
+        errno = EFAULT;
+        return -1;
+    }
+
     if (addr != NULL && addrlen >= sizeof(struct sockaddr_in)) {
         uint32_t bindAddr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
         if (bindAddr == inet_addr(LO_IP)) {
@@ -352,8 +358,8 @@ int KNET_DpConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         return g_origOsApi.connect(sockfd, addr, addrlen);
     }
 
-    if (KNET_UNLIKELY(addr == NULL)) {
-        KNET_ERR("osFd %d connect failed, addr is NULL", sockfd);
+    if (addr == NULL || addrlen < sizeof(struct sockaddr_in)) {
+        KNET_ERR("Fd %d connect addr is NULL or addrlen %u is invalid", sockfd, addrlen);
         errno = EFAULT;
         return -1;
     }

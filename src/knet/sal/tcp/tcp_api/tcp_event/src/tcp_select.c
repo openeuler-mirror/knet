@@ -25,6 +25,7 @@
 #include "dp_posix_poll_api.h"
 #include "dp_debug_api.h"
 #include "knet_log.h"
+#include "knet_utils.h"
 #include "tcp_fd.h"
 #include "knet_osapi.h"
 #include "knet_init.h"
@@ -113,7 +114,7 @@ int SelectPollingLoops(
             pollTimes++;
             continue;
         }
-        usleep(POLL_INTERVAL);
+        KNET_Usleep(POLL_INTERVAL);
     } while (timeoutMs < 0 || !KNET_CounterTimerIsTimeout(timeBeginMs, timeoutMs));
 
     return pollRet;

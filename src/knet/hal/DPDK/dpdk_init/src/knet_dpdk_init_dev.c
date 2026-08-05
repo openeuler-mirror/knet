@@ -14,6 +14,7 @@
 #include "rte_config.h"
 #include "rte_cycles.h"
 
+#include "knet_utils.h"
 #include "knet_pktpool.h"
 #include "knet_config.h"
 #include "knet_dpdk_init_dev.h"
@@ -363,7 +364,7 @@ KNET_STATIC int IsEthLinkUp(uint16_t portId)
             break;
         }
  
-        usleep(10000); // 10000表示10ms
+        KNET_Usleep(10000); // 10000表示10ms
     }
     KNET_INFO("The rte eth port %u link up!", portId);
     return 0;

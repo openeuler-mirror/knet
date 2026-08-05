@@ -93,7 +93,19 @@ void GetOrigFunc(void)
         .value = KNET_SPIN_UNLOCKED_VALUE,
     };
 
+    sigset_t blockMask, oldMask;
+    sigfillset(&blockMask);
+    int ret = pthread_sigmask(SIG_SETMASK, &blockMask, &oldMask); // 阻塞所有信号，GetOrigFunc不可重入，确保在获取函数指针时不会被信号中断
+    if (ret != 0) {
+        KNET_ERR("GetOrigFunc block all signals failed, ret %d", ret);
+    }
+
     KNET_SpinlockLock(&lock);
     OsGetOrigFunc(&g_origOsApi); // 加入函数
     KNET_SpinlockUnlock(&lock);
+
+    ret = pthread_sigmask(SIG_SETMASK, &oldMask, NULL); // 恢复信号掩码
+    if (ret != 0) {
+        KNET_ERR("GetOrigFunc set sigmask failed, ret %d", ret);
+    }
 }

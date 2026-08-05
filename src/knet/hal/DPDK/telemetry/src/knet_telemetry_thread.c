@@ -123,7 +123,7 @@ void TelemetrySetNewProcess(int clientID, pid_t pid)
             KNET_ERR("K-NET Telemetry can't find oldest exit process to replace");
         } else {
             InsertNewProcess(oldestExitProc, pid, clientID);
-            g_processInfo.writeBitMap &= ~(1 << oldestExitProc); // 替换时将对应位置的bit清零
+            g_processInfo.writeBitMap &= ~(1ULL << oldestExitProc); // 替换时将对应位置的bit清零
         }
     } else {
         /* 如果进程信息没满，添加到没添加过的地方 */

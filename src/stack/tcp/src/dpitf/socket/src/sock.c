@@ -816,13 +816,16 @@ static ssize_t PreprocessSendFlags(Sock_t* sk, int flags)
         return -EOPNOTSUPP;
     }
 
+    return 0;
+}
+
+static inline void ProcessSendFlags(Sock_t* sk, int flags)
+{
     if (((uint32_t)flags & DP_MSG_MORE) != 0) {
         sk->flags |= SOCK_FLAGS_MSG_MORE;
     } else {
         sk->flags &= ~SOCK_FLAGS_MSG_MORE;
     }
-
-    return 0;
 }
 
 ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
@@ -850,6 +853,8 @@ ssize_t SOCK_Sendmsg(Sock_t* sk, const struct DP_Msghdr* msg, int flags)
     }
 
     SOCK_LockOptional(sk);
+
+    ProcessSendFlags(sk, flags);
 
     while (1) {
         // index和offset作为输入输出参数，记录当前已发送的数据长度，下次发送时直接偏移至指定位置发送

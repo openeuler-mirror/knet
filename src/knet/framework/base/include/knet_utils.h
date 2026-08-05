@@ -13,6 +13,7 @@
 #ifndef __KNET_UTILS_H__
 #define __KNET_UTILS_H__
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -56,6 +57,13 @@ const char *KNET_GetSelfThreadName(char *name, size_t len);
  * @return int 0：成功；-1：失败
  */
 int KNET_TransStrToNum(const char *str, uint32_t *num);
+
+/**
+ * @brief 微秒级睡眠
+ *
+ * @param usec [IN] 参数类型 uint64_t。睡眠时间，单位：微秒
+ */
+void KNET_Usleep(uint64_t usec);
 
 #ifdef __cplusplus
 }

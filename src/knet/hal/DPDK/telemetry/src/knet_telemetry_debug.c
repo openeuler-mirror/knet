@@ -297,7 +297,7 @@ int KnetHandleTimeout(KNET_TelemetryInfo *telemetryInfo, int i)
     int timeoutTimes = TIMEOUT_TIMES;
     while (timeoutTimes > 0 && telemetryInfo->msgReady[i] != 0) {
         timeoutTimes--;
-        usleep(TELEMETRY_DEBUG_USLEEP);
+        KNET_Usleep(TELEMETRY_DEBUG_USLEEP);
     }
 
     if (timeoutTimes == 0) {

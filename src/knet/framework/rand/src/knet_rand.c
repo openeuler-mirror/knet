@@ -17,22 +17,45 @@
 
 #include "knet_log.h"
 
-#define FILE "/dev/random"
+#define RAND_FILE "/dev/urandom"
 
-int64_t KNET_GetRandomNum(uint8_t *data, uint32_t len)
+static int g_randFd = -1;
+
+int KNET_RandInit(void)
 {
-    int fd = open(FILE, O_RDONLY);
-    if (fd < 0) {
+    if (g_randFd >= 0) {
+        KNET_WARN("Rand file already init");
+        return 0;
+    }
+
+    g_randFd = open(RAND_FILE, O_RDONLY);
+    if (g_randFd < 0) {
         KNET_ERR("Open rand file failed, errno %d", errno);
         return -1;
     }
+    return 0;
+}
 
-    int64_t bytesRead = read(fd, data, len);
-    if (bytesRead < 0) {
-        close(fd);
+void KNET_RandUninit(void)
+{
+    if (g_randFd >= 0) {
+        close(g_randFd);
+        g_randFd = -1;
+    }
+}
+
+int64_t KNET_GetRandomNum(uint8_t *data, uint32_t len)
+{
+    if (g_randFd < 0) {
+        KNET_ERR("Rand file not init");
         return -1;
     }
 
-    close(fd);
+    int64_t bytesRead = read(g_randFd, data, len);
+    if (bytesRead < 0) {
+        KNET_ERR("Read rand file failed, ret %lld, errno %d", bytesRead, errno);
+        return -1;
+    }
+
     return bytesRead;
 }

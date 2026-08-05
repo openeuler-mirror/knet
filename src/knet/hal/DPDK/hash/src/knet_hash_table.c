@@ -334,7 +334,7 @@ int KNET_HashTblAddEntry(uint32_t tableId, const uint8_t *key, const uint8_t *da
     /* 算法附带修改功能，先查找 */
     int32_t ret = 0;
     ret = rte_hash_lookup_with_hash(tblInfo->handle, key, hash_value);
-    if (ret > 0) {
+    if (ret >= 0) {
         KNET_ERR("Add entry key already exist");
         KNET_RwlockWriteUnlock(&tblInfo->rwLock);
         return -1;
