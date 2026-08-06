@@ -109,7 +109,7 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
 
 ## SELinux配置
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- Linux系统默认开启的SELinux安全机制会限制K-NET部分功能，导致无法正常使用K-NET业务。这是Linux OS本身的行为。如果用户需在自己系统中使用SELinux，则需自行寻找解决方法。
 >- 针对此限制，提供快速禁用SELinux的方法。

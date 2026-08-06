@@ -172,7 +172,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/stack/pbuf_stat,[pid]    # 协议栈内存使用统计
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >TCP相关状态统计返回时，字段的值为0则不会显示该字段；异常信息打点统计返回时，字段的值为0则不会显示该字段。
 
 运行样例：
@@ -312,7 +312,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 运行时所有参数需要指定。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 查询epoll详细信息时，由于dpdk-telemetry响应存在最大消息长度限制，当返回数据过长时，可能会导致响应被截断，造成details字段丢失或JSON格式损坏。
 >- 可通过减小epoll_fd_cnt和socket_fd_cnt参数值，降低单次查询的输出长度，确保响应完整返回。
@@ -335,7 +335,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/ethdev/usage,<port> <time>
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > /knet/ethdev/usage统计的带宽包含以太网帧中的数据，包括各层协议头部。
 
 一般使用流程如下：
