@@ -96,7 +96,7 @@
 - CAP_SYS_RAWIO：允许进程直接访问硬件端口和内存，DPDK初始化时访问/dev/vfio/noiommu-0所需，VFIO的No-IOMMU模式所需。
 - CAP_NET_RAW：允许硬件进行数据通信、通道初始化时，需要CAP_NET_RAW权限。
 
-安装时仅配置了“Permitted”，几这些Capability不会随进程启动生效。仅在初始化和管理面操作时，业务进程会自动配置“Effective”，使用完成后会立即删除Effective配置。
+安装时仅配置了“Permitted”，这些Capability不会随进程启动生效。仅在初始化和管理面操作时，业务进程会自动配置“Effective”，使用完成后会立即删除Effective配置。
 K-NET业务进程使用非root用户运行，由于redis-server设置了Capability，需要给libknet_frame.so设置set-user-id权限才能够使LD_PRELOAD生效。
 
 - set-user-id：ld.so要确保只有被系统明确允许、能够提升权限的动态库才能被preload。
