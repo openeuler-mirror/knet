@@ -199,7 +199,7 @@
 
     若为非root用户：
     用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
-    > [!NOTICE]须知 
+    > [!NOTICE]须知
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
     ```bash

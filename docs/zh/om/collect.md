@@ -24,7 +24,7 @@ The information is collected and stored in /var/log/knet/info_collect/2026020918
 
 如果在执行命令后，未显示上述回显时，用户通过“Ctrl+C”中断命令，回显示例如下所示。此时收集到的部分信息会存放在"/var/log/knet/info\_collect/时间戳\_info\_collect"的文件夹中（没有被压缩）。
 
-> [!NOTICE]须知 
+> [!NOTICE]须知
 >执行“Ctrl+C”中断命令后，收集信息的动作被终止，此时保存的运维信息不是完整的，不建议进行此操作。
 
 ```ColdFusion
