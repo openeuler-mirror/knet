@@ -338,6 +338,7 @@ int knet_create_recv_channel(enum knet_schd_type schd_mod, uint32_t depth, struc
         KNET_ERR("Knet malloc recv channel failed");
         return -1;
     }
+    knetRecvChannel->leakLock.value = KNET_SPIN_UNLOCKED_VALUE;
     int ret = flexda_dtoe_create_receive_channel(g_dtoeRes.dev.devSn, schd_mod, (flexda_recv_channel_s *)(&knetRecvChannel->channel));
     if (ret != 0) {
         free(knetRecvChannel);
@@ -588,8 +589,7 @@ int knet_poll_send_channel(struct knet_send_channel* send_channel, uint32_t maxe
         return -EINVAL;
     }
 
-    flexda_dtoe_poll_send_channel((flexda_send_channel_s*)send_channel, maxevents);   // send_channel地址即是send_channel_events地址
-    return 0;
+    return flexda_dtoe_poll_send_channel((flexda_send_channel_s*)send_channel, maxevents);   // send_channel地址即是send_channel_events地址
 }
 
 /**
@@ -653,11 +653,11 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req)
  * @param maxevents [IN] 最大事件数
  * @return 完成事件数
  */
-int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_recv_events* events, uint32_t maxevents)
+int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_recv_events* events, uint32_t maxevents, int* ceq_events)
 {
-    if (unlikely(recv_channel == NULL || events == NULL)) {
-        KNET_ERR("recv_channel: %s, events: %s, null is illeagal", 
-        recv_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null");
+    if (unlikely(recv_channel == NULL || events == NULL || ceq_events == NULL)) {
+        KNET_ERR("recv_channel: %s, events: %s, ceq_events: %s, null is illeagal", 
+        recv_channel == NULL ? "Null" : "not Null", events == NULL ? "Null" : "not Null", ceq_events == NULL ? "Null" : "not Null");
         return -1;
     }
     struct KnetRecvChannel* knetRecvChannel = (struct KnetRecvChannel*)recv_channel;
@@ -679,6 +679,9 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
             KNET_DEBUG("recv channel, leak sockfd %d, nextEventIdx %u, leakSize %d",
                 sock->sockfd, knetRecvChannel->nextEventIdx, sock->leakSize);
             ++knetRecvChannel->nextEventIdx;
+            if (knetRecvChannel->nextEventIdx == knetRecvChannel->maxevents) {
+                break;
+            }
         }
 #ifndef KNET_REQ_NODE_ATOMIC
         KNET_SpinlockUnlock(&knetRecvChannel->leakLock);
@@ -686,7 +689,7 @@ int knet_poll_recv_channel(struct knet_recv_channel* recv_channel, struct knet_r
     }
 
     /* recv_channel地址即是recv_channel_events地址 */
-    flexda_dtoe_poll_receive_channel((flexda_recv_channel_s *)recv_channel, maxevents - knetRecvChannel->nextEventIdx);
+    *ceq_events = flexda_dtoe_poll_receive_channel((flexda_recv_channel_s *)recv_channel, maxevents - knetRecvChannel->nextEventIdx);
 
     for (uint32_t i = 0; i < knetRecvChannel->nextEventIdx; ++i) {
         KNET_GetFdConnUserData(events[i].sockfd)->recvEventIndex = KNET_INVALID_EVENT_INDEX;

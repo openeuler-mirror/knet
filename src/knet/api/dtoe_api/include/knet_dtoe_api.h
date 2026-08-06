@@ -235,7 +235,7 @@ int knet_send(int sockfd, struct knet_tx_req* tx_req);
  * @param maxevents [IN] 最大事件数
  * @return 完成事件数
  */
-int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct knet_recv_events* events, uint32_t maxevents);
+int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct knet_recv_events* events, uint32_t maxevents, int* ceq_events);
 
 /**
  * @brief knet接收接口
