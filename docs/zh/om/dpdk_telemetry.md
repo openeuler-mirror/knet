@@ -11,7 +11,7 @@
 
 ## 命令格式
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide/environment_configuration.md)进行设置。
 >- 服务端环境关闭或重启后需要重新执行步骤。
@@ -24,7 +24,7 @@
 dpdk-telemetry.py -f knet -i 1
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- -f：指定knet为DPDK运行时目录提供文件前缀。
 >- -i 1：指定DPDK应用程序实例号为1。
@@ -52,7 +52,7 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/stack/epoll_stat,<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>`|所有参数必填|/knet/stack/epoll_stat,12345 0 1 0 1|获取从start_epoll_fd开始的epoll_fd_cnt个epoll实例的详细信息，每个epoll实例中包含从start_socket_fd开始、最多socket_fd_cnt个有效的socket描述符信息。pid取值必须为有效的进程ID。|
 |`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >SP670网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
 
 ## 使用前配置
@@ -83,7 +83,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
 3. 服务端运行脚本。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide//environment_configuration.md#相关业务配置)进行设置。
     >- 服务端环境关闭或重启后需要重新执行步骤。
     >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
@@ -113,7 +113,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
         python3 <your-dpdk-path>/usertools/dpdk-telemetry.py  -f knet -i 1
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         ><your-dpdk-path\>表示脚本实际安装的位置。
 
 ## 使用示例
@@ -130,7 +130,7 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
     /ethdev/stats,<port_id> 
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- port\_id为网口BDF号的port\_id，不是Redis侦听端口。
     >- 执行/ethdev/list命令可查看DPDK接管网口BDF号的port\_id。
 
@@ -172,7 +172,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/stack/pbuf_stat,[pid]    # 协议栈内存使用统计
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >TCP相关状态统计返回时，字段的值为0则不会显示该字段；异常信息打点统计返回时，字段的值为0则不会显示该字段。
 
 运行样例：
@@ -312,7 +312,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 运行时所有参数需要指定。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 查询epoll详细信息时，由于dpdk-telemetry响应存在最大消息长度限制，当返回数据过长时，可能会导致响应被截断，造成details字段丢失或JSON格式损坏。
 >- 可通过减小epoll_fd_cnt和socket_fd_cnt参数值，降低单次查询的输出长度，确保响应完整返回。
@@ -335,7 +335,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/ethdev/usage,<port> <time>
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > /knet/ethdev/usage统计的带宽包含以太网帧中的数据，包括各层协议头部。
 
 一般使用流程如下：
@@ -415,7 +415,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 
 **表 2**  /ethdev/stats,0 获取ethdev端口的基本统计信息
 
-| 字段名     | 说明                                                           |
+| 字段名     | 说明                                                         |
 | ---------- | -------------------------------------------------------------- |
 | ipackets   | 接收到的总数据包数量。                                         |
 | opackets   | 发送的总数据包数量。                                           |

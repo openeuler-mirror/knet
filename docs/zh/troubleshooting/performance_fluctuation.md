@@ -16,7 +16,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
     display qos queue statistics interface interface-type interface-number
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- interface-type表示接口的类型。
     >- interface-number表示接口的编号。
 

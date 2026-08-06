@@ -257,7 +257,7 @@ vi /etc/knet/knet_comm.conf
 1. 六台服务端虚拟机分别运行Redis服务端。
 
     > [!NOTE]说明
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER”目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，以虚拟机1为例，运行命令如下：
     >
     > ```bash
@@ -316,7 +316,7 @@ vi /etc/knet/knet_comm.conf
 
     ![](../figures/zh-cn_image_0000002503979954.png)
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- --cluster create：创建集群。
     >- --cluster-replicas 1：从节点个数设置为1（这里有六个节点，因此组成三主三从集群）。
 

@@ -186,12 +186,12 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     make
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
 
 6. 授予驱动和编译抓包程序执行权限。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >若为root用户可跳过此步骤。
 
     ```bash
@@ -323,5 +323,5 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 cd /path; rpm -ivh knet-1.0.0.aarch64.rpm
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >“/path”为用户传输K-NET的RPM包路径，请根据实际填写。
