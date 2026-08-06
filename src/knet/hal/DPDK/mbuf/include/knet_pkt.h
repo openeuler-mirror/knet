@@ -207,15 +207,15 @@ void KNET_PktFree(struct rte_mbuf *mbuf);
 void KNET_PktBatchFree(void);
 
 /**
- * @brief 将外部缓冲区附加到pkt上
+ * @brief 将mbuf attach到外部缓冲区
  *
- * @param pkt 包地址
+ * @param mbuf 包地址
  * @param addr 外部缓冲区物理地址
  * @param iova 外部缓冲区虚拟地址
  * @param len 外部缓冲区长度
  * @param shinfo attach所需的共享信息
  */
-void KNET_MbufAttachExtBuf(struct rte_mbuf *pkt, void *addr, uint64_t iova, uint16_t len, void *shinfo);
+void KNET_MbufAttachExtBuf(struct rte_mbuf *mbuf, void *addr, uint64_t iova, uint16_t len, void *shinfo);
 
 #ifdef __cplusplus
 }

@@ -319,8 +319,7 @@ static void WalkTimers(Worker_t* worker, uint32_t now)
             twl->cb(worker->wid, worker->tick);
             twl->expiredTick = worker->tick + twl->internalTick;
 
-            worker->timerWorks = AdjustTimers(worker->timerWorks);
-            twl = worker->timerWorks;
+            twl = AdjustTimers(twl);
         }
     }
 

@@ -223,6 +223,14 @@ static inline void DP_PbufRawReset(DP_Pbuf_t* pbuf, uint8_t* payload, uint16_t p
     pbuf->next       = NULL;
 }
 
+static inline void DP_PbufZcopyRawReset(DP_Pbuf_t* pbuf)
+{
+    pbuf->nd = NULL;
+    pbuf->flow = NULL;
+    pbuf->pktFlags |= 0x1000;   // PBUF_PKTFLAGS_FLOW标志
+    pbuf->olFlags = 0;
+}
+
 #ifdef __cplusplus
 }
 #endif

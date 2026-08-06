@@ -24,6 +24,8 @@ extern "C" {
  */
 #define KNET_MEM_SYS_PT (0)
 
+/* 60 * 1024 */
+#define PER_EBUF_MBUF_SIZE 61440
 /**
  * @ingroup knet_sal_func
  * @brief 随机数创建最大尝试次数

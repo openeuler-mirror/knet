@@ -31,7 +31,7 @@ ssize_t DP_Sendto(
 
 ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags);
 
-ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags);
+ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags, ssize_t totalLen);
 
 ssize_t DP_Write(int sockfd, const void *buf, size_t count);
 

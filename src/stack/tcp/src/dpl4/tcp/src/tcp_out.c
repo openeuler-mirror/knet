@@ -577,32 +577,6 @@ static bool TcpCanMergePbuf(Pbuf_t* pbuf, Pbuf_t* mergedPbuf, uint32_t pktLen, u
     return true;
 }
 
-static Pbuf_t* TcpGetOneSeg(PBUF_Chain_t* sndQue, uint32_t pktLen, uint32_t segNum)
-{
-    Pbuf_t* ret = NULL;
-    Pbuf_t* pbuf = NULL;
-
-    pbuf = PBUF_CHAIN_FIRST(sndQue);
-    if (pbuf == NULL) {
-        return NULL;
-    }
-
-    if ((pbuf->flags & DP_PBUF_FLAGS_REFERENCED) == DP_PBUF_FLAGS_REFERENCED) {
-        ret = PBUF_BuildZcopy(pbuf, pktLen, segNum, (uint16_t)pktLen);      // pktLen不超过uint16_t的tsoSize，无风险
-        if (ret != NULL) {
-            sndQue->bufLen -= PBUF_GET_PKT_LEN(ret);
-        }
-        if (PBUF_GET_PKT_LEN(pbuf) == 0) {
-            pbuf = PBUF_CHAIN_POP(sndQue);
-            PBUF_RefPbufFree(pbuf);
-        }
-    } else {
-        ret = PBUF_CHAIN_POP(sndQue);
-    }
-
-    return ret;
-}
-
 static Pbuf_t* TcpTrySplicePbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint32_t maxSndLen)
 {
     Pbuf_t* ret = pbuf;
@@ -625,20 +599,21 @@ static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
 {
     Pbuf_t* ret = NULL;
     uint32_t dataLen = 0;
-    uint16_t segNum = 0;
     uint16_t maxSegNum = tcp->maxSegNum - 1;    // 零拷贝场景下，考虑额外添加的一个作为头部的pbuf
     Pbuf_t* nxt = tcp->sndQue.head;
     Pbuf_t* pbuf = NULL;
 
+    /* 先获取一个pbuf出来，然后判断长度是否超了，不够就继续获取，够了就返回，下面判断整体长度是否超过可发送空间，超了就后面部分切片，并重新放回sndQue */
     while (nxt != NULL && dataLen < pktLen && tcp->sndQue.pktCnt > 0) {
         if (!TcpCanMergePbuf(PBUF_CHAIN_FIRST(&tcp->sndQue), ret, pktLen, maxSegNum)) {
             break;
         }
 
-        pbuf = TcpGetOneSeg(&tcp->sndQue, pktLen - dataLen, maxSegNum - segNum);
-        if (pbuf == NULL) {
+        pbuf = PBUF_CHAIN_FIRST(&tcp->sndQue);
+        if (dataLen + PBUF_GET_PKT_LEN(pbuf) > pktLen) {
             break;
         }
+        PBUF_CHAIN_POP(&tcp->sndQue);
 
         if (ret == NULL) {
             ret = pbuf;
@@ -647,15 +622,18 @@ static Pbuf_t* TcpTryMergePbuf(TcpSk_t* tcp, uint32_t pktLen)
         }
 
         dataLen = PBUF_GET_PKT_LEN(ret);
-        segNum = PBUF_GET_SEGS(ret);
         nxt = tcp->sndQue.head;
     }
 
     if (ret == NULL) {
-        return NULL;
+        // 如果缓冲区不够，但是第一片比较大，协议栈要切片，用于保证tcp流式协议
+        if (pbuf != NULL && (pbuf->flags & (DP_PBUF_FLAGS_EXT_HEAD | DP_PBUF_FLAGS_EXTERNAL)) == 0) {
+            PBUF_CHAIN_POP(&tcp->sndQue);
+            return TcpTrySplicePbuf(tcp, pbuf, pktLen);
+        }
     }
 
-    return TcpTrySplicePbuf(tcp, ret, pktLen);
+    return ret;
 }
 
 static inline uint32_t TcpCalcTcTimeInc(uint32_t timeNow, SOCK_Pacing_t* pacing)
@@ -860,6 +838,7 @@ static void TcpXmitPbuf(TcpSk_t* tcp, Pbuf_t* pbuf, uint8_t thflags, TcpXmitInfo
     }
 
     DP_TCP_STAT_SND_DATA(tcp, PBUF_GET_PKT_LEN(pbuf) - DP_PBUF_GET_L4_LEN(pbuf), false);
+    // 增加计数，避免网卡发送后被释放，ack后再释放
     PBUF_REF(pbuf);
     PMGR_Dispatch(pbuf);
 
@@ -964,8 +943,12 @@ int TcpXmitData(TcpSk_t *tcp, uint8_t force, int isNeedRst)
 
         if ((pbuf->flags & DP_PBUF_FLAGS_EXTERNAL) == DP_PBUF_FLAGS_EXTERNAL) {
             if (UTILS_UNLIKELY(Pbuf_Zcopy_Alloc(&pbuf) != 0)) {
-                return 0;
+                /* 零拷贝控制头申请失败要把pbuf回插刀缓冲区 */
+                PBUF_ChainPushHead(&tcp->sndQue, pbuf);
+                DP_LOG_ERR("TcpRexmitQueSplit malloc PBUF fail\n");
+                continue;
             }
+            pbuf->flags |= DP_PBUF_FLAGS_EXT_HEAD;
         }
 
         // 发送报文

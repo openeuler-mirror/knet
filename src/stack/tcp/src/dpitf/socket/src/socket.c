@@ -162,7 +162,7 @@ ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags)
         msgFlags = ((uint32_t)flags & ~DP_MSG_ZEROCOPY);
     }
 
-    ret = SOCK_Sendmsg(sk, msg, (int)msgFlags);
+    ret = SOCK_Sendmsg(sk, msg, (int)msgFlags, -1);
 
     FD_PutOptRef(file);
 
@@ -175,7 +175,7 @@ ssize_t DP_Sendmsg(int sockfd, const struct DP_Msghdr* msg, int flags)
     return ret;
 }
 
-ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags)
+ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags, ssize_t totalLen)
 {
     if (UTILS_UNLIKELY(CFG_GET_VAL(DP_CFG_ZERO_COPY) == 0)) {
         DP_LOG_DBG("Zero copy send msg failed, zero copy not enable.");
@@ -196,7 +196,7 @@ ssize_t DP_ZSendmsg(int sockfd, const struct DP_ZMsghdr* msg, int flags)
 
     msgFlags = ((uint32_t)flags | DP_MSG_ZEROCOPY | DP_MSG_DONTWAIT);       // 零拷贝写默认非阻塞
 
-    ret = SOCK_Sendmsg(sk, (const struct DP_Msghdr*)msg, (int)msgFlags);
+    ret = SOCK_Sendmsg(sk, (const struct DP_Msghdr*)msg, (int)msgFlags, totalLen);
 
     FD_PutOptRef(file);
 

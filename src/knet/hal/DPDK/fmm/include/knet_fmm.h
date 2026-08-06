@@ -38,22 +38,16 @@ typedef struct {
 
 typedef void (*KNET_ExtBufFreeCb_t)(void *addr, void *opaque);
 
-struct KNET_MbufExtSharedInfo {
-    KNET_ExtBufFreeCb_t freeCb;
-    void *opaque;
-    uint16_t refcnt;
-};
-
-struct KNET_ExtBufFreeInfo {
-    KNET_ExtBufFreeCb_t freeCb;     // 用户自定义的释放回调函数
-    void *addr;                     // extern buffer 的起始地址
-    void *opaque;                   // 用户自定义的释放回调函数所需的输入参数
-};
-
+// 零拷贝当前sge_len最大512k，pbuf最大64k，零拷贝当前一片以60k承载，所以最大9片零拷贝长度
+#define EBUF_SEG_MAX_MBUF 9
 /* extern buffer 首部结构体 */
-struct KNET_ExtBuf {
-    struct KNET_MbufExtSharedInfo shinfo;
-    struct KNET_ExtBufFreeInfo freeInfo;
+struct __attribute__((aligned(64))) KNET_ExtBuf {
+    KNET_ExtBufFreeCb_t freeCb;     // 用户自定义的释放回调函数
+    void *opaque;                   // 用户自定义的释放回调函数所需的输入参数
+    uint16_t refcnt;
+    uint16_t totalBufCnt;
+    void* addr;                     // extern buffer 的起始地址
+    struct rte_mbuf* bufs[EBUF_SEG_MAX_MBUF];
 };
 
 /**

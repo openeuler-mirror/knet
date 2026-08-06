@@ -32,6 +32,7 @@ static DP_Mempool g_refPbufMp = NULL;
     do {                                                                      \
         STATIC_ASSERT(sizeof(DP_Pbuf_t) % CACHE_LINE == 0);                   \
     } while (0)
+#define EXTBUF_OFFSET_HEAD 128
 
 static void PbufMpFree(void* mp, Pbuf_t* pbuf)
 {
@@ -41,7 +42,20 @@ static void PbufMpFree(void* mp, Pbuf_t* pbuf)
     while (cur != NULL) {
         next = cur->next;
         cur->ref = ref;
-        MEMPOOL_FREE(mp, cur);
+        if ((cur->flags & DP_PBUF_FLAGS_EXTERNAL) == DP_PBUF_FLAGS_EXTERNAL) {
+            if (EBUF_REFCNTUPDATE(cur, -1) == 1) {
+                EBUF_CALLBACK(cur);
+            }
+        // pbuf构造的extbuf头，需要特殊处理
+        } else if ((cur->flags & DP_PBUF_FLAGS_EXT_HEAD) == DP_PBUF_FLAGS_EXT_HEAD) {
+            // 偏移掉extbuf头大小
+            *(void**)((uintptr_t)cur - EXTBUF_OFFSET_HEAD) = NULL;
+            cur->next = NULL;
+            MEMPOOL_FREE(mp, cur);
+        }
+        else {
+            MEMPOOL_FREE(mp, cur);
+        }
         cur = next;
     }
 }

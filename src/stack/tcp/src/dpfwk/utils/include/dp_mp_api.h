@@ -151,6 +151,13 @@ typedef void (*DP_MempoolFreeHook)(DP_Mempool mp, void* ptr);
  */
 typedef void* (*DP_MempoolConstructHook)(DP_Mempool mp, void* addr, uint64_t offset, uint16_t len);
 
+typedef void* (*DP_EbufGetNextPbufHook)(void* ebuf, uint32_t len, uint16_t idx);
+
+typedef uint16_t (*DP_EbufRefCntUpdateHook)(void* ptr, int16_t value);
+
+typedef void (*DP_EbufCallbackHook)(void* ptr);
+
+typedef void (*DP_EbufSetRefCntHook)(void* ptr, uint16_t cnt);
 /**
  * @ingroup dp_mp
  * 内存池操作集
@@ -161,6 +168,10 @@ typedef struct {
     DP_MempoolAllocHook   mpAlloc;        /**< 申请一个内存单元, 必须接口 */
     DP_MempoolFreeHook    mpFree;         /**< 释放一个内存单元, 必须接口 */
     DP_MempoolConstructHook  mpConstruct; /**< 根据外部缓冲区构造一个内存单元，零拷贝所需接口 */
+    DP_EbufGetNextPbufHook ebufGetseg;
+    DP_EbufRefCntUpdateHook ebufRefCntUpdate;
+    DP_EbufCallbackHook ebufCallback;
+    DP_EbufSetRefCntHook ebufSetRefCnt;
 } DP_MempoolHooks_S;
 
 /**

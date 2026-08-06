@@ -38,7 +38,7 @@ extern "C" {
  * @retval -1 失败
 
  */
-ssize_t DP_ZWritev(int sockfd, const struct DP_ZIovec* iov, int iovcnt);
+ssize_t DP_ZWritev(int sockfd, const struct DP_ZIovec* iov, int iovcnt, ssize_t totalLen);
 
 /**
  * @ingroup zcopy
