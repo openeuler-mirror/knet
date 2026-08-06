@@ -472,6 +472,5 @@ vi /etc/knet/knet_comm.conf
     }
 }
 ```
-> 注：max_mbuf =  zcopy_sge_num*向上取整（zcopy_sge_len / 60 / 1024 ）+ 204800
 
 完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。
