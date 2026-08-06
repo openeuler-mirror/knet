@@ -9,7 +9,7 @@
 本章示例以Tperf为例。
 本节主要说明如何配置、使用[API参考](../api/cothread_apis/cothread_list.md)的共线程接口，提供共线程使用伪代码，指导用户使用。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >共线程功能指K-NET用户态协议栈与业务在同一个线程中运行，并在此业务线程中进行数据包的收发、事件处理和数据读写。
 >具有如下约束：
 >
@@ -19,8 +19,8 @@
 >- K-NET worker业务线程之间不得共享与跨线程操作socket fd、epoll fd。
 >- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见[步骤4](#step4)。
 >- K-NET worker业务线程个数与配置项中的“max\_worker\_num”一致，超过“max\_worker\_num”部分线程执行knet\_worker\_init\(\)会失败。
->- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启"bifur\_enable"并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流。
->- 共线程场景下，开启流分叉"bifur\_enable"设置为1，或者max\_worker\_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入ip非0，为业务ip。
+>- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启“bifur_enable”并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流。
+>- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入ip非0，为业务ip。
 
 1. 业务适配<term>K-NET</term>共线程模式。
     - 以下为业务服务端使用共线程模式时的伪代码：
@@ -159,7 +159,7 @@
         -lknet_frame
         ```
 
-    - 编译构建业务、验证可执行文件依赖的共享库列表包含libknet\_frame.so，以test为例：
+    - 编译构建业务、验证可执行文件依赖的共享库列表包含libknet_frame.so，以test为例：
 
         ```bash
         ldd test
@@ -213,7 +213,7 @@
             echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range
             ```
 
-        - 方案2：修改K-NET配置文件中"min\_port"与"max\_port"配置项，参考步骤3，使其不与内核协议栈端口范围冲突。
+        - 方案2：修改K-NET配置文件中“min_port”与“max_port”配置项，参考步骤3，使其不与内核协议栈端口范围冲突。
 
 5. 启动业务。
 

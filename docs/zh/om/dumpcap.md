@@ -1,6 +1,6 @@
 # 抓包工具dumpcap
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 请用户先参见[安装抓包工具](../installation/installation.md#可选安装抓包工具)后再参考本章节进行使用。
 >- K-NET使用的DPDK版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
@@ -61,7 +61,7 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port
 
 ## 使用示例
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >使用抓包前请先启动K-NET。抓包工具启动前已经运行的业务进程才能被抓包，如果新增业务进程，请重启抓包工具。业务启动命令参见[特性指南](../feature_guide/network_acceleration_verification.md)中各功能示例。
 
 - 进入“dpdk-stable-21.11.7/app/dumpcap”目录再使用抓包定位K-NET劫持的业务。

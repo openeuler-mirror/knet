@@ -31,7 +31,7 @@ The information is collected and stored in /var/log/knet/info_collect/2026020918
 ^CInterrupted by user.
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 收集的信息会存放在"/var/log/knet/info\_collect"目录下，详情请参见[表1](#OM-table)。
 >- 收集到的信息统一打包为tar包，tar包的命名格式为："时间戳\_info\_collect.tar.gz"。
@@ -47,5 +47,5 @@ The information is collected and stored in /var/log/knet/info_collect/2026020918
 |log|日志信息：<li>K-NET运行日志文件</li><li>K-NET运行日志转储文件</li>|
 |statistic|业务运行状态：<li>配置文件</li><li>统计信息</li>|
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >以上文件名称中的时间戳为示例，具体以实际环境信息为准。

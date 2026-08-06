@@ -2,7 +2,7 @@
 
 ## 配置大页内存
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 使用大页内存可减少页表与内存管理开销，提升应用程序性能。
 >- 请用户根据服务端环境具体的大页配置调整参数，服务端环境关闭或重启后需要重新配置和挂载。
@@ -66,8 +66,8 @@
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    > [!NOTE]说明  
-    >- 此处设置默认大页内存的大小为1G，数量为2。
+    > [!NOTE]说明
+    >- 此处设置默认大页内存的大小为1GB，数量为2。
     >- iommu.passthrough=1 pci=realloc为虚拟化场景所需配置。
 
 5. 重启。
@@ -98,7 +98,7 @@
     hinicadm3 info
     ```
 
-    回显示例如下，获取到可用网口设备网口为“enp6s0”，BDF号为“0000:06:00.0”。
+    回显示例如下，获取到可用网口设备为“enp6s0”，BDF号为“0000:06:00.0”。
 
     ```text
     Card num:1
@@ -137,7 +137,7 @@
         cat /sys/class/net/ens6f0/device/numa_node # 查看网卡所在NUMA
         ```
         
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >此处以网卡名ens6f0为例，用户根据实际使用的网卡名填写。
         
         回显示例如下，此处说明所在NUMA为1。
@@ -149,7 +149,7 @@
         echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 为指定节点分配2个大小为1048576kB（1GB）的大页
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >
         >- 此处node1为上一步查询到的网卡所在NUMA节点，具体node编号根据查询到的网卡所在NUMA进行更改。
         >- 分配的大页数量与单个大页大小根据实际情况替换。
@@ -161,8 +161,8 @@
         echo 2 > /sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages
         ```
 
-    > [!NOTE]说明  
-    >- 配置2个1G类型内存大页，如果是512M类型推荐配置4个。
+    > [!NOTE]说明
+    >- 配置2个1GB类型内存大页，如果是512MB类型推荐配置4个。
     >- 服务端关闭或重启需要重新执行此步骤。
     >- 关闭透明大页会降低Redis的性能，但是性能更稳定，请用户根据实际需要决定透明大页设置。启用透明大页可参考：
     >
@@ -183,22 +183,22 @@
     1    2     1Gb  2Gb
     ```
 
-    说明在node1节点配置了2个1G类型大页。
+    说明在node1节点配置了2个1GB类型大页。
 
 11. 挂载大页。
     > [!NOTE]说明
-    > 如果使用的为1G类型大页，需要执行此步骤，如果是其他大类型大页，无需挂载，请跳过本步骤。
+    > 如果使用的为1GB类型大页，需要执行此步骤，如果是其他类型大页，无需挂载，请跳过本步骤。
 
     若为root用户：
     直接将大页挂载至系统路径下。
 
     ```bash
     mkdir -p /dev/hugepages1G
-    mount -t hugetlbfs -o pagesize=1G hugetlbfs /dev/hugepages1G   #将1G类型大页挂载到/dev/hugepages1G目录下，如果业务环境关闭或重启需要重新执行
+    mount -t hugetlbfs -o pagesize=1G hugetlbfs /dev/hugepages1G   #将1GB类型大页挂载到/dev/hugepages1G目录下，如果业务环境关闭或重启需要重新执行
     ```
 
     若为非root用户：
-    用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
+    用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
     > [!NOTICE]须知 
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
@@ -214,7 +214,7 @@
     mount | grep huge
     ```
 
-    > 回显示例如下，表示成功使能1G大页：
+    > 回显示例如下，表示成功使能1GB大页：
 
     ```ColdFusion
     cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
@@ -222,11 +222,11 @@
     hugetlbfs on /home/KNET_USER/hugepages type hugetlbfs (rw,relatime,pagesize=1024M)
     ```
 
-    > [!NOTE]说明  
-    >这里需要注意是否存在其他1G类型大页挂载路径，如果存在的话，可能会造成权限问题影响后续业务运行，需要执行以下命令取消挂载：
+    > [!NOTE]说明
+    >这里需要注意是否存在其他1GB类型大页挂载路径，如果存在的话，可能会造成权限问题影响后续业务运行，需要执行以下命令取消挂载：
     >
     >```bash
-    >umount /path     # /path为其他1G类型大页挂载路径
+    >umount /path     # /path为其他1GB类型大页挂载路径
     >```
 
 ## 相关业务配置
@@ -269,7 +269,7 @@
 
 2. DPDK接管网卡。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >服务端环境关闭或重启后需要重新执行当前步骤。
 
     1. 关闭网口enp6s0（该网口后续会使用DPDK接管）。
@@ -296,7 +296,7 @@
 
         ![](../figures/zh-cn_image_0000002478201086.png)
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >如果想要取消DPDK接管网卡，执行：
         >
         >```bash
@@ -305,7 +305,7 @@
 
 3. 配置<term>K-NET</term>动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- 用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，KNET\_USER需具有命令执行权限。
     >- 此处以Redis作为示例。
     >- 若为root用户可跳过此步骤。
@@ -326,17 +326,17 @@
     setcap 'cap_sys_rawio+p cap_net_admin+p cap_dac_read_search+p cap_ipc_lock+p  cap_sys_admin+p cap_net_raw+p cap_dac_override+p' /path/redis-6.0.20/src/redis-server
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- “/path/redis-6.0.20/src/”为redis-server的路径，请根据实际安装Redis的路径填写。
     >- 若使用其他业务软件，将此处Redis的安装路径修改为对应业务软件的路径。
 
 4. 设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
-     > [!NOTE]说明  
+     > [!NOTE]说明
      > 用户名使用KNET\_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
 
      用户可以根据需要选择永久或者临时配置环境变量。如果用户选择临时配置环境变量，需要在每个终端页面执行相关命令。
      - 永久配置环境变量。
-         > [!NOTE]说明  
+         > [!NOTE]说明
          > 配置完成之后重新切换到该用户时无需重新配置环境变量。
         1. 创建环境变量路径。
 
@@ -365,7 +365,7 @@
             ```
 
      - 临时配置环境变量。
-         > [!NOTE]说明  
+         > [!NOTE]说明
          >- 服务端环境关闭或重启后，或者退出普通用户再重新切换到该用户，均需要重新执行步骤。
          >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
 
@@ -425,7 +425,7 @@ cd build/bin
 - tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
 - tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >使用完patch后，若需要恢复到原生tperf版本，可撤销patch。
 >
 >```bash

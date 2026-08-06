@@ -130,7 +130,7 @@
 
         重启后请再次查看当前网卡模板。
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >若使用流量分叉功能，需切换模板为ROCE_2X100G_UN_ADAP，命令如下：
         >
         >```bash
@@ -179,7 +179,7 @@
 
         ![](../figures/zh-cn_image_0000002504019188.png)
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 4. 配置Yum源，配置前需要先把虚拟机对应的ISO使用SFTP上传到虚拟机环境。本步骤及子步骤均需在虚拟机中执行。
@@ -198,7 +198,7 @@
         mount /path/to/local/directory/openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso /mnt
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >本文以鲲鹏环境为例，openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso是安装虚拟机的镜像。x86环境下镜像的操作系统为openEuler 22.03 LTS SP1。
 
     2. 备份repo文件。
@@ -265,7 +265,7 @@
     cat /sys/class/net/enp1s0f0/device/sriov_totalvfs
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >enp1s0f0为前一步骤查询得到的端口名称，请用户根据实际情况修改。
 
     ![](../figures/zh-cn_image_0000002483338178.png)
@@ -304,7 +304,7 @@
 
         ![](../figures/zh-cn_image_0000002515618139.png)
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >第一个红框与[步骤1.5](#step1.5)配置的VF相对应，比如这里VF选择01:00.2所对应的端口（即[步骤1.5](#step1.5)图中右边红框），该端口为enp1s0f0v0，第二个红框表示这个VF会在虚拟机里面生成一个网口，网口名为enp6s0。如果需要配置多个VF，就在<device\>字段中添加多个字段。
 
         如下为模板，仅供参考：
