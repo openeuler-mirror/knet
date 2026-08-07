@@ -22,9 +22,15 @@ int SOCK_NotifyHookCreate(SOCK_NotifyFn_t hook);
 
 static inline void SOCK_NotifyHookSetCtx(Sock_t* sk, void* ctx)
 {
-    if (sk->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
-        sk->notifyCtx = ctx;
+    SOCK_Lock(sk);
+    SockNotify_t* notify = NULL;
+    LIST_FOREACH(&sk->notifyList, notify, node)
+    {
+        if(notify->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
+            notify->notifyCtx = ctx;
+        }
     }
+    SOCK_Unlock(sk);
 }
 
 #ifndef DPITF_EPOLL
@@ -45,11 +51,11 @@ static inline void SOCK_NotifyHookSetCtx(Sock_t* sk, void* ctx)
 #define SELECT_NOTIFY_ATTR
 #endif
 
-extern void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) EPOLL_NOTIFY_ATTR;
+extern void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd) EPOLL_NOTIFY_ATTR;
 
-extern void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) POLL_NOTIFY_ATTR;
+extern void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd) POLL_NOTIFY_ATTR;
 
-extern void SELECT_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event) SELECT_NOTIFY_ATTR;
+extern void SELECT_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd) SELECT_NOTIFY_ATTR;
 
 #ifdef __cplusplus
 }

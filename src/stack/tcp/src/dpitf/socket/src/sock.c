@@ -13,7 +13,7 @@
 #include <securec.h>
 
 #include "sock.h"
-
+#include "shm.h"
 #include "dp_fd.h"
 #include "netdev.h"
 #include "ns.h"
@@ -540,10 +540,9 @@ int SOCK_Close(Sock_t* sk)
     SOCK_Lock(sk); // close需要先通知事件，由事件处理部分删除
 
     SOCK_SetState(sk, SOCK_STATE_CLOSE); // 上报一个close，由适配者释放相关资源
-    if (sk->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
-        SOCK_DisableNotify(sk);
-    }
-
+        
+    SOCK_DisableNotifyWithoutHook(sk);
+    
     SOCK_SET_CLOSED(sk);
     // close表示用户侧不在操作此socket资源，仅有实例内部操作，交给具体协议实现释放内存，以及释放锁
     ret = sk->ops->close(sk);
@@ -1683,10 +1682,12 @@ void SockShowInfo(Sock_t* sk)
     offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvLowat = %u\n", sk->rcvLowat);
     offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "rcvHiwat = %u\n", sk->rcvHiwat);
     offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "priority = %d\n", sk->priority);
-    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
-        "associateFd = %d\n", sk->associateFd);
-    offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset, "notifyType = %d\n", sk->notifyType);
-
+    if (!LIST_IS_EMPTY(&sk->notifyList)) {
+        offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+            "associateFd = %llu\n", LIST_FIRST(&sk->notifyList)->associateFd);
+        offset += (uint32_t)snprintf_truncated_s(output + offset, LEN_INFO - offset,
+            "notifyType = %d\n", LIST_FIRST(&sk->notifyList)->notifyType);
+    }
     DEBUG_SHOW(0, output, offset);
 }
 
@@ -1719,8 +1720,13 @@ static void SockGetDetails(Sock_t* sk, DP_SockDetails_t* details)
     details->rcvLowat = sk->rcvLowat;
     details->rcvHiwat = sk->rcvHiwat;
     details->priority = sk->priority;
-    details->associateFd = sk->associateFd;
-    details->notifyType = sk->notifyType;
+    if (!LIST_IS_EMPTY(&sk->notifyList)) {
+        details->associateFd = LIST_FIRST(&sk->notifyList)->associateFd;
+        details->notifyType = LIST_FIRST(&sk->notifyList)->notifyType;
+    } else {
+        details->associateFd = 0;
+        details->notifyType = SOCK_NOTIFY_TYPE_NONE;
+    }
     details->wid = sk->wid;
 }
 
@@ -1752,10 +1758,15 @@ int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn)
     return 0;
 }
 
-void SOCK_Notify(Sock_t* sk, uint8_t oldState, uint8_t event)
+void SOCK_Notify(Sock_t *sk, uint8_t oldState, uint8_t event, bool includeHook)
 {
-    if (g_notifyFns[sk->notifyType] != NULL) {
-        g_notifyFns[sk->notifyType](sk, sk->notifyCtx, oldState, sk->state, event);
+    SockNotify_t* notify = NULL;
+    LIST_FOREACH(&sk->notifyList, notify, node) {
+        // 判断是否处理钩子通知
+        bool isHook = (notify->notifyType == SOCK_NOTIFY_TYPE_HOOK);
+        if ((isHook == includeHook) && g_notifyFns[notify->notifyType] != NULL) {
+            g_notifyFns[notify->notifyType](sk, notify->notifyCtx, oldState, sk->state, event, notify->associateFd);
+        }
     }
 }
 
@@ -1781,31 +1792,55 @@ uint32_t SOCK_GetState(Sock_t* sk)
     return ret;
 }
 
-void SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, int assocFd)
+int SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, uint64_t assocFd)
 {
     if (type <= SOCK_NOTIFY_TYPE_NONE || type >= SOCK_NOTIFY_TYPE_MAX) {
-        return;
+        return -1;
     }
-
-    sk->notifyType  = type;
-    sk->notifyCtx   = ctx;
-    sk->associateFd = assocFd;
+    SockNotify_t* notify = SHM_MALLOC(sizeof(SockNotify_t), MOD_SOCKET, DP_MEM_FREE);
+    if(notify == NULL) {
+        DP_LOG_ERR("Malloc memory failed for socket notify");
+        return ENOMEM;
+    }
+    notify->notifyType  = type;
+    notify->notifyCtx   = ctx;
+    notify->associateFd = assocFd;
+    LIST_INSERT_HEAD(&sk->notifyList, notify, node);
+    return 0;
 }
 
-void SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, int assocFd)
+int SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, uint64_t assocFd)
 {
     SOCK_Lock(sk);
 
-    SOCK_EnableNotify(sk, type, ctx, assocFd);
+    int ret = SOCK_EnableNotify(sk, type, ctx, assocFd);
 
     SOCK_Unlock(sk);
+    return ret;
 }
 
 void SOCK_DisableNotify(Sock_t* sk)
 {
-    sk->notifyType  = SOCK_NOTIFY_TYPE_NONE;
-    sk->notifyCtx   = NULL;
-    sk->associateFd = -1;
+    SockNotify_t* notify = NULL;
+    SockNotify_t* next = NULL;
+    for(notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
+        next = LIST_NEXT(notify, node);
+        LIST_REMOVE(&sk->notifyList, notify, node);
+        SHM_FREE(notify, DP_MEM_FREE);
+    }
+}
+
+void SOCK_DisableNotifyWithoutHook(Sock_t* sk)
+{
+    SockNotify_t* notify = NULL;
+    SockNotify_t* next = NULL;
+    for(notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
+        next = LIST_NEXT(notify, node);
+        if (notify->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
+            LIST_REMOVE(&sk->notifyList, notify, node);
+            SHM_FREE(notify, DP_MEM_FREE);
+        }
+    }
 }
 
 void SOCK_DisableNotifySafe(Sock_t* sk)
@@ -1836,6 +1871,13 @@ static int InitSockMem(Sock_t* sk, size_t objSize)
     }
 
     return 0;
+}
+
+static void DeInitSockMem(Sock_t* sk)
+{
+    SEM_DEINIT(sk->rdSem);
+    SEM_DEINIT(sk->wrSem);
+    SPINLOCK_Deinit(&sk->lock);
 }
 
 int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize)
@@ -1876,9 +1918,14 @@ int SOCK_InitSk(Sock_t* sk, Sock_t* parent, size_t objSize)
 
     sk->ref = 1;
     sk->dev = NULL;
-
+    LIST_INIT_HEAD(&sk->notifyList);
     if (g_notifyHook != NULL) {
-        SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_HOOK, NULL, -1);
+        ret = SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_HOOK, NULL, -1);
+        if (ret != 0) {
+            DeInitSockMem(sk);
+            DP_LOG_ERR("Sock init notify_hook failed!");
+            return -ret;
+        }
     }
 
     return 0;

@@ -70,7 +70,7 @@ enum {
     SOCK_NOTIFY_TYPE_MAX
 };
 
-typedef void (*SOCK_NotifyFn_t)(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event);
+typedef void (*SOCK_NotifyFn_t)(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd);
 
 int SOCK_Create(NS_Net_t* net, int domain, int type, int protocol, Sock_t** sk);
 
@@ -118,8 +118,8 @@ uint32_t SOCK_GetRWStateSafe(Sock_t* sk);
 
 int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn);
 
-void SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, int assocFd);
-void SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, int assocFd);
+int SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, uint64_t assocFd);
+int SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, uint64_t assocFd);
 
 void SOCK_DisableNotify(Sock_t* sk);
 void SOCK_DisableNotifySafe(Sock_t* sk);

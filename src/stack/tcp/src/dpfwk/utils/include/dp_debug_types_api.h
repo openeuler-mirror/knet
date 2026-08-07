@@ -228,7 +228,7 @@ typedef struct {
     uint32_t rcvHiwat;  // 接收缓冲区高水位
     uint32_t bandWidth; // 限速带宽
     int priority;       // 优先级
-    int associateFd;    // 事件通知关联FD
+    uint64_t associateFd;    // 事件通知关联FD
     int notifyType;     // 事件通知类型
     int32_t wid;        // worker id
 
