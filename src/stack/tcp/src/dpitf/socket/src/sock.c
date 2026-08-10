@@ -1797,7 +1797,7 @@ int SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, uint64_t assocFd)
     if (type <= SOCK_NOTIFY_TYPE_NONE || type >= SOCK_NOTIFY_TYPE_MAX) {
         return -1;
     }
-    SockNotify_t* notify = SHM_MALLOC(sizeof(SockNotify_t), MOD_SOCKET, DP_MEM_FREE);
+    SockNotify_t* notify = OS_MALLOC(sizeof(SockNotify_t));
     if(notify == NULL) {
         DP_LOG_ERR("Malloc memory failed for socket notify");
         return ENOMEM;
@@ -1826,7 +1826,7 @@ void SOCK_DisableNotify(Sock_t* sk)
     for(notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
         next = LIST_NEXT(notify, node);
         LIST_REMOVE(&sk->notifyList, notify, node);
-        SHM_FREE(notify, DP_MEM_FREE);
+        OS_FREE(notify);
     }
 }
 
@@ -1838,7 +1838,7 @@ void SOCK_DisableNotifyWithoutHook(Sock_t* sk)
         next = LIST_NEXT(notify, node);
         if (notify->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
             LIST_REMOVE(&sk->notifyList, notify, node);
-            SHM_FREE(notify, DP_MEM_FREE);
+            OS_FREE(notify);
         }
     }
 }
