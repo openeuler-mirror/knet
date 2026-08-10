@@ -99,6 +99,9 @@
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
 
+    > [!NOTE]说明  
+    > bind的地址为服务端配置文件中配置的业务IP地址。
+
     ![](../figures/zh-cn_image_0000002477733316.png)
 
 5. （服务端）启动内核态iPerf3（另开一个终端）。
@@ -106,6 +109,9 @@
     ```bash
     iperf3 -s -4 -p 10002 --bind 192.168.*.*
     ```
+
+    > [!NOTE]说明  
+    > bind地址需与步骤4中第一个终端的bind地址相同。
 
 6. （客户端）同时向服务端的K-NET、内核态iPerf3打流。
 
@@ -210,25 +216,32 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
 （服务端和客户端）配置Bond：
 
 ```bash
-ifconfig enp1s0f0 0
-ifconfig enp1s0f1 0
-ip link del bond0
-sudo ip link set dev enp1s0f0 down
+ifconfig enp1s0f0 0 #移除物理网口的IP地址
+ifconfig enp1s0f1 0 
+ip link del bond0 #删除名为bond0的绑定接口
+sudo ip link set dev enp1s0f0 down #将网口置于关闭状态
 sudo ip link set dev enp1s0f1 down
-sudo ip link add bond0 type bond mode 4 xmit_hash_policy 1 miimon 100 updelay 100 downdelay 100 lacp_rate fast
-sudo ip link set dev enp1s0f0 master bond0
+sudo ip link add bond0 type bond mode 4 xmit_hash_policy 1 miimon 100 updelay 100 downdelay 100 lacp_rate fast #创建名为bond0的绑定接口
+sudo ip link set dev enp1s0f0 master bond0 #将物理网口加入bond0
 sudo ip link set dev enp1s0f1 master bond0
-sudo ip link set dev bond0 up
-sudo ip addr add 192.168.*.*/24 dev bond0
-sudo ip link set dev enp1s0f0 up
+sudo ip link set dev bond0 up #启动bond0虚拟网口
+sudo ip addr add 192.168.*.*/24 dev bond0 #为bond0虚拟网口添加IP
+sudo ip link set dev enp1s0f0 up #启动物理网口
 sudo ip link set dev enp1s0f1 up
 ```
+
+> [!NOTE]说明  
+>
+>- enp1s0f0：需要组Bond绑定的第一个网口，根据实际情况替换。
+>- enp1s0f1：需要组Bond绑定的第二个网口，根据实际情况替换。
+>- bond0：创建的虚拟绑定口，用户可自定义名称。
+>- 192.168.*.*/24：虚拟绑定口配置的IP，用户可自定义IP地址。
 
 （交换机）配置参考如下：
 
 ```bash
-system-view # 进入系统视图
-inter eth-trunk 0 （创建或者进入trunk 0，确保不和已有trunk编号名称冲突）
+system-view #进入系统视图
+inter eth-trunk 0 #创建或者进入trunk 0，确保不和已有trunk编号名称冲突
 inter 100GE1/0/1 #进入网口
 eth-trunk 0  #将网卡加入eth-trunk0
 commit #保存配置
