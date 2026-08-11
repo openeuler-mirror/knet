@@ -23,27 +23,32 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 
 ### 编译
 
-在已安装K-NET的环境中，下载[libtpa源码](#简介)并解压，将K-NET源码包中demo/tperf目录下的tperf_knet.patch文件放入app目录后执行安装：
+1. 准备libtpa源码与K-NET的patch文件。
+    在已安装K-NET的环境中，下载[libtpa源码](#简介)并解压，将K-NET源码包中demo/tperf目录下的[tperf_knet.patch文件](https://atomgit.com/openeuler/knet/blob/master/demo/tperf/tperf_knet.patch)放入app目录。
 
-```bash
-cd app
-patch -p1 -d tperf/ < tperf_knet.patch
-```
+2. 安装patch。
 
-需安装K-NET支持共线程以及零拷贝版本后编译tperf：
+    ```bash
+    cd app
+    patch -p1 -d tperf/ < tperf_knet.patch
+    ```
 
-```bash
-cd tperf
-make
-cd build/bin
-```
+3. 编译Tperf。
 
-在build/bin下为4个可执行demo，分别如下：
+    ```bash
+    cd tperf
+    make
+    cd build/bin
+    ```
 
-- tperf_os：标准POSIX接口的tperf demo；
-- tperf_knetco：使用K-NET共线程特性的tperf demo；
-- tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
-- tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
+4. 查看编译产物。
+
+    在build/bin下为4个可执行demo：
+
+    - tperf_os：标准POSIX接口的tperf demo；
+    - tperf_knetco：使用K-NET共线程特性的tperf demo；
+    - tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
+    - tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
 
 > [!NOTE]说明  
 >若需要恢复到原生tperf版本，可执行以下命令撤销patch。
@@ -65,7 +70,7 @@ vi /etc/knet/knet_comm.conf
 
 按“i”进入编辑模式。
 
-> [!NOTE]性能调优说明  
+> [!NOTE]说明  
 >以下配置项针对Tperf场景进行了性能优化：增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`以提升网络吞吐能力；配置`zcopy_sge_len`和`zcopy_sge_num`优化零拷贝性能；调整DPDK的`tx_cache_size`、`rx_cache_size`及内存参数以适配大流量场景。
 
 ```text
@@ -857,7 +862,7 @@ vi /etc/knet/knet_comm.conf
 
     ```text
     "zcopy_enable": 1,
-    "cothread_enable": 1；
+    "cothread_enable": 1;
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
