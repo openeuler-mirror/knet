@@ -10,17 +10,17 @@
 ldd --version
 ```
 
-Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。这里以2.28版本为例。
+Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。
 
 ### 检查ASLR是否开启
 
-ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度
+ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度。
 
 ```bash
 cat /proc/sys/kernel/randomize_va_space
 ```
 
-若结果不为2，请执行以下命令开启ASLR
+若结果不为2，请执行以下命令开启ASLR。
 
 ```bash
 bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
@@ -51,7 +51,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 安装DPDK
 
-如果已经安装21.11.7版本的DPDK，且不需要抓包功能，可跳过以下DPDK的安装流程。
+参考[版本配套关系](../release_note.md#版本配套关系)确认需要安装的DPDK版本，如果已经安装对应版本的DPDK，且不需要抓包功能，可跳过以下DPDK的安装流程。
 可先通过pkg-config查询DPDK版本：
 
 ```bash
@@ -62,101 +62,99 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
 在安装DPDK时应避免直接使用Yum源，因为Yum源安装的版本存在不可控风险。
 
-1. 安装DPDK。
+1. 安装DPDK需要的依赖。
 
-    1. 安装DPDK需要的依赖。
+    ```bash
+    yum install -y gcc meson ninja-build numactl-devel python3-pyelftools libnl3 libnl3-devel
+    ```
 
-        ```bash
-        yum install -y gcc meson ninja-build numactl-devel python3-pyelftools libnl3 libnl3-devel
-        ```
+2. 下载DPDK软件包，以安装路径“/home/opt”、DPDK版本21.11.7为例。
 
-    2. 下载DPDK软件包，以安装路径“/home/opt”、DPDK版本21.11.7为例。
+    ```bash
+    mkdir /home/opt
+    cd /home/opt
+    wget https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz
+    ```
+
+    > [!NOTE]说明
+    > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”参数。
+
+3. 解压软件包。
     
-        ```bash
-        mkdir /home/opt
-        cd /home/opt
-        wget https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz
-        ```
+    ```bash
+    tar -xf dpdk-21.11.7.tar.xz
+    cd dpdk-stable-21.11.7
+    ```
 
-        > [!NOTE]说明
-        >- 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”。
+4. 安装驱动程序。
 
-    3. 解压软件包。
-        
-        ```bash
-        tar -xf dpdk-21.11.7.tar.xz
-        cd dpdk-stable-21.11.7
-        ```
+    ```bash
+    meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
+    ```
+
+    回显示例：
+
+    ![编译回显](../figures/zh-cn_image_0000002503958012.png)
+
+    ```bash
+    ninja -C build
+    ```
+
+    回显示例：
+
+    ![构建回显](../figures/zh-cn_image_0000002535517975.png)
+
+    ```bash
+    ninja install -C build
+    ```
+
+    回显示例：
+
+    ![安装回显](../figures/zh-cn_image_0000002503798182.png)
+
+## 安装dpdk-hinic3驱动
+
+1. 获取hinic3 PMD源码。
+
+    ```bash
+    cd /home/opt/
+    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic_master dpdk-hinic3_master
+    ```
+
+2. 获取配套版本的tag。
+
+    配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
+
+    以下为commitid位置示例：
+    ![hinic3版本tag页面](../figures/hinic3p2.png)
+
+3. 切换至配套版本tag。
+
+    > [!NOTE]说明
+    > 命令中的\<commitid>请以实际获取值替换。
+
+    ```bash
+    cd dpdk-hinic3
+    git checkout <commitid>
+    ```
+
+4. 编译。
     
-    4. 安装驱动程序。
+    ```bash
+    sh install.sh ../dpdk-stable-21.11.7 install
+    sh install.sh ../dpdk-stable-21.11.7 build
+    ```
 
-        ```bash
-        meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
-        ```
+5. 安装。
 
-        回显示例：
+    ```bash
+    cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
+    ls -l /usr/lib64/librte_net_hinic3.so*
+    ldconfig
+    ```
 
-        ![](../figures/zh-cn_image_0000002503958012.png)
-
-        ```bash
-        ninja -C build
-        ```
-
-        回显示例：
-
-        ![](../figures/zh-cn_image_0000002535517975.png)
-
-        ```bash
-        ninja install -C build
-        ```
-
-        回显示例：
-
-        ![](../figures/zh-cn_image_0000002503798182.png)
-
-2. 安装dpdk-hinic3驱动。
-
-    1. 获取hinic3 PMD源码。
-    
-        ```bash
-        cd /home/opt/
-        git clone https://atomgit.com/openeuler/dpdk/.git -b hinic_master dpdk-hinic3
-        ```
-    
-    2. 获取配套版本的tag。
-    
-        配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
-
-        以下为commitid位置示例：
-            ![hinic3版本tag页面](../figures/hinic3p2.png)
-
-    3. 切换至配套版本tag。
-
-        > [!NOTE]说明
-        > 命令中的\<commitid>请以实际获取值替换。
-
-        ```bash
-        cd dpdk-hinic3
-        git checkout <commitid>
-        ```
-
-    4. 编译。
-        
-        ```bash
-        sh install.sh /path/to/local/directory/dpdk-stable-21.11.7 install
-        sh install.sh /path/to/local/directory/dpdk-stable-21.11.7 build
-        ```
-
-    5. 安装。
-
-        ```bash
-        cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
-        ls -l /usr/lib64/librte_net_hinic3.so*
-        ldconfig
-        ```
-
-        > [!NOTE]说明
-        > {,.22,.22.0}根据实际DPDK版本替换，以DPDK 21.11.7版本为例，此处DPDK的so版本为21 + 1，即为22。
+    > [!NOTE]说明
+    > {,.22,.22.0}根据实际DPDK版本替换，以DPDK 21.11.7版本为例，此处DPDK的so版本为21 + 1，即为22。
 
 ## （可选）安装抓包工具
 
@@ -252,7 +250,8 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     git clone https://atomgit.com/openeuler/knet.git
     ```
 
-2. 切换分支。
+2. 切换到配套版本tag。
+    如果需切换的K-NET版本为[26.1.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.1.rc1-0630)，则commitid为63f60f93。
     > [!NOTE]说明
     > 命令中的\<commitid>请以实际获取值替换。
     

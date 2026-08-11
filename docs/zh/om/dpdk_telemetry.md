@@ -545,18 +545,18 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpRexmitSackPkt          | SACK重传的报文数。                                       |
 | TcpFastRexmitPkt          | 快速重传的报文数。                                       |
 | RstPersistUserDrops       | 坚持定时器超过用户配置时间丢弃的链接数。                 |
-| RstSynSentRcvErrAck       | SYNSENT状态下接受到报文ACK异常发送RST。                  |
+| RstSynSentRcvErrAck       | SYNSENT状态下接收到报文ACK异常发送RST。                  |
 | RstCookieAfterClosed      | 已经被关闭的socket处理cookie异常发送RST。                |
 | RstParentClosed           | 父socket被关闭异常发送RST。                              |
-| RstRcvNonRstPkt           | 没有五元组状态下接受到不包含RST的报文发送RST。           |
+| RstRcvNonRstPkt           | 没有五元组状态下接收到不包含RST的报文发送RST。           |
 | RstCloseChild             | (子连接)关闭时发送RST。                                  |
 | RstLingerClose            | Linger模式关闭时发送RST。                                |
-| RstRcvDataAfterClose      | 在关闭socket后接受到数据报文，发送RST报文。              |
+| RstRcvDataAfterClose      | 在关闭socket后接收到数据报文，发送RST报文。              |
 | RstRexmit                 | 重传RST报文。                                            |
 | RstRcvBufNotClean         | RCVBUF有报文时close发送RST报文。                         |
 | SynSentRcvInvalidRst      | SYNSENT状态下收到无效RST。                               |
 | TcpConnKeepDrops          | 连接保活阶段丢弃数。                                     |
-| TcpRcvPktNoSyn            | SYNSENT状态下接受到报文不带SYN标志。                     |
+| TcpRcvPktNoSyn            | SYNSENT状态下接收到报文不带SYN标志。                     |
 | TcpReassSucBytes          | TCP重组完成的报文字节数。                                |
 | TcpRcvOutBytes            | TCP用户接收走的字节数。                                  |
 | TcpIcmpTooBigShort        | TCP层处理ICMP TOO BIG时报文长度不足。                    |

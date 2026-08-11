@@ -103,7 +103,7 @@
 1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
-    sh install.sh -d bifur
+    sh install.sh bifur
     ```
 
 2. <a id="step4"></a>查看网卡模板。
@@ -112,11 +112,11 @@
     hinicadm3 cfg_template -i hinic0
     ```
 
-    ![](../figures/zh-cn_image_0000002487030394.png)
+    ![网卡模板](../figures/zh-cn_image_0000002487030394.png)
 
-    “Current Info”字段中的“Cfg template index”显示为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启：
+    “Current Info”字段中的“Cfg template index”显示为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启，以模板[0]为例：
 
-    1. 切换网卡模板为0。
+    1. 切换网卡模板为[0]NIC_2X100G。
 
         ```bash
         hinicadm3 cfg_template -i hinic0 -s 0
@@ -131,11 +131,13 @@
         重启后请再次查看当前网卡模板。
 
         > [!NOTE]说明
-        >若使用流量分叉功能，需切换模板为ROCE_2X100G_UN_ADAP，命令如下：
+        >若使用流量分叉功能，需切换模板为[3]ROCE_2X100G_UN_ADAP，命令如下：
         >
         >```bash
         >hinicadm3 cfg_template -i hinic0 -s 3
         >```
+        >
+        >若使用其他功能，模板[0]NIC_2X100G或模板[3]ROCE_2X100G_UN_ADAP均可。
 
 ## 搭建虚拟机环境
 

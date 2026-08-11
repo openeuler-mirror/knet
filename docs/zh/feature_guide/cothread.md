@@ -4,9 +4,12 @@
 
 提供共线程定制接口，支持在业务线程直接驱动协议栈，具有节省转发CPU核的优势。
 
+> [!NOTE]说明
+> 共线程功能支持灵活部署方案：服务端和客户端双端配置使用可获得最佳网络传输性能；也支持单端配置使用，用户可根据实际场景需求选择。
+
 ## 使用示例
 
-本章示例以Tperf为例。
+以通用服务端/客户端伪代码说明，Tperf实例见文末链接。
 本节主要说明如何配置、使用[API参考](../api/cothread_apis/cothread_list.md)的共线程接口，提供共线程使用伪代码，指导用户使用。
 
 > [!NOTE]说明
@@ -19,8 +22,8 @@
 >- K-NET worker业务线程之间不得共享与跨线程操作socket fd、epoll fd。
 >- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见[步骤4](#step4)。
 >- K-NET worker业务线程个数与配置项中的“max\_worker\_num”一致，超过“max\_worker\_num”部分线程执行knet\_worker\_init\(\)会失败。
->- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启“bifur_enable”并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流。
->- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入ip非0，为业务ip。
+>- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启“bifur_enable”并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流，失败时可参考[共线程故障](../troubleshooting/cothread.md)。
+>- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入IP地址非0，为业务IP地址。
 
 1. 业务适配<term>K-NET</term>共线程模式。
     - 以下为业务服务端使用共线程模式时的伪代码：
@@ -76,7 +79,7 @@
                              int n = read(fd, buffer, sizeof(buffer));                    
                           }
           
-                        // 处理 EPOLLOUT 事件 - 客户端可以接受数据
+                        // 处理 EPOLLOUT 事件 - 客户端可以接收数据
                         if (events[i].events & EPOLLOUT) {
                             const char *reply = "ok";
                             int sent = send(fd, reply, strlen(reply), 0);
@@ -133,7 +136,7 @@
                          int n = read(fd, buffer, sizeof(buffer));
                       }
           
-                    // 处理 EPOLLOUT 事件 - 客户端可以接受数据
+                    // 处理 EPOLLOUT 事件 - 客户端可以接收数据
                     if (events[i].events & EPOLLOUT) {
                         const char *reply = "ok";
                         int sent = send(fd, reply, strlen(reply), 0);
@@ -149,7 +152,7 @@
 
     - 总结
 
-        上述伪代码的核心在于：引入knet\_socket\_api.h头文件，在业务进程初始化中进行knet\_init\(\)，设置线程CPU亲和性，注意需与"ctrl\_vcpu\_ids"不同；在业务线程运行时，首先进行knet\_worker\_init\(\)初始化worker，并可以通过knet\_is\_worker\_thread\(\)判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet\_worker\_run\(\)一直被调用。
+        上述伪代码的核心在于：引入knet\_socket\_api.h头文件，在业务进程初始化中进行knet\_init\(\)，设置线程CPU亲和性，注意需与“ctrl\_vcpu\_ids”不同；在业务线程运行时，首先进行knet\_worker\_init\(\)初始化worker，并可以通过knet\_is\_worker\_thread\(\)判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet\_worker\_run\(\)一直被调用。
 
 2. 业务编译。
     - 添加编译选项：指定头文件搜索路径与链接的库名称：
@@ -215,6 +218,6 @@
 
         - 方案2：修改K-NET配置文件中“min_port”与“max_port”配置项，参考步骤3，使其不与内核协议栈端口范围冲突。
 
-5. 启动业务。
+## Demo示例
 
     以Tperf为例，参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。
