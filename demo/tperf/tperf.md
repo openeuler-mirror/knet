@@ -5,30 +5,102 @@
 tperf_knet.patch基于libtpa原生Tperf工具开发，将原生tpa接口转换为标准POSIX接口，并在此基础上，分别适配了<term>K-NET</term>共线程和零拷贝特性。
 libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c](https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c)。
 
+## 前提条件
+
+1. **安装要求**：
+   - 无感劫持tperf_os：在本章示例中仅需在服务端单端完成[安装](../../docs/zh/installation/installation.md)与[环境配置](../../docs/zh/feature_guide/environment_configuration.md)；
+   - 共线程/零拷贝/共线程+零拷贝：在本章示例中需在服务端和客户端双端完成[安装](../../docs/zh/installation/installation.md)与[环境配置](../../docs/zh/feature_guide/environment_configuration.md)。
+
+2. **大页内存配置**：Tperf零拷贝场景需要在大页中进行pbuf的读写，因此在零拷贝/共线程+零拷贝场景下，服务端与客户端均需增加大页内存。以20G为例（网卡在node0）：
+   ```bash
+   echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages
+   ```
+   > [!NOTE]说明
+   > 具体请修改为实际网卡所在NUMA节点。
+
 ## 编译及业务配置
 
-请参考[环境配置](../../docs/zh/feature_guide/environment_configuration.md)配置大页内存、通用环境配置和Tperf业务配置，其中由于Tperf零拷贝场景需要在大页中进行pbuf的读写，因此需要增加大页内存，以20G为例，可根据实际情况分配。
+### 编译
 
-```bash
-echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages
-```
+1. 准备libtpa源码与K-NET patch文件。
+
+    在已安装K-NET的环境中，下载[libtpa源码](#简介)并解压，将K-NET源码包中demo/tperf目录下的[tperf_knet.patch文件](https://atomgit.com/openeuler/knet/blob/master/demo/tperf/tperf_knet.patch)放入app目录。
+
+2. 安装patch。
+
+   ```bash
+   cd app
+   patch -p1 -d tperf/ < tperf_knet.patch
+   ```
+
+3. 编译tperf。
+
+   ```bash
+   cd tperf
+   make
+   cd build/bin
+   ```
+
+4. 查看编译产物。
+
+    build/bin目录下生成4个可执行demo：
+   - tperf_os：标准POSIX接口的tperf demo；
+   - tperf_knetco：使用K-NET共线程特性的tperf demo；
+   - tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
+   - tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
 
 > [!NOTE]说明
-> 以网卡在node0为例，具体请修改为实际网卡所在NUMA。
+> 若需恢复到原生tperf版本，可执行如下撤销patch：
+>
+>   ```bash
+>   cd app
+>   patch -p1 -Rd tperf/ < tperf_knet.patch
+>   ```
+
+### 修改配置文件参数进行性能调优
+
+> [!NOTE]运行场景说明
+> 无感劫持tperf_os需要在服务端单端完成配置。
+> 共线程/零拷贝/共线程+零拷贝场景下，服务端与客户端均需完成配置。
+
+```bash
+vi /etc/knet/knet_comm.conf
+```
+
+按“i”进入编辑模式。
+
+> [!NOTE]性能调优说明  
+>以下配置项针对Tperf场景进行了性能优化：增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`以提升网络吞吐能力；配置`zcopy_sge_len`和`zcopy_sge_num`优化零拷贝性能；调整DPDK的`tx_cache_size`、`rx_cache_size`及内存参数以适配大流量场景。
+
+```text
+{
+    "hw_offload": {
+        "tso": 1,
+        "lro": 1,
+        "tcp_checksum": 1,
+        ...
+     },
+    "proto_stack": {
+        "max_mbuf": 204800,
+        "def_sendbuf": 1048576,
+        "def_recvbuf": 1048576,
+        "zcopy_sge_len": 4096,
+        "zcopy_sge_num": 2097152
+    },
+    "dpdk": {
+        "tx_cache_size": 1024,
+        "rx_cache_size": 1024,
+        "socket_mem": "--socket-mem=10240",
+        "socket_limit": "--socket-limit=10240"
+    }
+}
+```
+
+完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。
 
 ## 使用示例
 
-编译完成后在编译目录build/bin下有4个可执行demo。
-
-- tperf_os：标准POSIX接口的Tperf demo；
-- tperf_knetco：使用K-NET共线程特性的Tperf demo；
-- tperf_knetzcopy：使用K-NET零拷贝特性的Tperf demo；
-- tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的Tperf demo。
-
 服务端IP地址以192.168.1.6为例，客户端IP地址以192.168.1.7为例；具体需要替换为网卡配置的IP地址，且与K-NET配置文件中IP地址保持一致。
-
-> [!NOTE]说明
-> 示例运行完成后在服务端按Ctrl+C结束Tperf进程。
 
 通过测试客户端和服务端之间Tperf的性能数据，来对比使用K-NET加速和内核协议栈（未使用K-NET加速）的性能提升。
 
@@ -37,7 +109,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 1. 运行并发连接数为1的tperf_os。
 
     并发连接数为1，即服务端指定一个线程进行侦听。
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
@@ -59,7 +131,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
@@ -96,7 +168,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 2. 运行并发连接数为2的tperf_os。
 
     并发连接数为2，即服务端指定两个线程进行侦听。
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
@@ -116,7 +188,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :2
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
@@ -150,7 +222,10 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 ### K-NET无感加速tperf_os
 
-1. 修改K-NET配置文件<a id="step1"></a>。
+> [!NOTE]性能说明
+> 相比内核协议栈测试（并发1为21Gbits/sec，并发2为42Gbits/sec），K-NET无感加速tperf_os性能略有下降（并发1为18Gbits/sec，并发2为35Gbits/sec）。这是由于DPDK轮询模式较快，导致LRO（Large Receive Offload）聚包较小，影响了整体吞吐量。
+
+1. （服务端）修改K-NET配置文件<a id="step1"></a>。
 
     运行K-NET进行网络加速时，会根据配置文件读取运行模式和网卡信息等内容，请根据前述查询得到信息填写。
     
@@ -193,7 +268,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-2. DPDK接管网卡<a id="step2"></a>。
+2. （服务端）DPDK接管网卡<a id="step2"></a>。
     1. 关闭网口。
     
         ```bash
@@ -231,7 +306,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 3. 进行并发数为1，K-NET无感加速的Tperf。
 
     并发连接数为1，即服务端指定一个线程进行侦听。
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
@@ -261,7 +336,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
@@ -299,7 +374,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 4. 进行并发数为2，K-NET无感加速的Tperf。
 
     并发连接数为2，即服务端指定两个线程进行侦听。
-  1. 服务端启动Tperf。
+  1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
@@ -329,7 +404,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :2
         ```
 
-  2. 在客户端测试性能。
+  2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
@@ -387,7 +462,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 使用K-NET共线程特性的Tperf demo。
 
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 服务端与客户端均完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -402,7 +477,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-3. 修改内核协议栈端口范围。
+3. 分别在服务端和客户端修改内核协议栈端口范围。
 
     内核协议栈和K-NET端口的范围有交叉，不修改可能导致端口冲突。
 
@@ -412,7 +487,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 4. 运行并发数连接数为1，使用K-NET共线程特性的Tperf。
 
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_knetco -s -l 192.168.1.6 -p 11111 -n 1 -S 16
@@ -432,7 +507,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
     
         ```bash
         taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31 
@@ -459,11 +534,11 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ...
         ...
         ...
-            30 w       0.000 read Gbits/sec  16.133 write Gbits/sec
+            30 w       0.000 read Gbits/sec  25.133 write Gbits/sec
         ---
         0 nr_conn=1 nr_zero_io_conn=0
         ```
-        测试值为16Gbits/sec，实际数据以运行为准。
+        测试值为25Gbits/sec，实际数据以运行为准。
 
 5. 进行并发连接数为2，使用K-NET共线程特性的Tperf。
 
@@ -482,7 +557,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
         按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    2. 服务端启动Tperf。
+    2. (服务端) 服务端启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_knetco -s -l 192.168.1.6 -p 11111 -n 2 -S 16
@@ -509,7 +584,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    3. 在客户端测试性能。
+    3. (客户端) 在客户端测试性能。
 
         ```bash
         taskset -c 16-31 ./tperf_knetco -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31 -P 49300,49618
@@ -562,7 +637,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 ### K-NET零拷贝特性加速tperf_knetzcopy
 
 使用K-NET零拷贝特性的Tperf demo。
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 在服务端和客户端均完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -579,7 +654,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 3. 运行并发连接数为1，使用K-NET零拷贝特性的Tperf。
 
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 17-31 ./tperf_knetzcopy -s -l 192.168.1.6 -p 11111 -n 1 -S 17
@@ -598,7 +673,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 17-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 17 -t write -d 31 -P 58532
@@ -645,7 +720,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
         按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    2. 服务端启动Tperf。
+    2. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 18-31 ./tperf_knetzcopy -s -l 192.168.1.6 -p 11111 -n 2 -S 18
@@ -671,7 +746,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    3. 在客户端测试性能。
+    3. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 18-31 ./tperf_knetzcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 18 -t write -d 31 -P 49452,51507
@@ -726,7 +801,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 ### K-NET共线程和零拷贝特性加速tperf_knetcozcopy
 
 使用K-NET共线程加零拷贝特性的Tperf demo。
-1. 已完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
+1. 在服务端和客户端均完成K-NET配置文件修改和DPAK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
 
@@ -742,7 +817,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-3. 修改内核协议栈端口范围。
+3. 在服务端和客户端修改内核协议栈端口范围。
 
     内核协议栈和K-NET端口的范围有交叉，可能冲突。
 
@@ -752,7 +827,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
 
 4. 运行并发连接数为1，使用K-NET共线程加零拷贝特性的Tperf。
 
-    1. 服务端启动Tperf。
+    1. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_knetcozcopy -s -l 192.168.1.6 -p 11111 -n 1 -S 16
@@ -772,7 +847,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         nr_sock :1
         ```
 
-    2. 在客户端测试性能。
+    2. (客户端) 进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_knetcozcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31 -P 49631
@@ -817,7 +892,7 @@ echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepa
         ```
         按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    2. 服务端启动Tperf。
+    2. (服务端) 启动Tperf。
 
         ```bash
         taskset -c 16-31 ./tperf_knetcozcopy -s -l 192.168.1.6 -p 11111 -n 2 -S 16
