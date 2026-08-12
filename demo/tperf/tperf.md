@@ -81,11 +81,11 @@ vi /etc/knet/knet_comm.conf
         ...
      },
     "proto_stack": {
-        "max_mbuf": 204800,
+        "max_mbuf": 1253376,
         "def_sendbuf": 1048576,
         "def_recvbuf": 1048576,
         "zcopy_sge_len": 4096,
-        "zcopy_sge_num": 2097152
+        "zcopy_sge_num": 1048576
     },
     "dpdk": {
         "tx_cache_size": 1024,
@@ -95,6 +95,8 @@ vi /etc/knet/knet_comm.conf
     }
 }
 ```
+
+> 注：max_mbuf =  zcopy_sge_num*向上取整（zcopy_sge_len / 60 / 1024 ）+ 204800
 
 完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。
 
