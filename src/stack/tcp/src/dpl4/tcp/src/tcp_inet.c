@@ -157,7 +157,7 @@ static int TcpInetBind(Sock_t* sk, const struct DP_Sockaddr* addr, DP_Socklen_t 
         ret = 0;
     } else {
         DP_ADD_ABN_STAT(DP_TCP_BIND_PORT_FAILED);
-        ret = -EADDRINUSE;
+        ret = (errno != 0) ? -errno : -EADDRINUSE;
     }
 
     if (ret == 0) {
