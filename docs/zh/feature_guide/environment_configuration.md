@@ -253,7 +253,7 @@
             vi /etc/knet/knet_comm.conf
             ```
 
-        2. 按“i“进入编辑模式，修改配置项，示例如下：
+        2. 按“i”进入编辑模式，修改配置项，示例如下：
 
             ```json
             #interface配置项
@@ -270,11 +270,21 @@
                 "dpdk": {
                     "core_list_global": "1",  # 4. 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
                     ...
-                    "socket_mem": "--socket-mem=0,1024", # 5.网卡所在numa_node编号为0，在0号socket上分配1024MB大页内存，用户需要根据实际查看的numa_node编号进行更改，给网卡所在numa_node分配大页内存
+                    "socket_mem": "--socket-mem=0,1024", # 5.网卡所在NUMA node1，在0号socket上预分配0MB大页内存，在1号socket上分配1024MB大页内存。
                     ...
                     "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 6. 大页挂载文件夹路径
                 }
             ```
+           
+            - "bdf_nums"：填写获取的BDF号，此处以0000:06:00.0为例。
+            - "mac"：填写绑定网卡的MAC地址，此处以52:54:00:2e:1b:a0为例。
+            - "ip"：填写绑定网卡的IP地址，此处以192.168.1.6为例。
+            - "core_list_global"：数据面绑核。需要为网卡所在CPU的中间值，NUMA node0所用CPU为0-23，此处可以填写1，表示使用1号核。
+            - "socket_mem"：给网卡所在numa_node分配的大页内存，用户需根据实际情况更改。
+                - 服务端为物理机时：
+                    - 如果网卡所在NUMA node0，在0号socket上分配1024MB大页内存，可使用"--socket-mem=1024"。
+                    - 如果网卡所在NUMA node1，在0号socket上预分配0MB大页内存，在1号socket上分配1024MB大页内存，请填写为“--socket-mem=0,1024”。
+                - 服务端为虚拟机时：使用默认配置"--socket-mem=1024"即可。
 
         3. 按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
