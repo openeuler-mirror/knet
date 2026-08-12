@@ -118,7 +118,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     ```bash
     cd /home/opt/
-    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic_master dpdk-hinic3_master
+    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic3_master dpdk-hinic3_master
     ```
 
 2. 获取配套版本的tag。
@@ -126,6 +126,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
 
     以下为commitid位置示例：
+    
     ![hinic3版本tag页面](../figures/hinic3p2.png)
 
 3. 切换至配套版本tag。
@@ -134,7 +135,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     > 命令中的\<commitid>请以实际获取值替换。
 
     ```bash
-    cd dpdk-hinic3
+    cd dpdk-hinic3_master
     git checkout <commitid>
     ```
 
