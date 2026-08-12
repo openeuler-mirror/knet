@@ -29,7 +29,7 @@
     Node 1 HugePages_Surp:      0
     ```
 
-    如果所有Node的HugePages\_Total显示信息为0，说明此时系统没有配置内存大页。
+    如果所有Node的HugePages_Total显示信息为0，说明此时系统没有配置内存大页。
 
     - 如果没有配置大页内存，则执行步骤2以及后续步骤。
     - 如果配置了大页内存，则从步骤8开始执行。
@@ -49,7 +49,7 @@
         vi /etc/grub2-efi.cfg
         ```
 
-    - 系统架构为x86\_64场景时：
+    - 系统架构为x86_64场景时：
 
         ```bash
         vi /etc/grub2.cfg
@@ -62,7 +62,7 @@
     default_hugepagesz=1G hugepagesz=1G  hugepages=2 iommu.passthrough=1 pci=realloc
     ```
 
-    ![](../figures/zh-cn_image_0000002503997586.png)
+    ![修改内容](../figures/zh-cn_image_0000002503997586.png)
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -88,7 +88,7 @@
     cat /sys/devices/system/node/node*/meminfo | grep Huge
     ```
 
-    ![](../figures/zh-cn_image_0000002535717537.png)
+    ![NUMA节点的大页分配情况](../figures/zh-cn_image_0000002535717537.png)
 
 8. 执行命令，确认要用的网口。<a id="确认所用网口"></a>
 
@@ -115,7 +115,7 @@
     ip a
     ```
 
-    ![](../figures/zh-cn_image_0000002510321009.png)
+    ![网卡信息](../figures/zh-cn_image_0000002510321009.png)
 
     （可选）若网口不存在IP地址可手动配置：
 
@@ -198,7 +198,7 @@
     ```
 
     若为非root用户：
-    用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
+    用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
     > [!NOTICE]须知
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
@@ -214,7 +214,7 @@
     mount | grep huge
     ```
 
-    > 回显示例如下，表示成功使能1GB大页：
+    回显示例如下，表示成功使能1GB大页：
 
     ```ColdFusion
     cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
@@ -242,8 +242,11 @@
 > 若使用**流量分叉模式**，请跳过本章节的步骤2（DPDK接管网卡），完成本章其他配置后，参考[流量分叉功能](traffic_bifurcation.md)文档进行后续使用。
 
 1. 修改配置文件。
-    1. 参考[配置大页内存 步骤8](#确认所用网口)确认要用的网口。
-    2. 修改knet\_comm.conf文件。
+
+    1. 参考[配置大页内存的步骤8](#确认所用网口)确认要用的网口。
+
+    2. 修改/etc/knet/knet_comm.conf文件。
+
         1. 打开文件。
 
             ```bash
@@ -267,7 +270,7 @@
                 "dpdk": {
                     "core_list_global": "1",  # 4. 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
                     ...
-                    "socket_mem": "--socket-mem=0,1024", # 5. 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
+                    "socket_mem": "--socket-mem=0,1024", # 5.网卡所在numa_node编号为0，在0号socket上分配1024MB大页内存，用户需要根据实际查看的numa_node编号进行更改，给网卡所在numa_node分配大页内存
                     ...
                     "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 6. 大页挂载文件夹路径
                 }
@@ -302,7 +305,7 @@
 
         回显如下，表示成功接管网卡：
 
-        ![](../figures/zh-cn_image_0000002478201086.png)
+        ![接管网卡](../figures/zh-cn_image_0000002478201086.png)
 
         > [!NOTE]说明
         >如果想要取消DPDK接管网卡，执行：
@@ -311,10 +314,11 @@
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动
         >```
 
-3. 配置<term>K-NET</term>动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。
+3. 配置K-NET动态库、knet_mp_daemon、knet_comm.conf以及业务软件相关权限。
 
     > [!NOTE]说明
-    >- 用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，KNET\_USER需具有命令执行权限。
+    >
+    >- 用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，KNET_USER需具有命令执行权限。
     >- 此处以Redis作为示例。
     >- 若为root用户可跳过此步骤。
 
@@ -338,9 +342,10 @@
     >- “/path/redis-6.0.20/src/”为redis-server的路径，请根据实际安装Redis的路径填写。
     >- 若使用其他业务软件，将此处Redis的安装路径修改为对应业务软件的路径。
 
-4. 设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
+4. 设置“XDG_RUNTIME_DIR”启动环境变量，普通用户未设置该变量会产生错误，root用户请跳过此步骤。
+
      > [!NOTE]说明
-     > 用户名使用KNET\_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
+     > 用户名使用KNET_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
 
      用户可以根据需要选择永久或者临时配置环境变量。如果用户选择临时配置环境变量，需要在每个终端页面执行相关命令。
      - 永久配置环境变量。
@@ -402,75 +407,3 @@ flags = MSG_NOSIGNAL;
 ```
 
 再进行编译，编译后K-NET可以劫持双端进行网络加速。
-
-### （可选）TPerf业务配置
-
-若用户需要使用K-NET加速Tperf，需要对应的[tperf_knet.patch](../../../demo/tperf/tperf_knet.patch)及以下业务配置：
-
-#### 编译
-
-注意：需要安装K-NET支持共线程、零拷贝特性版本后编译和使用。
-
-将patch放到app目录下，安装patch：
-
-```bash
-cd app
-patch -p1 -d tperf/ < tperf_knet.patch
-```
-
-需安装K-NET支持共线程以及零拷贝版本后编译tperf：
-
-```bash
-cd tperf
-make
-cd build/bin
-```
-
-在build/bin下为4个可执行demo，分别如下：
-
-- tperf_os：标准POSIX接口的tperf demo；
-- tperf_knetco：使用K-NET共线程特性的tperf demo；
-- tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
-- tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
-
-> [!NOTE]说明
->使用完patch后，若需要恢复到原生tperf版本，可撤销patch。
->
->```bash
->cd app
->patch -p1 -Rd tperf/ < tperf_knet.patch
->```
-
-#### 修改双端配置文件
-
-```bash
-vi /etc/knet/knet_comm.conf
-```
-
-按“i”进入编辑模式。
-
-```text
-{
-    "hw_offload": {
-        "tso": 1,
-        "lro": 1,
-        "tcp_checksum": 1,
-        ...
-     },
-    "proto_stack": {
-        "max_mbuf": 1204800,
-        "def_sendbuf": 1048576,
-        "def_recvbuf": 1048576,
-        "zcopy_sge_len": 4096,
-        "zcopy_sge_num": 1048576
-    },
-    "dpdk": {
-        "tx_cache_size": 1024,
-        "rx_cache_size": 1024,
-        "socket_mem": "--socket-mem=4096",
-        "socket_limit": "--socket-limit=4096"
-    }
-}
-```
-
-完成后按“ESC”键，输入“:wq!”，再按“Enter”键保存文件并退出。

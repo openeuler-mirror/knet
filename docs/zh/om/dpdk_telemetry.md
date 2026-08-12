@@ -295,7 +295,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 ```bash
 -->/knet/stack/socket_info,2351 56
-{"/knet/stack/socket_info": {"SockInfo": {"protocol": "TCP", "isLingerOnoff": 0, "isNonblock": 1, "isReuseAddr": 1, "isReusePort": 0, "isBroadcast": 0, "isKeepAlive": 0, "isBindDev": 0, "isDontRoute": 0, "options": 6, "error": 0, "pf": "AF_INET", "linger": 0, "flags": 80, "state": 0, "rdSemCnt": 0, "wrSemCnt": 0, "rcvTimeout": -1, "sndTimeout": -1, "sndDataLen": 0, "rcvDataLen": 0, "sndLowat": 1, "sndHiwat": 1048576, "rcvLowat": 1, "rcvHiwat": 1048576, "bandWidth": 0, "priority": 0, "associateFd": 0, "notifyType": 1, "wid": -1}, "InetSkInfo": {"ttl": 0, "tos": 0, "mtu": 0, "isIncHdr": 0, "isTos": 0, "isTtl": 0, "isMtu": 0, "isPktInfo": 0, "isRcvTos": 0, "isRcvTtl": 0}, "TcpBaseInfo": {"state": "Listen", "connType": "Passive", "noVerifyCksum": 0, "ackNow": 0, "delayAckEnable": 1, "nodelay": 0, "rttRecord": 0, "cork": 0, "deferAccept": 0, "flags": 0, "wid": -1, "txQueid": -1, "childCnt": 0, "backlog": 511, "accDataCnt": 0, "accDataMax": 2, "dupAckCnt": 0, "caAlgId": 0, "caState": 0, "cwnd": 0, "ssthresh": 0, "seqRecover": 0, "reorderCnt": 3, "rttStartSeq": 0, "srtt": 0, "rttval": 0, "tsVal": 0, "tsEcho": 0, "lastChallengeAckTime": 0, "fastMode": 0, "sndQueSize": 0, "rcvQueSize": 0, "rexmitQueSize": 0, "reassQueSize": 0}, "TcpTransInfo": {"lport": 0, "pport": 0, "synOpt": 15, "negOpt": 0, "rcvWs": 0, "sndWs": 0, "rcvMss": 0, "mss": 1460, "iss": 0, "irs": 0, "sndUna": 0, "sndNxt": 0, "sndMax": 0, "sndWnd": 0, "sndUp": 0, "sndWl1": 0, "sndSml": 0, "rcvNxt": 0, "rcvWnd": 0, "rcvMax": 0, "rcvWup": 0, "idleStart": 0, "keepIdle": 14400, "keepIntvl": 150, "keepProbes": 9, "keepProbeCnt": 0, "keepIdleLimit": 0, "keepIdleCnt": 0, "backoff": 0, "maxRexmit": 0, "rexmitCnt": 0, "userTimeout": 0, "userTimeStartFast": 0, "userTimeStartSlow": 0, "fastTimeoutTick": 32768, "slowTimeoutTick": 32768, "delayAckTimoutTick": 32768, "synRetries": 0}}}
+{"/knet/stack/socket_info": {"SockInfo": {"protocol": "TCP", "isLingerOnoff": 0, "isNonblock": 1, "isReuseAddr": 1, "isReusePort": 0, "isBroadcast": 0, "isKeepAlive": 0, "isBindDev": 0, "isDontRoute": 0, "options": 6, "error": 0, "pf": "AF_INET", "linger": 0, "flags": 80, "state": 0, "rdSemCnt": 0, "wrSemCnt": 0, "rcvTimeout": -1, "sndTimeout": -1, "sndDataLen": 0, "rcvDataLen": 0, "sndLowat": 1, "sndHiwat": 1048576, "rcvLowat": 1, "rcvHiwat": 1048576, "bandWidth": 0, "priority": 0, "associateFd": 0, "notifyType": 1, "wid": -1}, "InetSkInfo": {"ttl": 0, "tos": 0, "mtu": 0, "isIncHdr": 0, "isTos": 0, "isTtl": 0, "isMtu": 0, "isPktInfo": 0, "isRcvTos": 0, "isRcvTtl": 0}, "TcpBaseInfo": {"state": "Listen", "connType": "Passive", "noVerifyCksum": 0, "ackNow": 0, "delayAckEnable": 1, "nodelay": 0, "rttRecord": 0, "cork": 0, "deferAccept": 0, "flags": 0, "wid": -1, "txQueid": -1, "childCnt": 0, "backlog": 511, "accDataCnt": 0, "accDataMax": 2, "dupAckCnt": 0, "caAlgId": 0, "caState": 0, "cwnd": 0, "ssthresh": 0, "seqRecover": 0, "reorderCnt": 3, "rttStartSeq": 0, "srtt": 0, "rttval": 0, "tsVal": 0, "tsEcho": 0, "lastChallengeAckTime": 0, "fastMode": 0, "sndQueSize": 0, "rcvQueSize": 0, "rexmitQueSize": 0, "reassQueSize": 0}, "TcpTransInfo": {"lport": 0, "pport": 0, "synOpt": 15, "negOpt": 0, "rcvWs": 0, "sndWs": 0, "rcvMss": 0, "mss": 1460, "iss": 0, "irs": 0, "sndUna": 0, "sndNxt": 0, "sndMax": 0, "sndWnd": 0, "sndUp": 0, "sndWl1": 0, "sndSml": 0, "rcvNxt": 0, "rcvWnd": 0, "rcvMax": 0, "rcvWup": 0, "idleStart": 0, "keepIdle": 14400, "keepIntvl": 150, "keepProbes": 9, "keepProbeCnt": 0, "keepIdleLimit": 0, "keepIdleCnt": 0, "backoff": 0, "maxRexmit": 0, "rexmitCnt": 0, "userTimeout": 0, "userTimeStartFast": 0, "userTimeStartSlow": 0, "fastTimeoutTick": 32768, "slowTimeoutTick": 32768, "delayAckTimeoutTick": 32768, "synRetries": 0}}}
 ```
 
 ### 查看epoll详细信息
@@ -545,18 +545,18 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpRexmitSackPkt          | SACK重传的报文数。                                       |
 | TcpFastRexmitPkt          | 快速重传的报文数。                                       |
 | RstPersistUserDrops       | 坚持定时器超过用户配置时间丢弃的链接数。                 |
-| RstSynSentRcvErrAck       | SYNSENT状态下接受到报文ACK异常发送RST。                  |
+| RstSynSentRcvErrAck       | SYNSENT状态下接收到报文ACK异常发送RST。                  |
 | RstCookieAfterClosed      | 已经被关闭的socket处理cookie异常发送RST。                |
 | RstParentClosed           | 父socket被关闭异常发送RST。                              |
-| RstRcvNonRstPkt           | 没有五元组状态下接受到不包含RST的报文发送RST。           |
+| RstRcvNonRstPkt           | 没有五元组状态下接收到不包含RST的报文发送RST。           |
 | RstCloseChild             | (子连接)关闭时发送RST。                                  |
 | RstLingerClose            | Linger模式关闭时发送RST。                                |
-| RstRcvDataAfterClose      | 在关闭socket后接受到数据报文，发送RST报文。              |
+| RstRcvDataAfterClose      | 在关闭socket后接收到数据报文，发送RST报文。              |
 | RstRexmit                 | 重传RST报文。                                            |
 | RstRcvBufNotClean         | RCVBUF有报文时close发送RST报文。                         |
 | SynSentRcvInvalidRst      | SYNSENT状态下收到无效RST。                               |
 | TcpConnKeepDrops          | 连接保活阶段丢弃数。                                     |
-| TcpRcvPktNoSyn            | SYNSENT状态下接受到报文不带SYN标志。                     |
+| TcpRcvPktNoSyn            | SYNSENT状态下接收到报文不带SYN标志。                     |
 | TcpReassSucBytes          | TCP重组完成的报文字节数。                                |
 | TcpRcvOutBytes            | TCP用户接收走的字节数。                                  |
 | TcpIcmpTooBigShort        | TCP层处理ICMP TOO BIG时报文长度不足。                    |

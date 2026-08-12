@@ -12,10 +12,10 @@
 >
 >- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 >- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
->- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet\_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
+>- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
 >- 若任务运行失败，请参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
 
-1. 修改服务端knet_comm.conf配置文件。
+1. 修改服务端/etc/knet/knet_comm.conf文件。
 
     ```bash
     vi /etc/knet/knet_comm.conf
@@ -71,7 +71,7 @@
         knet_mp_daemon
         ```
 
-        ![](../figures/zh-cn_image_0000002511352421.png)
+        ![运行daemon](../figures/zh-cn_image_0000002511352421.png)
 
         > [!NOTE]说明
         >- 多进程场景启动**knet_mp_daemon**之后不允许修改配置文件knet_comm.conf，否则会在日志中报错。
@@ -81,16 +81,16 @@
     2. 另起一个终端运行第一个业务。
 
         > [!NOTE]说明
-        >- 普通用户进入工具使用界面前需设置“XDG_RUNTIME_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[环境配置](./environment_configuration.md)进行设置。
+        >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[环境配置](./environment_configuration.md)进行设置。
         >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
         >- 若为root用户，执行时需添加so文件路径，运行命令如下：
         >
         > ```bash
-        > taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
+        > taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.1.6
         >    ```
         
         ```bash
-        taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
+        taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.1.6
         ```
         
         观察到如下输出，表示启动成功：
@@ -108,16 +108,16 @@
     3. 再起一个终端，运行第二个业务。需要和上一条命令的端口不同，IP地址保持一致。其余进程重复执行该步骤。
 
         > [!NOTE]说明
-        >- 普通用户进入工具使用界面前需设置“XDG_RUNTIME_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置中的步骤4 设置"XDG_RUNTIME_DIR"启动环境变量](./environment_configuration.md#相关业务配置)进行设置。
+        >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置中的步骤4 设置"XDG_RUNTIME_DIR"启动环境变量](./environment_configuration.md#相关业务配置)进行设置。
         >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
         >- 若为root用户，执行时需添加so文件路径，运行命令如下：
         >
         > ```bash
-        > taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+        > taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.1.6
         >    ```
 
         ```bash
-        taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+        taskset -c 64-95 env LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.1.6
         ```
 
         观察到如下输出，表示启动成功：
@@ -137,14 +137,14 @@
     1. 启动一个终端运行redis-benchmark。
 
         ```bash
-        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 10000000 -r 100000 -t set --threads 15
-        redis-cli -h 192.168.*.* -p 6379 flushall   #客户端清理set数据，提升性能
-        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15
+        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6379 -c 1000 -n 1000000 -r 100000 -t set --threads 15
+        redis-cli -h 192.168.1.6 -p 6379 flushall   #客户端清理set数据，提升性能
+        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6379 -c 1000 -n 1000000 -r 100000 -t get --threads 15
         ```
 
         结果形如以下示例输出：
 
-        ```bash
+        ```text
         ====== GET ======
         1000000 requests completed in 64.25 seconds  
         1000 parallel clients  
@@ -171,14 +171,14 @@
     2. 再起一个终端，运行第二个redis-benchmark。其余进程重复执行该步骤。
 
         ```bash
-        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
+        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -c 1000 -n 1000000 -r 100000 -t set --threads 15
         redis-cli -h 192.168.*.* -p 6380 flushall   #客户端清理set数据，提升性能
-        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 100000000 -r 100000 -t get --threads 15
+        taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -c 1000 -n 1000000 -r 100000 -t get --threads 15
         ```
 
         结果形如以下示例输出：
 
-        ```bash
+        ```text
         ====== GET ======
         1000000 requests completed in 64.25 seconds  
         1000 parallel clients  
@@ -213,13 +213,13 @@
     服务端不使用K-NET运行Redis业务进程：
 
     ```bash
-    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.*.*
+    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6379 --bind 192.168.1.6
     ```
 
     再新起一个终端运行第二个业务进程，确保端口号不同：
 
     ```bash
-    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
+    /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.1.6
     ```
 
     观察到如下输出，表示启动成功：
@@ -237,4 +237,4 @@
     dpdk-devbind.py -s                 #确认是否接管
     ```
 
-6. 完成后在服务端结束K-NET进程，按Ctrl+C结束Redis进程。
+6. 完成后按Ctrl+C依次退出Redis进程和knet_mp_daemon。

@@ -11,7 +11,7 @@
 > [!NOTE]说明
 >
 >- 该模式支持服务端为配置VF直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
->- 首先确认knet\_comm.conf配置文件中配置运行模式为单进程，如果“mode”不为0，则应修改为0。
+>- 首先确认/etc/knet/knet_comm.conf配置文件中配置运行模式为单进程，如果“mode”不为0，则应修改为0。
 >- 若任务运行失败，可参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
 
 ```bash
@@ -34,7 +34,7 @@ vi /etc/knet/knet_comm.conf
 1. 服务端中运行Redis服务端。
 
     > [!NOTE]说明
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，运行命令如下：
     >
     > ```bash
@@ -45,10 +45,10 @@ vi /etc/knet/knet_comm.conf
     taskset -c 33-62 LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
     ```
 
-    ![](../figures/zh-cn_image_0000002503866790.png)
+    ![服务端回显](../figures/zh-cn_image_0000002503866790.png)
 
     > [!NOTE]说明
-        >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
+    >- taskset -c 33-62：将进程绑定到编号33到62的CPU核上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
     >- --port：Redis Server侦听的端口，请用户根据实际情况替换。且绑定端口后，请勿再使用此端口运行其他业务。
     >- --bind：Redis Server侦听的IP地址，为具体网卡配置的IP地址，请用户根据实际情况替换。
     >- redis-server和redis.conf的路径根据实际安装Redis的路径填写。
@@ -61,10 +61,10 @@ vi /etc/knet/knet_comm.conf
 
     回显如下，这里以set测试为例：
 
-    ![](../figures/zh-cn_image_0000002504026624.png)
+    ![set测试回显](../figures/zh-cn_image_0000002504026624.png)
 
     > [!NOTE]说明
-    >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
+    >- taskset -c 33-62：将进程绑定到编号33到62的CPU核上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
     >- /path/redis-6.0.20/src/redis-benchmark：redis-benchmark是Redis自带的基准测试工具，用于测试Redis的性能，路径根据实际安装Redis的路径填写。
     >- -h 192.168.\*.\*：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
     >- -p 6380：Redis服务器的端口号，这里是步骤1中绑定的端口号。
@@ -76,7 +76,7 @@ vi /etc/knet/knet_comm.conf
 
     结果形如以下示例输出：
 
-    ```bash
+    ```text
     ====== SET ======
     10000000 requests completed in 25.75 seconds
     1000 parallel clients
@@ -103,7 +103,7 @@ vi /etc/knet/knet_comm.conf
     redis-cli -h 192.168.*.* -p 6380 flushall
     ```
 
-    ![](../figures/zh-cn_image_0000002535826607.png)
+    ![清除set数据](../figures/zh-cn_image_0000002535826607.png)
 
 4. 客户端主机中运行redis-benchmark进行get测试。<a id="客户端get"></a>
 
@@ -113,7 +113,7 @@ vi /etc/knet/knet_comm.conf
 
     结果形如以下示例输出：
 
-    ```bash
+    ```text
     ====== GET ======
     1000000 requests completed in 64.26 seconds  
     1000 parallel clients  
@@ -179,12 +179,12 @@ vi /etc/knet/knet_comm.conf
 
 组网参考：
 
-![](../figures/运维管理架构-智能网卡.png)
+![组网参考](../figures/运维管理架构-智能网卡.png)
 
 1. 服务端虚拟机（主）运行Redis服务端。
 
     > [!NOTE]说明
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，运行命令如下：
     >
     > ```bash
@@ -198,7 +198,7 @@ vi /etc/knet/knet_comm.conf
 2. 服务端虚拟机（从）运行Redis服务端。
 
     > [!NOTE]说明
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER“目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
     >- root用户下执行时需添加so文件路径，运行命令如下：
     >
     > ```bash
@@ -214,35 +214,35 @@ vi /etc/knet/knet_comm.conf
 
     回显如下说明成功使能主从：
 
-    ![](../figures/zh-cn_image_0000002504026594.png)
+    ![主从使能](../figures/zh-cn_image_0000002504026594.png)
 
 3. 客户端主机中运行redis-benchmark对主服务端进行测试。
 
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.1 -p 6380 -c 1000 -n 10000000 -r 100000 -t set --threads 15
-    redis-cli -h 192.168.0.1 -p 6380 flushall #客户端清理set数据
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.1 -p 6380 -c 1000 -n 100000000 -r 100000 -t get --threads 15
+    redis-cli -h 192.168.0.1 -p 6380 flushall 
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.1 -p 6380 -c 1000 -n 10000000 -r 100000 -t get --threads 15
     ```
 
     > [!NOTE]说明
     >- taskset -c 33-62：将进程绑定到编号33到62的CPU上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
     >- _/path__/redis-6.0.20/src/_redis-benchmark：redis-benchmark是Redis自带的基准测试工具，用于测试Redis的性能，路径根据实际安装Redis的路径填写。
-    >- -h 192.168.\*.\*：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
+    >- -h 192.168.0.1：Redis服务器的IP地址，这里是步骤1中绑定的IP地址。
     >- -p 6380：Redis服务器的端口号，这里是步骤1中绑定的端口号（主服务端绑定端口）。
     >- -c 1000：并发连接数，即同时向Redis服务器发送请求的客户端数量。
     >- -n 10000000：总请求数，即客户端向Redis服务器发送的请求总数。
     >- -r 100000：配置指定数据的key，对SET/GET/INCR使用随机key，对SADD使用随机value，对ZADD使用随机成员和分数。
     >- -t set：测试类型，参数set表示本次测试为set操作。如果是-t get表示测试类型为get操作。
     >- --threads 15：线程数，即每个客户端使用的线程数。同一个客户端可以使用多个线程来发送请求，从而提高并发量和吞吐量。
+    >- redis-cli -h 192.168.0.1 -p 6380 flushall：客户端清除set的数据。
 
 4. 客户端主机中运行redis-benchmark对从服务端进行测试。
 
     ```bash
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.2 -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.2 -p 6380 -c 1000 -n 10000000 -r 100000 -t get --threads 15
     ```
 
-    > [!NOTE]说明
-    >-p 6379：从服务端运行redis命令没有指定端口号，因此其绑定端口号为redis配置文件默认值6379。
+5. 服务端的Redis主从进程在测试完成后请使用`Ctrl`+`C`退出。
 
 ### 虚拟机VF硬直通对Redis业务集群场景加速
 
@@ -250,14 +250,14 @@ vi /etc/knet/knet_comm.conf
 >三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 >以6个服务端虚拟机使用的网卡IP地址分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
 
-组网参考:
+组网参考：
 
-![](../figures/运维管理架构-智能网卡-0.png)
+![组网参考](../figures/运维管理架构-智能网卡-0.png)
 
 1. 六台服务端虚拟机分别运行Redis服务端。
 
     > [!NOTE]说明
-    >- 以KNET\_USER为用户名占位符，推荐在“/home/KNET\_USER”目录下执行该命令（KNET\_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET\_USER需具有命令执行权限。
+    >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
     >- 若为root用户，执行时需添加so文件路径，以虚拟机1为例，运行命令如下：
     >
     > ```bash
@@ -303,7 +303,7 @@ vi /etc/knet/knet_comm.conf
     > [!NOTE]说明
     >- _192.168._0.\*：表示不同虚拟机的使用网卡IP地址，请根据实际情况替换。
     >- --cluster-enabled yes：启用Redis集群模式。
-    >- --cluster-config-file /path/nodes-1.conf：集群配置信息文件，由Redis自行更新生成，不用手动配置，每个节点都有一个集群配置文件用于持久化保存集群信息，需确保与运行中实例的配置文件名不冲突，另外路径（path）要在/home/_KNET\_USER_下（KNET\_USER用户在此目录下拥有读写权限），推荐直接填/home/KNET\_USER。
+    >- --cluster-config-file /path/nodes-1.conf：集群配置信息文件，由Redis自行更新生成，不用手动配置，每个节点都有一个集群配置文件用于持久化保存集群信息，需确保与运行中实例的配置文件名不冲突，另外路径（path）要在/home/_KNET_USER_下（KNET_USER用户在此目录下拥有读写权限），推荐直接填/home/KNET_USER。
     >- --cluster-node-timeout 15000：集群超时时间（毫秒），节点超时多久则认为它宕机了。如果主节点超过指定的时间不可达，进行故障切换，将其对应的从节点提升为主。
 
 2. 客户端主机中运行redis-cli创建集群。
@@ -314,7 +314,7 @@ vi /etc/knet/knet_comm.conf
 
     回显如下，说明成功创建集群：
 
-    ![](../figures/zh-cn_image_0000002503979954.png)
+    ![创建集群](../figures/zh-cn_image_0000002503979954.png)
 
     > [!NOTE]说明
     >- --cluster create：创建集群。
@@ -324,12 +324,13 @@ vi /etc/knet/knet_comm.conf
 
     ```bash
     taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.* -p 6379 -c 1000 -n 10000000 -r 100000 -t set --threads 15 --cluster
-    redis-cli -h 192.168.0.* -p 6379 flushall  #仅限主节点IP地址执行该操作
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.* -p 6379 -c 1000 -n 100000000 -r 100000 -t get --threads 15 --cluster 
+    redis-cli -h 192.168.0.* -p 6379 flushall  
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.0.* -p 6379 -c 1000 -n 10000000 -r 100000 -t get --threads 15 --cluster 
     ```
 
     > [!NOTE]说明
-    >--cluster：开启集群模式。
+    >- --cluster：开启集群模式。
+    >- redis-cli -h 192.168.0.* -p 6379 flushall：清除测试数据，仅限主节点IP地址执行该操作。
 
 4. 客户端关闭服务端Redis实例。
 
