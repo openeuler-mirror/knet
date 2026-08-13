@@ -271,13 +271,13 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     - 鲲鹏架构：
 
         ```bash
-        rpm -ivh build/rpmbuild/RPMS/knet-1.2.0.aarch64.rpm
+        rpm -ivh build/rpmbuild/RPMS/knet-1.4.0.aarch64.rpm
         ```
 
     - x86架构：
 
         ```bash
-        rpm -ivh build/rpmbuild/RPMS/knet-1.2.0.x86_64.rpm
+        rpm -ivh build/rpmbuild/RPMS/knet-1.4.0.x86_64.rpm
         ```
     
     成功回显如下：
@@ -286,7 +286,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
-    1:knet-1.2.0-1       ###################################[100%]
+    1:knet-1.4.0-1       ###################################[100%]
     Cleaning up/removing...
     ```
 
@@ -294,13 +294,13 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     - 鲲鹏架构：
 
         ```bash
-        rpm -Uvh build/rpmbuild/RPMS/knet-1.2.0.aarch64.rpm --force --nodeps
+        rpm -Uvh build/rpmbuild/RPMS/knet-1.4.0.aarch64.rpm --force --nodeps
         ```
 
     - x86架构：
 
         ```bash
-        rpm -Uvh build/rpmbuild/RPMS/knet-1.2.0.x86_64.rpm --force --nodeps
+        rpm -Uvh build/rpmbuild/RPMS/knet-1.4.0.x86_64.rpm --force --nodeps
         ```
 
     成功回显如下：
@@ -309,7 +309,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     Veirfying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
-    1:knet-1.2.0-1       ###################################[100%]
+    1:knet-1.4.0-1       ###################################[100%]
     Cleaning up/removing...
     ```        
 
@@ -318,7 +318,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/common_operations/batch_om.md)，将安装命令替换为如下，以ARM环境初次安装K-NET为例：
 
 ```bash
-cd /path; rpm -ivh knet-1.2.0.aarch64.rpm
+cd /path; rpm -ivh knet-1.4.0.aarch64.rpm
 ```
 
 > [!NOTE]说明  
