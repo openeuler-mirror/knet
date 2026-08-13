@@ -10,30 +10,30 @@
 
     1. 在浏览器输入iBMC管理网口地址：https://_ipaddress_，按“Enter”键进入。
     2. 输入用户名和密码登录。
-![](../figures/zh-cn_image_0000002535472605.png)
+    ![登陆界面](../figures/zh-cn_image_0000002535472605.png)
 
 2. 打开HTML5集成远程控制台。
 
     在iBMC主页面右下角的虚拟控制台模块，单击“启动虚拟控制台”，选择“HTML5集成远程控制台（共享）”。
 
-    ![](../figures/zh-cn_image_0000002503752646.png)
+    ![虚拟控制台界面](../figures/zh-cn_image_0000002503752646.png)
 
 3. 选择“BIOS设置”。
 
-    ![](../figures/zh-cn_image_0000002535592635.png)
+    ![下拉选项](../figures/zh-cn_image_0000002535592635.png)
 
 4. 电源先选择“下电”，再选择“上电”。
 
-    ![](../figures/zh-cn_image_0000002503592798.png)
+    ![选项界面](../figures/zh-cn_image_0000002503592798.png)
 
 5. 输入BIOS登录密码，进入BIOS。
-6. 进入“Advanced-\>MISC Config”配置页面。
+6. 进入“Advanced->MISC Config”配置页面。
 
-    ![](../figures/1.png)
+    ![配置界面1](../figures/1.png)
 
 7. 将“Support Smmu”设置为“Enabled”，将“Smmu Work Around”设置为“Enabled”，按**F10**键保存退出。
 
-    ![](../figures/zh-cn_image_0000002503752648.png)
+    ![配置界面2](../figures/zh-cn_image_0000002503752648.png)
 
     > [!NOTE]说明
     ><term>SMMU</term>是AArch64对输入输出内存管理单元（IOMMU）的具体实现。
@@ -47,14 +47,14 @@
 
     链接：[openEuler 22.03](https://repo.openeuler.org/openEuler-22.03-LTS-SP4/ISO/aarch64/)
 
-    ![](../figures/zh-cn_image_0000002535828147.png)
+    ![镜像示例](../figures/zh-cn_image_0000002535828147.png)
 
     > [!NOTE]说明
     >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 2. 使用mount命令挂载ISO文件。
 
-    > [!NOTICE]须知 
+    > [!NOTICE]须知
     >每次重启物理机后都要重新执行**mount**命令。
 
     ```bash
@@ -100,10 +100,10 @@
 
 ### 安装SP670驱动
 
-1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。若使用流量分叉，需执行以下命令：
+1. 智能网卡的驱动，固件及管理工具安装请参考[《SP200&SP600 标准网卡用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
-    sh install.sh -d bifur
+    sh install.sh bifur
     ```
 
 2. <a id="step4"></a>查看网卡模板。
@@ -112,15 +112,26 @@
     hinicadm3 cfg_template -i hinic0
     ```
 
-    ![](../figures/zh-cn_image_0000002487030394.png)
+    ![网卡模板](../figures/zh-cn_image_0000002487030394.png)
 
-    “Current Info”字段中的“Cfg template index”显示为“0”表示模板正确，如果为其他值，请按照以下操作修改并重启：
-
-    1. 切换网卡模板为0。
+    > [!NOTE]说明
+    >- “Current Info”字段中的“Cfg template index”显示为“0”或“3”表示模板正确。
+    >- 若使用流量分叉功能，需切换模板为[3]ROCE_2X100G_UN_ADAP。
+    >- 若使用其他功能，使用模板[0]NIC_2X100G或模板[3]ROCE_2X100G_UN_ADAP均可。
+    
+    如果为其他值，请根据所需按照以下操作修改并重启，以模板[0]为例：
+    1. 切换网卡模板为[0]NIC_2X100G。
 
         ```bash
         hinicadm3 cfg_template -i hinic0 -s 0
         ```
+
+        > [!NOTE]说明 
+        > 若需使用模板[3]ROCE_2X100G_UN_ADAP，则切换命令如下：
+        >
+        > ```bash
+        > hinicadm3 cfg_template -i hinic0 -s 3
+        > ```
 
     2. 重启。
 
@@ -129,13 +140,6 @@
         ```
 
         重启后请再次查看当前网卡模板。
-
-        > [!NOTE]说明  
-        >若使用流量分叉功能，需切换模板为ROCE_2X100G_UN_ADAP，命令如下：
-        >
-        >```bash
-        >hinicadm3 cfg_template -i hinic0 -s 3
-        >```
 
 ## 搭建虚拟机环境
 
@@ -151,7 +155,7 @@
     ```
 
 2. 安装虚拟机参考[《QEMU-KVM虚拟机 安装指南（openEuler 22.03）》](https://www.hikunpeng.com/document/detail/zh/kunpengcpfs/ecosystemEnable/QEMU-KVM/kunpengqemukvm_03_0002.html)，但是需要将里面的openEuler 22.03 SP3换成[版本配套关系](../release_note.md)中要求的系统版本。
-3. 系统安装完成后按照安装界面的指示重启，然后连接虚拟机。_以虚拟机名为vm\_perf\_2203_为例。
+3. 系统安装完成后按照安装界面的指示重启，然后连接虚拟机。_以虚拟机名为vm_perf_2203_为例。
 
     若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../troubleshooting/vm_restart.md)进行恢复。
 
@@ -169,24 +173,24 @@
         virsh vncdisplay vm_perf_2203
         ```
 
-        启动虚拟机。
+        连接到虚拟机。
 
         ```bash
         virsh console vm_perf_2203
         ```
 
-        使用VNC工具登录UI界面，使用IP地址+虚拟机ID信息，登录到虚拟机界面。以vncviewer工具为例：IP为物理机的管理IP地址，冒号后面的0为执行**virsh vncdisplay _vm\_perf\_2203**命令后的返回结果，其他VNC工具操作相同。
+        使用VNC工具登录UI界面，使用IP地址+虚拟机ID信息，登录到虚拟机界面。以vncviewer工具为例：IP为物理机的管理IP地址，冒号后面的0为执行**virsh vncdisplay _vm_perf_2203**命令后的返回结果，其他VNC工具操作相同。
 
         ![](../figures/zh-cn_image_0000002504019188.png)
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >x86环境需挂载操作系统为openEuler 22.03 LTS SP1的镜像。
 
 4. 配置Yum源，配置前需要先把虚拟机对应的ISO使用SFTP上传到虚拟机环境。本步骤及子步骤均需在虚拟机中执行。
 
     > [!NOTE]说明
     >- /path/to/remote/file：ISO文件在物理机上的存放路径。
-    >- root@remote\_host：用户为root，remote\_host表示物理机的控制IP地址，即物理机上192.168.122.\*的IP地址。
+    >- root@remote_host：用户为root，remote_host表示物理机的控制IP地址，即物理机上192.168.122.\*的IP地址。
     >- /path/to/local/directory：表示虚拟机存放ISO文件路径。请用户根据实际存放路径修改。
 
     1. 使用mount命令挂载虚拟机对应的ISO文件。
@@ -198,7 +202,7 @@
         mount /path/to/local/directory/openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso /mnt
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >本文以鲲鹏环境为例，openEuler-22.03-LTS-SP4-everything-aarch64-dvd.iso是安装虚拟机的镜像。x86环境下镜像的操作系统为openEuler 22.03 LTS SP1。
 
     2. 备份repo文件。
@@ -245,7 +249,7 @@
     lspci | grep 0222
     ```
 
-    ![](../figures/zh-cn_image_0000002483498158.png)
+    ![查看设备](../figures/zh-cn_image_0000002483498158.png)
 
 2. 查看BDF号和端口对应关系。
 
@@ -253,11 +257,11 @@
     ls -al /sys/class/net/
     ```
 
-    ![](../figures/zh-cn_image_0000002515618137.png)
+    ![查看对应关系](../figures/zh-cn_image_0000002515618137.png)
 
     BDF号为前一步骤查询出的结果，通过BDF号可以确定对应的端口为enp1s0f0。注意需要确保对应的端口状态为UP，若非UP状态则需更换端口。
 
-    ![](../figures/zh-cn_image_0000002515538141.png)
+    ![网卡状态](../figures/zh-cn_image_0000002515538141.png)
 
 3. 查看enp1s0f0设备支持的最大VF个数。
 
@@ -265,10 +269,10 @@
     cat /sys/class/net/enp1s0f0/device/sriov_totalvfs
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >enp1s0f0为前一步骤查询得到的端口名称，请用户根据实际情况修改。
 
-    ![](../figures/zh-cn_image_0000002483338178.png)
+    ![查看VF数](../figures/zh-cn_image_0000002483338178.png)
 
     从查询结果中可以看到最大VF为127。
 
@@ -285,7 +289,7 @@
     ls -al /sys/class/net/
     ```
 
-    ![](../figures/zh-cn_image_0000002483498160.png)
+    ![查看VF](../figures/zh-cn_image_0000002483498160.png)
 
 6. 关闭虚拟机。
 
@@ -302,9 +306,9 @@
 
         参考下图，在<device\>中新增如下字段，注意mac地址需要更改，不能重复：
 
-        ![](../figures/zh-cn_image_0000002515618139.png)
+        ![新增字段](../figures/zh-cn_image_0000002515618139.png)
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >第一个红框与[步骤1.5](#step1.5)配置的VF相对应，比如这里VF选择01:00.2所对应的端口（即[步骤1.5](#step1.5)图中右边红框），该端口为enp1s0f0v0，第二个红框表示这个VF会在虚拟机里面生成一个网口，网口名为enp6s0。如果需要配置多个VF，就在<device\>字段中添加多个字段。
 
         如下为模板，仅供参考：
@@ -331,14 +335,14 @@
 
     3. 给enp6s0配置IP地址。
 
-        > [!NOTICE]须知 
+        > [!NOTICE]须知
         >每次重启虚拟机，都需要重新配置一次。
 
         ```bash
         ip a
         ```
 
-        ![](../figures/zh-cn_image_0000002515538143.png)
+        ![查看IP地址](../figures/zh-cn_image_0000002515538143.png)
 
         注意这里的IP地址和VF对应的PF要属于同一网段，比如enp1s0f0的网段是192.168.32.0/24，那么enp6s0的网段也是192.168.32.0/24。
 

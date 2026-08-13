@@ -2,7 +2,7 @@
 
 ## 配置大页内存
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 使用大页内存可减少页表与内存管理开销，提升应用程序性能。
 >- 请用户根据服务端环境具体的大页配置调整参数，服务端环境关闭或重启后需要重新配置和挂载。
@@ -29,7 +29,7 @@
     Node 1 HugePages_Surp:      0
     ```
 
-    如果所有Node的HugePages\_Total显示信息为0，说明此时系统没有配置内存大页。
+    如果所有Node的HugePages_Total显示信息为0，说明此时系统没有配置内存大页。
 
     - 如果没有配置大页内存，则执行步骤2以及后续步骤。
     - 如果配置了大页内存，则从步骤8开始执行。
@@ -49,7 +49,7 @@
         vi /etc/grub2-efi.cfg
         ```
 
-    - 系统架构为x86\_64场景时：
+    - 系统架构为x86_64场景时：
 
         ```bash
         vi /etc/grub2.cfg
@@ -62,12 +62,12 @@
     default_hugepagesz=1G hugepagesz=1G  hugepages=2 iommu.passthrough=1 pci=realloc
     ```
 
-    ![](../figures/zh-cn_image_0000002503997586.png)
+    ![修改内容](../figures/zh-cn_image_0000002503997586.png)
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
-    > [!NOTE]说明  
-    >- 此处设置默认大页内存的大小为1G，数量为2。
+    > [!NOTE]说明
+    >- 此处设置默认大页内存的大小为1GB，数量为2。
     >- iommu.passthrough=1 pci=realloc为虚拟化场景所需配置。
 
 5. 重启。
@@ -88,7 +88,7 @@
     cat /sys/devices/system/node/node*/meminfo | grep Huge
     ```
 
-    ![](../figures/zh-cn_image_0000002535717537.png)
+    ![NUMA节点的大页分配情况](../figures/zh-cn_image_0000002535717537.png)
 
 8. 执行命令，确认要用的网口。<a id="确认所用网口"></a>
 
@@ -98,7 +98,7 @@
     hinicadm3 info
     ```
 
-    回显示例如下，获取到可用网口设备网口为“enp6s0”，BDF号为“0000:06:00.0”。
+    回显示例如下，获取到可用网口设备为“enp6s0”，BDF号为“0000:06:00.0”。
 
     ```text
     Card num:1
@@ -115,7 +115,7 @@
     ip a
     ```
 
-    ![](../figures/zh-cn_image_0000002510321009.png)
+    ![网卡信息](../figures/zh-cn_image_0000002510321009.png)
 
     （可选）若网口不存在IP地址可手动配置：
 
@@ -137,7 +137,7 @@
         cat /sys/class/net/ens6f0/device/numa_node # 查看网卡所在NUMA
         ```
         
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >此处以网卡名ens6f0为例，用户根据实际使用的网卡名填写。
         
         回显示例如下，此处说明所在NUMA为1。
@@ -149,7 +149,7 @@
         echo 2 > /sys/devices/system/node/node1/hugepages/hugepages-1048576kB/nr_hugepages # 为指定节点分配2个大小为1048576kB（1GB）的大页
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >
         >- 此处node1为上一步查询到的网卡所在NUMA节点，具体node编号根据查询到的网卡所在NUMA进行更改。
         >- 分配的大页数量与单个大页大小根据实际情况替换。
@@ -161,8 +161,8 @@
         echo 2 > /sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages
         ```
 
-    > [!NOTE]说明  
-    >- 配置2个1G类型内存大页，如果是512M类型推荐配置4个。
+    > [!NOTE]说明
+    >- 配置2个1GB类型内存大页，如果是512MB类型推荐配置4个。
     >- 服务端关闭或重启需要重新执行此步骤。
     >- 关闭透明大页会降低Redis的性能，但是性能更稳定，请用户根据实际需要决定透明大页设置。启用透明大页可参考：
     >
@@ -183,23 +183,23 @@
     1    2     1Gb  2Gb
     ```
 
-    说明在node1节点配置了2个1G类型大页。
+    说明在node1节点配置了2个1GB类型大页。
 
 11. 挂载大页。
     > [!NOTE]说明
-    > 如果使用的为1G类型大页，需要执行此步骤，如果是其他大类型大页，无需挂载，请跳过本步骤。
+    > 如果使用的为1GB类型大页，需要执行此步骤，如果是其他类型大页，无需挂载，请跳过本步骤。
 
     若为root用户：
     直接将大页挂载至系统路径下。
 
     ```bash
     mkdir -p /dev/hugepages1G
-    mount -t hugetlbfs -o pagesize=1G hugetlbfs /dev/hugepages1G   #将1G类型大页挂载到/dev/hugepages1G目录下，如果业务环境关闭或重启需要重新执行
+    mount -t hugetlbfs -o pagesize=1G hugetlbfs /dev/hugepages1G   #将1GB类型大页挂载到/dev/hugepages1G目录下，如果业务环境关闭或重启需要重新执行
     ```
 
     若为非root用户：
-    用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，将1G类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
-    > [!NOTICE]须知 
+    用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
+    > [!NOTICE]须知
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
     ```bash
@@ -214,7 +214,7 @@
     mount | grep huge
     ```
 
-    > 回显示例如下，表示成功使能1G大页：
+    回显示例如下，表示成功使能1GB大页：
 
     ```ColdFusion
     cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
@@ -222,18 +222,18 @@
     hugetlbfs on /home/KNET_USER/hugepages type hugetlbfs (rw,relatime,pagesize=1024M)
     ```
 
-    > [!NOTE]说明  
-    >这里需要注意是否存在其他1G类型大页挂载路径，如果存在的话，可能会造成权限问题影响后续业务运行，需要执行以下命令取消挂载：
+    > [!NOTE]说明
+    >这里需要注意是否存在其他1GB类型大页挂载路径，如果存在的话，可能会造成权限问题影响后续业务运行，需要执行以下命令取消挂载：
     >
     >```bash
-    >umount /path     # /path为其他1G类型大页挂载路径
+    >umount /path     # /path为其他1GB类型大页挂载路径
     >```
 
 ## 相关业务配置
 
 ### 通用业务配置
 
-> [!NOTE]说明  
+> [!NOTE]说明
 > K-NET支持两种工作模式，根据业务需求选择：
 > 
 > - **标准模式**：DPDK完全接管网卡。适用于大多数场景。
@@ -242,15 +242,18 @@
 > 若使用**流量分叉模式**，请跳过本章节的步骤2（DPDK接管网卡），完成本章其他配置后，参考[流量分叉功能](traffic_bifurcation.md)文档进行后续使用。
 
 1. 修改配置文件。
-    1. 参考[配置大页内存 步骤8](#确认所用网口)确认要用的网口。
-    2. 修改knet\_comm.conf文件。
+
+    1. 参考[配置大页内存的步骤8](#确认所用网口)确认要用的网口。
+
+    2. 修改/etc/knet/knet_comm.conf文件。
+
         1. 打开文件。
 
             ```bash
             vi /etc/knet/knet_comm.conf
             ```
 
-        2. 按“i“进入编辑模式，修改配置项，示例如下：
+        2. 按“i”进入编辑模式，修改配置项，示例如下：
 
             ```json
             #interface配置项
@@ -267,17 +270,27 @@
                 "dpdk": {
                     "core_list_global": "1",  # 4. 数据面绑核，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同。
                     ...
-                    "socket_mem": "--socket-mem=0,1024", # 5. 服务端为物理机时：以网卡所在numa_node编号为1为例， 在0号socket上预分配0MB大页内存，在1号socket上分配 1024MB大页内存，用户需要根据自己使用的网卡所在numa_node编号进行更改该配置项，给网卡所在numa_node分配大页内存，服务端为虚拟机时使用默认配置"socket_mem" : "--socket-mem=1024"即可
+                    "socket_mem": "--socket-mem=0,1024", # 5.网卡所在NUMA node1，在0号socket上预分配0MB大页内存，在1号socket上分配1024MB大页内存。
                     ...
                     "huge_dir": "--huge-dir=/home/KNET_USER/hugepages" # 6. 大页挂载文件夹路径
                 }
             ```
+           
+            - "bdf_nums"：填写获取的BDF号，此处以0000:06:00.0为例。
+            - "mac"：填写绑定网卡的MAC地址，此处以52:54:00:2e:1b:a0为例。
+            - "ip"：填写绑定网卡的IP地址，此处以192.168.1.6为例。
+            - "core_list_global"：数据面绑核。需要为网卡所在CPU的中间值，NUMA node0所用CPU为0-23，此处可以填写1，表示使用1号核。
+            - "socket_mem"：给网卡所在numa_node分配的大页内存，用户需根据实际情况更改。
+                - 服务端为物理机时：
+                    - 如果网卡所在NUMA node0，在0号socket上分配1024MB大页内存，可使用"--socket-mem=1024"。
+                    - 如果网卡所在NUMA node1，在0号socket上预分配0MB大页内存，在1号socket上分配1024MB大页内存，请填写为“--socket-mem=0,1024”。
+                - 服务端为虚拟机时：使用默认配置"--socket-mem=1024"即可。
 
         3. 按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
 2. **标准模式**：DPDK接管网卡。（流量分叉模式请跳过此步骤）
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >服务端环境关闭或重启后需要重新执行当前步骤。
 
     1. 关闭网口enp6s0（该网口后续会使用DPDK接管）。
@@ -302,19 +315,20 @@
 
         回显如下，表示成功接管网卡：
 
-        ![](../figures/zh-cn_image_0000002478201086.png)
+        ![接管网卡](../figures/zh-cn_image_0000002478201086.png)
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >如果想要取消DPDK接管网卡，执行：
         >
         >```bash
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动
         >```
 
-3. 配置<term>K-NET</term>动态库、knet\_mp\_daemon、knet\_comm.conf以及业务软件相关权限。
+3. 配置K-NET动态库、knet_mp_daemon、knet_comm.conf以及业务软件相关权限。
 
-    > [!NOTE]说明  
-    >- 用户名以KNET\_USER为占位符进行示例，用户组名以KNET\_USER\_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET\_USER和KNET\_USER\_GROUP是同名的，KNET\_USER需具有命令执行权限。
+    > [!NOTE]说明
+    >
+    >- 用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名。如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，KNET_USER需具有命令执行权限。
     >- 此处以Redis作为示例。
     >- 若为root用户可跳过此步骤。
 
@@ -334,17 +348,18 @@
     setcap 'cap_sys_rawio+p cap_net_admin+p cap_dac_read_search+p cap_ipc_lock+p  cap_sys_admin+p cap_net_raw+p cap_dac_override+p' /path/redis-6.0.20/src/redis-server
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- “/path/redis-6.0.20/src/”为redis-server的路径，请根据实际安装Redis的路径填写。
     >- 若使用其他业务软件，将此处Redis的安装路径修改为对应业务软件的路径。
 
-4. 设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
-     > [!NOTE]说明  
-     > 用户名使用KNET\_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
+4. 设置“XDG_RUNTIME_DIR”启动环境变量，普通用户未设置该变量会产生错误，root用户请跳过此步骤。
+
+     > [!NOTE]说明
+     > 用户名使用KNET_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
 
      用户可以根据需要选择永久或者临时配置环境变量。如果用户选择临时配置环境变量，需要在每个终端页面执行相关命令。
      - 永久配置环境变量。
-         > [!NOTE]说明  
+         > [!NOTE]说明
          > 配置完成之后重新切换到该用户时无需重新配置环境变量。
         1. 创建环境变量路径。
 
@@ -373,7 +388,7 @@
             ```
 
      - 临时配置环境变量。
-         > [!NOTE]说明  
+         > [!NOTE]说明
          >- 服务端环境关闭或重启后，或者退出普通用户再重新切换到该用户，均需要重新执行步骤。
          >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
 

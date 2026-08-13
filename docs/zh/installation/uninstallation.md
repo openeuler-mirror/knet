@@ -5,7 +5,7 @@
 ## 命令行卸载
 
 ```bash
-rpm -e knet-1.2.0-1.aarch64
+rpm -e knet-1.0.0-1.aarch64
 ```
 
 ## Computing ToolKit批量卸载
@@ -15,11 +15,11 @@ rpm -e knet-1.2.0-1.aarch64
 - 鲲鹏架构：
 
     ```bash
-    rpm -e knet-1.2.0.aarch64
+    rpm -e knet-1.0.0.aarch64
     ```
 
 - x86架构：
 
     ```bash
-    rpm -e knet-1.2.0.x86_64
+    rpm -e knet-1.0.0.x86_64
     ```
