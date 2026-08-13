@@ -331,7 +331,7 @@ static void DisableNotifySafe(Sock_t *sk, SelectCtx_t *ctx)
         next = LIST_NEXT(notify, node);
         if (notify->notifyType == SOCK_NOTIFY_TYPE_SELECT && notify->notifyCtx == ctx) {
             LIST_REMOVE(&sk->notifyList, notify, node);
-            SHM_FREE(notify, DP_MEM_FREE);
+            OS_FREE(notify);
             break;
         }
     }

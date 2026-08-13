@@ -88,7 +88,7 @@ static void DisableSockNotify(EpollItem_t* item)
     SockNotify_t* notify = GetEpollNotify(sk, item->epfd);
     if (notify != NULL) {
         LIST_REMOVE(&sk->notifyList, notify, node);
-        SHM_FREE(notify, DP_MEM_FREE);
+        OS_FREE(notify);
     }
     SOCK_Unlock(sk);
     FD_Put(skFile);
@@ -511,7 +511,7 @@ static int DeleteEpollItem(Sock_t* sk, int epfd)
         SHM_FREE(item, DP_MEM_FREE);
         
         LIST_REMOVE(&sk->notifyList, notify, node);
-        SHM_FREE(notify, DP_MEM_FREE);
+        OS_FREE(notify);
         return 0;
     }
 
