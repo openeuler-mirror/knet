@@ -93,11 +93,14 @@
 8. 执行命令，确认要用的网口。<a id="确认所用网口"></a>
 
     hinicadm工具直接查询：
-
+    SP670网卡查询命令
     ```bash
     hinicadm3 info
     ```
-
+    SP233网卡查询命令
+    ```bash
+    hinicadm5 info 
+    ```
     回显示例如下，获取到可用网口设备为“enp6s0”，BDF号为“0000:06:00.0”。
 
     ```text
@@ -320,8 +323,13 @@
         > [!NOTE]说明
         >如果想要取消DPDK接管网卡，执行：
         >
+        >SP670网卡取消DPDK接管网卡命令：
         >```bash
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动
+        >```
+        >SP233网卡取消DPDK接管网卡命令：
+        >```bash
+        >dpdk-devbind.py -b "hisdk5" 0000:06:00.0  # "hisdk5"为SP233网卡使用的驱动
         >```
 
 3. 配置K-NET动态库、knet_mp_daemon、knet_comm.conf以及业务软件相关权限。
