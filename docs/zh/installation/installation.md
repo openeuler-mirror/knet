@@ -186,7 +186,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     ```
 
     > [!NOTE]说明
-    >如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
+    > 如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
 
 6. 授予驱动和编译抓包程序执行权限。
 
