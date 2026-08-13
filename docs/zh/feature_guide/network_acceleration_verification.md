@@ -4,7 +4,7 @@
 
 - [2、多进程加速功能](./multi_process_model_acceleration.md)
 
-- [3、网卡流量分叉功能](./traffic_bifurcation.md)
+- [3、网卡流量分叉功能（SP670）](./traffic_bifurcation_sp670.md)或[3、网卡流量分叉功能（SP233）](./traffic_bifurcation_sp233.md)
 
 - [4、零拷贝功能](./zero_copy.md)
 
