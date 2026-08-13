@@ -94,13 +94,17 @@
 
     hinicadm工具直接查询：
     SP670网卡查询命令
+
     ```bash
     hinicadm3 info
     ```
+
     SP233网卡查询命令
+
     ```bash
     hinicadm5 info 
     ```
+
     回显示例如下，获取到可用网口设备为“enp6s0”，BDF号为“0000:06:00.0”。
 
     ```text
@@ -145,7 +149,7 @@
         
         回显示例如下，此处说明所在NUMA为1。
 
-        ![](../figures/zh-cn_image_0000002503837758.png)
+        ![查看NUMA](../figures/zh-cn_image_0000002503837758.png)
 
         ```bash
         echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
@@ -242,7 +246,7 @@
 > - **标准模式**：DPDK完全接管网卡。适用于大多数场景。
 > - **流量分叉模式**：无需DPDK接管网卡，K-NET与内核态协议栈同时工作。适用于需要同时使用K-NET加速和内核态网络的场景。
 > 
-> 若使用**流量分叉模式**，请跳过本章节的步骤2（DPDK接管网卡），完成本章其他配置后，参考[流量分叉功能](traffic_bifurcation.md)文档进行后续使用。
+> 若使用**流量分叉模式**，请跳过本章节的步骤2（DPDK接管网卡），完成本章其他配置后，参考[流量分叉功能](traffic_bifurcation_sp670.md)文档进行后续使用。
 
 1. 修改配置文件。
 
@@ -324,10 +328,13 @@
         >如果想要取消DPDK接管网卡，执行：
         >
         >SP670网卡取消DPDK接管网卡命令：
+        >
         >```bash
         >dpdk-devbind.py -b "hisdk3" 0000:06:00.0  # "hisdk3"为SP670网卡使用的驱动
         >```
+        >
         >SP233网卡取消DPDK接管网卡命令：
+        >
         >```bash
         >dpdk-devbind.py -b "hisdk5" 0000:06:00.0  # "hisdk5"为SP233网卡使用的驱动
         >```

@@ -97,6 +97,7 @@
     yum clean all
     yum makecache
     ```
+
 ### 安装驱动
 
 请用户根据自己的硬件环境选择安装SP670或SP233驱动。
@@ -151,18 +152,23 @@
         >```bash
         >hinicadm3 cfg_template -i hinic0 -s 3
         >```
+
 #### 安装SP233驱动
+
 1. 智能网卡的驱动，固件及管理工具安装请参考[《SP230 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100575890/7e4bd2d6)中“软件安装/安装驱动和管理工具/一键安装驱动和管理工具”章节。若使用流量分叉，需执行以下命令：
 
     ```bash
     sh install.sh bifur
     ```
+
 2. 对于麒麟OS Kylin-V10-SP3-2403-release版本，需执行以下命令修改网口pf1的bar_size为64：
 
     ```bash
     hinicadm5 cfg_data -i hinic0 -pfbar 1 -pfbar_size 64 -bar_mode 0
     ```
+
     完成修改后重启物理机生效。
+
     ```bash
     reboot
     ```
@@ -181,6 +187,7 @@
     ```
 
 2. 安装虚拟机参考[《QEMU-KVM虚拟机 安装指南（openEuler 22.03）》](https://www.hikunpeng.com/document/detail/zh/kunpengcpfs/ecosystemEnable/QEMU-KVM/kunpengqemukvm_03_0002.html)，但是需要将里面的openEuler 22.03 SP3换成[版本配套关系](../release_note.md)中要求的系统版本。
+
 3. 系统安装完成后按照安装界面的指示重启，然后连接虚拟机。_以虚拟机名为vm_perf_2203_为例。
 
     若重启虚拟机失败，进入shell页面，请参见[重启虚拟机失败进入shell界面](../troubleshooting/vm_restart.md)进行恢复。
@@ -377,14 +384,15 @@
         ```
 
         > [!NOTE]说明
-        >192.168.32.2/24：用户根据实际情况配置IP地址和掩码。
+        > 192.168.32.2/24：用户根据实际情况配置IP地址和掩码。
+
 ### 安装驱动
 
 请用户根据自己的硬件环境选择安装SP670或SP233驱动。
 
 #### 安装SP670驱动
 
-若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动,可参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。虚拟机中无需重新安装固件，请执行以下命令安装驱动。
+若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动，可参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。虚拟机中无需重新安装固件，请执行以下命令安装驱动。
 
 ```bash
 sh install.sh -i driver_only
