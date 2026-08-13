@@ -57,7 +57,7 @@
         ```
 
         重启后请再次执行命令查看当前网卡模板。
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >若使用流量分叉功能，需将模板切换为ROCE\_2X100G\_UN\_ADAP。
 
 ## 环境配置检查
@@ -114,7 +114,7 @@
     Hugepages mounted on /dev/hugepages /dev/hugepages1G
     ```
 
-    若不存在对应大页，需要挂载相应大小大页，建议配置1G大页或者512MB大页，大页配置参考[配置大页内存](../feature_guide/environment_configuration.md#配置大页内存)配置大页内存部分。
+    若不存在对应大页，需要挂载相应大小大页，建议配置1GB大页或者512MB大页，大页配置参考[配置大页内存](../feature_guide/environment_configuration.md#配置大页内存)配置大页内存部分。
 
 3. 检查熵池。
     1. 检查是否安装rng-tools：

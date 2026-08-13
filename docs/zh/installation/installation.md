@@ -10,17 +10,17 @@
 ldd --version
 ```
 
-Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。这里以2.28版本为例。
+Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2.10，建议升级至2.10以上。
 
 ### 检查ASLR是否开启
 
-ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度
+ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度。
 
 ```bash
 cat /proc/sys/kernel/randomize_va_space
 ```
 
-若结果不为2，请执行以下命令开启ASLR
+若结果不为2，请执行以下命令开启ASLR。
 
 ```bash
 bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
@@ -77,7 +77,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     ```
 
     > [!NOTE]说明
-    >- 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”。
+    > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”参数。
 
 3. 解压软件包。
     
@@ -94,7 +94,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![](../figures/zh-cn_image_0000002503958012.png)
+    ![编译回显](../figures/zh-cn_image_0000002503958012.png)
 
     ```bash
     ninja -C build
@@ -102,7 +102,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![](../figures/zh-cn_image_0000002535517975.png)
+    ![构建回显](../figures/zh-cn_image_0000002535517975.png)
 
     ```bash
     ninja install -C build
@@ -110,7 +110,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![](../figures/zh-cn_image_0000002503798182.png)
+    ![安装回显](../figures/zh-cn_image_0000002503798182.png)
 
 ## 安装dpdk-hinic3驱动
 
@@ -118,15 +118,16 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     ```bash
     cd /home/opt/
-    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic_master dpdk-hinic3
+    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic3_master dpdk-hinic3_master
     ```
 
 2. 获取配套版本的tag。
 
-    配套的dpdk-hinic3版本请见[软件配套关系](../release_note.md#软件配套关系)，跳转查看对应的commitid。
+    配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
 
     以下为commitid位置示例：
-        ![hinic3版本tag页面](../figures/hinic3p2.png)
+    
+    ![hinic3版本tag页面](../figures/hinic3p2.png)
 
 3. 切换至配套版本tag。
 
@@ -134,15 +135,15 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     > 命令中的\<commitid>请以实际获取值替换。
 
     ```bash
-    cd dpdk-hinic3
+    cd dpdk-hinic3_master
     git checkout <commitid>
     ```
 
 4. 编译。
     
     ```bash
-    sh install.sh /path/to/local/directory/dpdk-stable-21.11.9 install
-    sh install.sh /path/to/local/directory/dpdk-stable-21.11.9 build
+    sh install.sh ../dpdk-stable-21.11.7 install
+    sh install.sh ../dpdk-stable-21.11.7 build
     ```
 
 5. 安装。
@@ -184,13 +185,13 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     make
     ```
 
-    > [!NOTE]说明  
-    >如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
+    > [!NOTE]说明
+    > 如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
 
 6. 授予驱动和编译抓包程序执行权限。
 
-    > [!NOTE]说明  
-    >若为root用户可跳过此步骤。
+    > [!NOTE]说明
+    > 若为root用户可跳过此步骤。
 
     ```bash
     chmod a+s /usr/lib64/librte_net_hinic3.so
@@ -250,7 +251,8 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     git clone https://atomgit.com/openeuler/knet.git
     ```
 
-2. 切换分支。
+2. 切换到配套版本tag。
+    如果需切换的K-NET版本为[26.1.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.1.rc1-0630)，则commitid为63f60f93。
     > [!NOTE]说明
     > 命令中的\<commitid>请以实际获取值替换。
     
@@ -306,7 +308,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     成功回显如下：
 
     ```coldfusion
-    Veirfying...          ###################################[100%]
+    Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
     1:knet-1.4.0-1       ###################################[100%]
@@ -321,5 +323,5 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 cd /path; rpm -ivh knet-1.4.0.aarch64.rpm
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >“/path”为用户传输K-NET的RPM包路径，请根据实际填写。

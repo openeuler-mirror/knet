@@ -11,7 +11,7 @@
 
 ## 命令格式
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide/environment_configuration.md)进行设置。
 >- 服务端环境关闭或重启后需要重新执行步骤。
@@ -24,7 +24,7 @@
 dpdk-telemetry.py -f knet -i 1
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 >- -f：指定knet为DPDK运行时目录提供文件前缀。
 >- -i 1：指定DPDK应用程序实例号为1。
@@ -50,9 +50,9 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/flow/list,<start_flow_index> <flow_cnt>`|所有参数必填|/knet/flow/list,0 1|获取从索引start_flow_index开始的最多flow_cnt条流表信息。|
 |`/knet/ethdev/queue`|否|-|获取队列被分配使用的进程、线程号。|
 |`/knet/stack/epoll_stat,<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>`|所有参数必填|/knet/stack/epoll_stat,12345 0 1 0 1|获取从start_epoll_fd开始的epoll_fd_cnt个epoll实例的详细信息，每个epoll实例中包含从start_socket_fd开始、最多socket_fd_cnt个有效的socket描述符信息。pid取值必须为有效的进程ID。|
-|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
+|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >SP670网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats,<port\>。当没有客户端产生通信时/knet/stack/tcp\_stat和/knet/stack/abn\_stat命令查询到的信息回显为空。
 
 ## 使用前配置
@@ -83,7 +83,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
 3. 服务端运行脚本。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide//environment_configuration.md#相关业务配置)进行设置。
     >- 服务端环境关闭或重启后需要重新执行步骤。
     >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
@@ -113,7 +113,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
         python3 <your-dpdk-path>/usertools/dpdk-telemetry.py  -f knet -i 1
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         ><your-dpdk-path\>表示脚本实际安装的位置。
 
 ## 使用示例
@@ -130,7 +130,7 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
     /ethdev/stats,<port_id> 
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- port\_id为网口BDF号的port\_id，不是Redis侦听端口。
     >- 执行/ethdev/list命令可查看DPDK接管网口BDF号的port\_id。
 
@@ -161,7 +161,7 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
 
 K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
-查看协议栈测统计信息命令（单进程模式下pid参数可忽略，多进程模式下需要指定pid参数）：
+查看协议栈侧统计信息命令（单进程模式下pid参数可忽略，多进程模式下需要指定pid参数）：
 
 ```bash
 /knet/stack/tcp_stat,[pid]     # TCP相关统计
@@ -172,7 +172,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/stack/pbuf_stat,[pid]    # 协议栈内存使用统计
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >TCP相关状态统计返回时，字段的值为0则不会显示该字段；异常信息打点统计返回时，字段的值为0则不会显示该字段。
 
 运行样例：
@@ -243,7 +243,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 {"/knet/ethdev/queue": {"queue0": {"pid": 5837, "tid": 5840, "lcoreId": 18}, "queue1": {"pid": 5837, "tid": 5841, "lcoreId": 38}, "queue2": {"pid": 5837, "tid": 5842, "lcoreId": 68}, "queue3": {"pid": 5837, "tid": 5843, "lcoreId": 98}}}
 ```
 
-`queue0`表示队列号从0开的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用, `lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
+`queue0`表示队列号从0开始的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用, `lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
 
 ### 获取TCP/UDP/epoll句柄个数
 
@@ -285,7 +285,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
-支持获取所有TCP/UDP连接信息命令：
+支持获取TCP/UDP连接信息的命令：
 
 ```bash
 /knet/stack/socket_info,[pid] <fd>
@@ -295,7 +295,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 ```bash
 -->/knet/stack/socket_info,2351 56
-{"/knet/stack/socket_info": {"SockInfo": {"protocol": "TCP", "isLingerOnoff": 0, "isNonblock": 1, "isReuseAddr": 1, "isReusePort": 0, "isBroadcast": 0, "isKeepAlive": 0, "isBindDev": 0, "isDontRoute": 0, "options": 6, "error": 0, "pf": "AF_INET", "linger": 0, "flags": 80, "state": 0, "rdSemCnt": 0, "wrSemCnt": 0, "rcvTimeout": -1, "sndTimeout": -1, "sndDataLen": 0, "rcvDataLen": 0, "sndLowat": 1, "sndHiwat": 1048576, "rcvLowat": 1, "rcvHiwat": 1048576, "bandWidth": 0, "priority": 0, "associateFd": 0, "notifyType": 1, "wid": -1}, "InetSkInfo": {"ttl": 0, "tos": 0, "mtu": 0, "isIncHdr": 0, "isTos": 0, "isTtl": 0, "isMtu": 0, "isPktInfo": 0, "isRcvTos": 0, "isRcvTtl": 0}, "TcpBaseInfo": {"state": "Listen", "connType": "Passive", "noVerifyCksum": 0, "ackNow": 0, "delayAckEnable": 1, "nodelay": 0, "rttRecord": 0, "cork": 0, "deferAccept": 0, "flags": 0, "wid": -1, "txQueid": -1, "childCnt": 0, "backlog": 511, "accDataCnt": 0, "accDataMax": 2, "dupAckCnt": 0, "caAlgId": 0, "caState": 0, "cwnd": 0, "ssthresh": 0, "seqRecover": 0, "reorderCnt": 3, "rttStartSeq": 0, "srtt": 0, "rttval": 0, "tsVal": 0, "tsEcho": 0, "lastChallengeAckTime": 0, "fastMode": 0, "sndQueSize": 0, "rcvQueSize": 0, "rexmitQueSize": 0, "reassQueSize": 0}, "TcpTransInfo": {"lport": 0, "pport": 0, "synOpt": 15, "negOpt": 0, "rcvWs": 0, "sndWs": 0, "rcvMss": 0, "mss": 1460, "iss": 0, "irs": 0, "sndUna": 0, "sndNxt": 0, "sndMax": 0, "sndWnd": 0, "sndUp": 0, "sndWl1": 0, "sndSml": 0, "rcvNxt": 0, "rcvWnd": 0, "rcvMax": 0, "rcvWup": 0, "idleStart": 0, "keepIdle": 14400, "keepIntvl": 150, "keepProbes": 9, "keepProbeCnt": 0, "keepIdleLimit": 0, "keepIdleCnt": 0, "backoff": 0, "maxRexmit": 0, "rexmitCnt": 0, "userTimeout": 0, "userTimeStartFast": 0, "userTimeStartSlow": 0, "fastTimeoutTick": 32768, "slowTimeoutTick": 32768, "delayAckTimoutTick": 32768, "synRetries": 0}}}
+{"/knet/stack/socket_info": {"SockInfo": {"protocol": "TCP", "isLingerOnoff": 0, "isNonblock": 1, "isReuseAddr": 1, "isReusePort": 0, "isBroadcast": 0, "isKeepAlive": 0, "isBindDev": 0, "isDontRoute": 0, "options": 6, "error": 0, "pf": "AF_INET", "linger": 0, "flags": 80, "state": 0, "rdSemCnt": 0, "wrSemCnt": 0, "rcvTimeout": -1, "sndTimeout": -1, "sndDataLen": 0, "rcvDataLen": 0, "sndLowat": 1, "sndHiwat": 1048576, "rcvLowat": 1, "rcvHiwat": 1048576, "bandWidth": 0, "priority": 0, "associateFd": 0, "notifyType": 1, "wid": -1}, "InetSkInfo": {"ttl": 0, "tos": 0, "mtu": 0, "isIncHdr": 0, "isTos": 0, "isTtl": 0, "isMtu": 0, "isPktInfo": 0, "isRcvTos": 0, "isRcvTtl": 0}, "TcpBaseInfo": {"state": "Listen", "connType": "Passive", "noVerifyCksum": 0, "ackNow": 0, "delayAckEnable": 1, "nodelay": 0, "rttRecord": 0, "cork": 0, "deferAccept": 0, "flags": 0, "wid": -1, "txQueid": -1, "childCnt": 0, "backlog": 511, "accDataCnt": 0, "accDataMax": 2, "dupAckCnt": 0, "caAlgId": 0, "caState": 0, "cwnd": 0, "ssthresh": 0, "seqRecover": 0, "reorderCnt": 3, "rttStartSeq": 0, "srtt": 0, "rttval": 0, "tsVal": 0, "tsEcho": 0, "lastChallengeAckTime": 0, "fastMode": 0, "sndQueSize": 0, "rcvQueSize": 0, "rexmitQueSize": 0, "reassQueSize": 0}, "TcpTransInfo": {"lport": 0, "pport": 0, "synOpt": 15, "negOpt": 0, "rcvWs": 0, "sndWs": 0, "rcvMss": 0, "mss": 1460, "iss": 0, "irs": 0, "sndUna": 0, "sndNxt": 0, "sndMax": 0, "sndWnd": 0, "sndUp": 0, "sndWl1": 0, "sndSml": 0, "rcvNxt": 0, "rcvWnd": 0, "rcvMax": 0, "rcvWup": 0, "idleStart": 0, "keepIdle": 14400, "keepIntvl": 150, "keepProbes": 9, "keepProbeCnt": 0, "keepIdleLimit": 0, "keepIdleCnt": 0, "backoff": 0, "maxRexmit": 0, "rexmitCnt": 0, "userTimeout": 0, "userTimeStartFast": 0, "userTimeStartSlow": 0, "fastTimeoutTick": 32768, "slowTimeoutTick": 32768, "delayAckTimeoutTick": 32768, "synRetries": 0}}}
 ```
 
 ### 查看epoll详细信息
@@ -312,7 +312,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 运行时所有参数需要指定。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 查询epoll详细信息时，由于dpdk-telemetry响应存在最大消息长度限制，当返回数据过长时，可能会导致响应被截断，造成details字段丢失或JSON格式损坏。
 >- 可通过减小epoll_fd_cnt和socket_fd_cnt参数值，降低单次查询的输出长度，确保响应完整返回。
@@ -323,7 +323,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 {"/knet/stack/epoll_stat": {"epoll_73": {"pid": "26058", "tid": "-", "osFd": "73", "inner_fd": "0", "details": {"socket_2": {"fd": "2", "expectEvents": "0x1", "readyEvents": "0", "notifiedEvents": "0", "shoted": "0"}}}}}
 ```
 
-tid仅在开启共线程时有意义，主要查看details条目中每个连接的套接字的侦听事件expectedEvents，就绪事件readyEvents，上报事件notifiedEvents（边缘触发模式下有效），进行问题定位。
+tid仅在开启共线程时有意义，主要查看details条目中每个连接的套接字的侦听事件expectEvents，就绪事件readyEvents，上报事件notifiedEvents（边缘触发模式下有效），进行问题定位。
 
 ### 查看网卡带宽、包率
 
@@ -335,52 +335,52 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/ethdev/usage,<port> <time>
 ```
 
-> [!NOTE]说明 
+> [!NOTE]说明
 > /knet/ethdev/usage统计的带宽包含以太网帧中的数据，包括各层协议头部。
 
 一般使用流程如下：
 
-1.查询当前DPDK管理的端口。
+1. 查询当前DPDK管理的端口。
 
-```bash
-/ethdev/list
-```
+    ```bash
+    /ethdev/list
+    ```
 
-回显：
+    回显：
 
-```json
--->/ethdev/list
-{"ethdev_list": [0]}
-```
+    ```json
+    -->/ethdev/list
+    {"ethdev_list": [0]}
+    ```
 
-一般为回显内容的第一个。
+    一般为回显内容的第一个。
 
-2.根据查询到的port号，查询带宽核包率。
+2. 根据查询到的port号，查询带宽和包率。
 
-```bash
-/knet/ethdev/usage,0 1
-```
+    ```bash
+    /knet/ethdev/usage,0 1
+    ```
 
-回显：
+    回显：
 
-```json
---> /knet/ethdev/usage,0 1
-{"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18453 p/s", "rx": "640.22 Mbit/s, 50450 p/s"}}}
+    ```json
+    --> /knet/ethdev/usage,0 1
+    {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18453 p/s", "rx": "640.22 Mbit/s, 50450 p/s"}}}
 
-```
+    ```
 
-3.第二个输出参数time可以控制查看多长时间段的带宽和包率：
+3. 第二个输出参数time可以控制查看多长时间段的带宽和包率：
 
-```bash
-/knet/ethdev/usage,0 5
-```
+    ```bash
+    /knet/ethdev/usage,0 5
+    ```
 
-回显：
+    回显：
 
-```json
---> /knet/ethdev/usage,0 5
-{"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18455 p/s", "rx": "643.83 Mbit/s, 50792 p/s"}, "1-2s": {"tx": "9.73 Mbit/s, 18434 p/s", "rx": "648.21 Mbit/s, 51287 p/s"}, "2-3s": {"tx": "9.76 Mbit/s, 18477 p/s", "rx": "649.77 Mbit/s, 51331 p/s"}, "3-4s": {"tx": "9.75 Mbit/s, 18464 p/s", "rx": "645.81 Mbit/s, 50949 p/s"}, "4-5s": {"tx": "9.75 Mbit/s, 18460 p/s", "rx": "643.58 Mbit/s, 50752 p/s"}}}
-```
+    ```json
+    --> /knet/ethdev/usage,0 5
+    {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18455 p/s", "rx": "643.83 Mbit/s, 50792 p/s"}, "1-2s": {"tx": "9.73 Mbit/s, 18434 p/s", "rx": "648.21 Mbit/s, 51287 p/s"}, "2-3s": {"tx": "9.76 Mbit/s, 18477 p/s", "rx": "649.77 Mbit/s, 51331 p/s"}, "3-4s": {"tx": "9.75 Mbit/s, 18464 p/s", "rx": "645.81 Mbit/s, 50949 p/s"}, "4-5s": {"tx": "9.75 Mbit/s, 18460 p/s", "rx": "643.58 Mbit/s, 50752 p/s"}}}
+    ```
 
 ### 查看持久化统计信息
 
@@ -415,7 +415,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 
 **表 2**  /ethdev/stats,0 获取ethdev端口的基本统计信息
 
-| 字段名     | 说明                                                           |
+| 字段名     | 说明                                                         |
 | ---------- | -------------------------------------------------------------- |
 | ipackets   | 接收到的总数据包数量。                                         |
 | opackets   | 发送的总数据包数量。                                           |
@@ -545,18 +545,18 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpRexmitSackPkt          | SACK重传的报文数。                                       |
 | TcpFastRexmitPkt          | 快速重传的报文数。                                       |
 | RstPersistUserDrops       | 坚持定时器超过用户配置时间丢弃的链接数。                 |
-| RstSynSentRcvErrAck       | SYNSENT状态下接受到报文ACK异常发送RST。                  |
+| RstSynSentRcvErrAck       | SYNSENT状态下接收到报文ACK异常发送RST。                  |
 | RstCookieAfterClosed      | 已经被关闭的socket处理cookie异常发送RST。                |
 | RstParentClosed           | 父socket被关闭异常发送RST。                              |
-| RstRcvNonRstPkt           | 没有五元组状态下接受到不包含RST的报文发送RST。           |
+| RstRcvNonRstPkt           | 没有五元组状态下接收到不包含RST的报文发送RST。           |
 | RstCloseChild             | (子连接)关闭时发送RST。                                  |
 | RstLingerClose            | Linger模式关闭时发送RST。                                |
-| RstRcvDataAfterClose      | 在关闭socket后接受到数据报文，发送RST报文。              |
+| RstRcvDataAfterClose      | 在关闭socket后接收到数据报文，发送RST报文。              |
 | RstRexmit                 | 重传RST报文。                                            |
 | RstRcvBufNotClean         | RCVBUF有报文时close发送RST报文。                         |
 | SynSentRcvInvalidRst      | SYNSENT状态下收到无效RST。                               |
 | TcpConnKeepDrops          | 连接保活阶段丢弃数。                                     |
-| TcpRcvPktNoSyn            | SYNSENT状态下接受到报文不带SYN标志。                     |
+| TcpRcvPktNoSyn            | SYNSENT状态下接收到报文不带SYN标志。                     |
 | TcpReassSucBytes          | TCP重组完成的报文字节数。                                |
 | TcpRcvOutBytes            | TCP用户接收走的字节数。                                  |
 | TcpIcmpTooBigShort        | TCP层处理ICMP TOO BIG时报文长度不足。                    |
@@ -1106,7 +1106,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 |details|套接字集合条目的键名。|
 |socket_<socket_fd>|单个套接字条目的键名，<socket_fd>为套接字文件描述符。|
 |fd|协议栈Epoll侦听的套接字文件描述符。|
-|expectedEvents|协议栈Epoll侦听的事件。|
+|expectEvents|协议栈Epoll侦听的事件。|
 |readyEvents|已就绪的事件，边缘触发模式上报事件后将同步至notifiedEvents，readyEvents的值保留至下次事件更新。|
 |notifiedEvents|套接字已经上报过的事件（边缘触发模式下有效）。|
 |shoted|套接字上报事件后置为1（one shot模式下有效）。|

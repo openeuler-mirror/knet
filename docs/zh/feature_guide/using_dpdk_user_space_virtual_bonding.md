@@ -3,8 +3,8 @@
 ## 功能描述
 
 提供基于用户态的网卡聚合能力开关，支持将两个物理网口在用户态进行逻辑绑定，实现带宽叠加，可靠性增强。
->
-> [!NOTE]说明  
+
+> [!NOTE]说明
 >Bond场景参考组网[物理机组网规划](../installation/installation_planning.md#组网规划)，Bond功能具有如下约束：
 >
 >- 仅支持物理机场景。
@@ -18,7 +18,7 @@
 
 1. 配置交换机。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >涉及到的操作命令适用于华为CE6881 V200R005C20SPC800交换机，如果遇到操作命令不适用其他型号交换机的情况，需要用户自行根据相应交换机操作手册调整。
 
     为服务端和客户端的2个PF口分别组Trunk，以服务端2个PF口分别在交换机25GE1/0/1、25GE1/0/2为例。
@@ -100,24 +100,24 @@
           "0000:01:00.1"
         ],
         "mac": "52:54:00:2e:1b:a0", # 设置bond端口mac,可以为"bdf_nums"配置项中两个网口之一的mac
-        "ip": "192.168.*.*",  #根据组网规划填写
+        "ip": "192.168.1.10",  #根据组网规划填写
         ...
       },
     ```
 
 4. 运行业务。
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >由于Bond功能涉及到交换机侧LACP协商，服务端首次启动后，客户端需要等待若干秒，直到LACP协商完毕才能连通打流。
 
     1. 服务端用户态劫持启动iPerf3。
 
         ```bash
-        taskset -c 20-39 env LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10000 -B 192.168.*.*
+        taskset -c 20-39 env LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10000 -B 192.168.1.10
         ```
 
-        > [!NOTE]说明  
-        >- taskset -c  _20-39_：将指定的进程绑定到CPU核心20\~39上运行，用户使用时参考[绑核与网卡所在NUMA一致](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)中的步骤1和步骤2确认绑定的CPU范围。
+        > [!NOTE]说明
+        >- taskset -c  _20-39_：将指定的进程绑定到CPU核心20~39上运行，用户使用时参考[绑核与网卡所在NUMA一致](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)中的步骤1和步骤2确认绑定的CPU范围。
         >- -s：以服务器模式运行。
         >- -4：仅使用IPv4协议。
         >- -p：指定服务器端口。
@@ -125,15 +125,15 @@
 
         回显如下，可以看到两个网口成功处于up状态：
 
-        ![](../figures/zh-cn_image_0000002478211054.png)
+        ![网卡状态](../figures/zh-cn_image_0000002478211054.png)
 
     2. 客户端主机中运行iPerf3进行打流测试。
 
         ```bash
-        iperf3 -c 192.168.*.*  -t 10 -p 10000 -b 0 -l 64 -P 1
+        iperf3 -c 192.168.1.10  -t 10 -p 10000 -b 0 -l 64 -P 1
         ```
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >- -c：以客户端模式运行。
         >- -t：传输时间。
         >- -p：指定端口，与上一步骤命令中保持一致。
@@ -143,4 +143,4 @@
 
         回显如下：
 
-        ![](../figures/zh-cn_image_0000002510211007.png)
+        ![测试回显](../figures/zh-cn_image_0000002510211007.png)
