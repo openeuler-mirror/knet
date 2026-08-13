@@ -4,7 +4,7 @@
 
 提供流量分叉能力开关，通过流表进程流量分发，支持内核态与<term>K-NET</term>应用的同时使能。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
 > - SP233网卡流量分叉功能支持在Kylin-V10-SP3-2403-release系统上使用。
 > - SP233网卡支持流量分叉功能，通过hinicadm5工具将队列分组，每组队列数为最大支持的队列数减去工具分配给用户态的队列数，至多创建8个分组。
@@ -46,9 +46,9 @@
         |----0000:01:00.1(NIC:enp1s0f1)
     ```
 
-
 2. （服务端）启用网卡流量分叉功能。
     SP233配置流量分叉时需要将网卡down掉，先修改内核态队列个数，保证有队列预留给用户态，执行ethtool -L相关命令进行修改；使用hinicadm5  traffic_bifur设置用户态队列个数和查询用户态队列信息。配置完成后，需要将网卡up起来。
+
     ```bash
     ip link set dev enp1s0f0 down
     ethtool -L enp1s0f0 combined 32 # 设置内核态队列个数
@@ -57,13 +57,17 @@
     ```
 
     有以下回显则代表设置成功。
+
     ```text
     Set qpooling group success, group is 2
     ```
+
     查询流分叉使能状态：
+
     ```bash
     hinicadm5 traffic_bifur -i enp1s0f0 -t queue -q
     ```
+
     回显中存在“traffic_bifur state is enablement”，代表流量分叉功能已使能。
 
 3. （服务端）K-NET启用网卡流量分叉功能。
@@ -88,9 +92,11 @@
     ```bash
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
+
     > [!NOTE]说明
     > bind的地址为服务端配置文件中配置的业务IP地址。
-    ![](../figures/zh-cn_image_0000002477733316.png)
+
+    ![启动回显](../figures/zh-cn_image_0000002477733316.png)
 
 5. （服务端）启动内核态iPerf3（另开一个终端）。
 
@@ -110,10 +116,9 @@
 
     K-NET和内核态iPerf3均会收到流量。
 
-    ![](../figures/zh-cn_image_0000002509653267.png)
+    ![打流测试](../figures/zh-cn_image_0000002509653267.png)
 
 7. 测试完成后，在服务端使用`Ctrl+C`退出所有iPerf3进程。
-
 
 ### 流量分叉支持Bond卸载
 
@@ -124,6 +129,7 @@
 ```bash
 hinicadm5 bond -i hinic0 -t add -s0 phy_port_0 -s1 phy_port_1 -m 1 
 ```
+
 phy_port_x为需要绑定的物理端口，其中x的取值范围时0~3。
 
 （交换机）配置参考如下：
@@ -146,8 +152,7 @@ commit #保存配置
 ```
 
 > [!NOTE]说明  
->- 服务端和客户端的bond配置需添加lacp\_rate fast，交换机的trunk口配置需添加lacp timeout fast，以实现网口故障快速切换。
-
+> 服务端和客户端的bond配置需添加lacp_rate fast，交换机的trunk口配置需添加lacp timeout fast，以实现网口故障快速切换。
 
 1. （服务端）启用网卡流量分叉功能。
 
@@ -180,8 +185,10 @@ commit #保存配置
     ```bash
     LD_PRELOAD=/usr/lib64/libknet_frame.so iperf3 -s -4 -p 10001 --bind 192.168.*.*
     ```
+
     > [!NOTE]说明
     > bind的地址为服务端配置文件中配置的业务IP地址。
+
 4. （客户端）向服务端进行iPerf3打流。
 
     使用`-t 10`参数指定打流时间为10秒，测试完成后客户端会自动退出：
@@ -190,6 +197,6 @@ commit #保存配置
     iperf3 -c 192.168.*.* -t 10 -p 10001 -b 0 -l 64 -P 1
     ```
 
-    ![](../figures/zh-cn_image_0000002477573338.png)
+    ![打流测试](../figures/zh-cn_image_0000002477573338.png)
 
 5. 测试完成后，在服务端使用`Ctrl+C`退出iPerf3进程。
