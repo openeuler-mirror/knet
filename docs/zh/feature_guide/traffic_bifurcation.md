@@ -111,7 +111,7 @@
     iperf3 -s -4 -p 10002 --bind 192.168.1.10
     ```
 
-    > [!NOTE]说明
+    > [!NOTE]说明  
     > bind地址需与步骤4中第一个终端的bind地址相同。
 
 6. （客户端）同时向服务端的K-NET、内核态iPerf3打流。
@@ -217,8 +217,8 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
 （服务端和客户端）配置Bond：
 
 ```bash
-ifconfig enp1s0f0 0 #移除物理网口的ip地址
-ifconfig enp1s0f1 0
+ifconfig enp1s0f0 0 #移除物理网口的IP地址
+ifconfig enp1s0f1 0 
 ip link del bond0 #删除名为bond0的绑定接口
 sudo ip link set dev enp1s0f0 down #将网口置于关闭状态
 sudo ip link set dev enp1s0f1 down

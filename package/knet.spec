@@ -1,6 +1,6 @@
 Summary:        libknet
 Name:           knet
-Version:        1.2.0
+Version:        1.4.0
 Release:        1
 License:        Proprietary
 Group:          Development/Libraries
