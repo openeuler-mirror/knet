@@ -191,7 +191,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 6. 授予驱动和编译抓包程序执行权限。
 
     > [!NOTE]说明
-    >若为root用户可跳过此步骤。
+    > 若为root用户可跳过此步骤。
 
     ```bash
     chmod a+s /usr/lib64/librte_net_hinic3.so
