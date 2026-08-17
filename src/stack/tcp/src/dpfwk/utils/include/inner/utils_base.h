@@ -459,11 +459,11 @@ typedef struct {
     HASH_NodeHead_t* nhs;
 } Hash_t;
 
-#define HASH_GET_SIZE(masklen) (sizeof(HASH_NodeHead_t) * (1 << (masklen)))
+#define HASH_GET_SIZE(masklen) (sizeof(HASH_NodeHead_t) * (1U << (masklen)))
 
 #define HASH_INIT(tbl, nodeHeads, masklen)            \
     do {                                              \
-        (tbl)->mask = (1 << (masklen)) - 1;           \
+        (tbl)->mask = (1U << (masklen)) - 1;          \
         (tbl)->nhs  = (nodeHeads);                    \
         for (uint32_t i = 0; i <= (tbl)->mask; i++) { \
             LIST_INIT_HEAD(&(tbl)->nhs[i]);            \

@@ -63,6 +63,35 @@ int DaemonInitPublicResource(void)
     return 0;
 }
 
+int DaemonUninitPublicResource(void)
+{
+    int ret;
+    int flag = 0;
+    // 异常退出时，需要释放资源
+    ret = (int) KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
+    if (ret != 0) {
+        flag = 1;
+        KNET_WARN("K-NET uninit dpdk failed");
+    }
+
+    ret = KNET_UninitHash(KNET_PROC_TYPE_PRIMARY);
+    if (ret != 0) {
+        flag = 1;
+        KNET_WARN("K-NET uninit hash failed");
+    }
+
+    ret = KNET_UnInitFmm(KNET_PROC_TYPE_PRIMARY);
+    if (ret != 0) {
+        flag = 1;
+        KNET_WARN("K-NET uninit fmm failed");
+    }
+
+    if (flag == 1) {
+        return -1;
+    }
+    return 0;
+}
+
 int DaemonInitResource(void)
 {
     /* initialise the system */
@@ -103,10 +132,12 @@ int DaemonInitResource(void)
     /* 创建telemetry持久化线程 */
     if (KNET_TelemetryStartPersistThread() == 0) {
         KNET_ERR("K-NET daemon init telemetry persist thread failed");
-        goto uninitCfg;
+        goto uninitPublicResource;
     }
     return 0;
 
+uninitPublicResource:
+    DaemonUninitPublicResource();
 uninitCfg:
     KNET_UninitCfg();
 uninitRand:
@@ -122,35 +153,6 @@ int DaemonMainLooper(void)
     ret = KNET_RpcRun();
     if (ret != 0) {
         KNET_WARN("K-NET rpc run failed");
-        return -1;
-    }
-    return 0;
-}
-
-int DaemonUninitPublicResource(void)
-{
-    int ret;
-    int flag = 0;
-    // 异常退出时，需要释放资源
-    ret = (int) KNET_UninitDpdk(KNET_PROC_TYPE_PRIMARY, KNET_RUN_MODE_MULTIPLE);
-    if (ret != 0) {
-        flag = 1;
-        KNET_WARN("K-NET uninit dpdk failed");
-    }
-
-    ret = KNET_UninitHash(KNET_PROC_TYPE_PRIMARY);
-    if (ret != 0) {
-        flag = 1;
-        KNET_WARN("K-NET uninit hash failed");
-    }
-
-    ret = KNET_UnInitFmm(KNET_PROC_TYPE_PRIMARY);
-    if (ret != 0) {
-        flag = 1;
-        KNET_WARN("K-NET uninit fmm failed");
-    }
-
-    if (flag == 1) {
         return -1;
     }
     return 0;
