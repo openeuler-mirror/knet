@@ -508,7 +508,6 @@ KNET_STATIC int FdirDisconnectHandler(int id, struct KNET_RpcMessage *knetRpcReq
         uint32_t savedQueueId = nextEntry->map.queueId[0];
         uint64_t savedIpPort = nextEntry->ip_port;
         uint32_t savedClientId = nextEntry->map.clientId;
-        struct rte_flow *savedFlow = nextEntry->map.flow;
         struct rte_flow *savedArpFlow = nextEntry->map.arpFlow;
 
         if (savedArpFlow != NULL) { // 如果当前的控制流表存在该entry中，则需要调用CtrFlowChange
