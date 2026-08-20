@@ -118,7 +118,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     ```bash
     cd /home/opt/
-    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic3_master dpdk-hinic3_master
+    git clone https://gitcode.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
     ```
 
 2. 获取配套版本的tag。
