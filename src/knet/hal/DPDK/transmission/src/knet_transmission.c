@@ -503,15 +503,21 @@ KNET_STATIC int FdirDisconnectHandler(int id, struct KNET_RpcMessage *knetRpcReq
             KNET_ERR("Delete flow rule failed");
             disconnectFlag = -1;
         }
-        if (nextEntry->map.arpFlow != NULL) { // 如果当前的控制流表存在该entry中，则需要调用CtrFlowChange
-            uint32_t arpFlowQueueID = nextEntry->map.queueId[0];
-            struct rte_flow *arpFlow = nextEntry->map.arpFlow;
+
+        /* 在 KnetFdirHashTblDel 之前保存所有需要的字段 */
+        uint32_t savedQueueId = nextEntry->map.queueId[0];
+        uint64_t savedIpPort = nextEntry->ip_port;
+        uint32_t savedClientId = nextEntry->map.clientId;
+        struct rte_flow *savedFlow = nextEntry->map.flow;
+        struct rte_flow *savedArpFlow = nextEntry->map.arpFlow;
+
+        if (savedArpFlow != NULL) { // 如果当前的控制流表存在该entry中，则需要调用CtrFlowChange
             ret = KnetFdirHashTblDel(key);
             if (ret != 0) {
                 KNET_ERR("Delete FdirHash table failed");
                 disconnectFlag = -1;
             }
-            ret = CtrFlowChange(arpFlowQueueID, arpFlow);
+            ret = CtrFlowChange(savedQueueId, savedArpFlow);
             if (ret != 0) {
                 KNET_ERR("CtrFlow change failed");
                 disconnectFlag = -1;
@@ -523,9 +529,12 @@ KNET_STATIC int FdirDisconnectHandler(int id, struct KNET_RpcMessage *knetRpcReq
                 disconnectFlag = -1;
             }
         }
+        
+        KNET_WARN("Flow delete: disconnectFlag %d, ip_port=0x%lx, clientId=%d, queueId[0]=%u",
+            disconnectFlag, savedIpPort, savedClientId, savedQueueId);
         /* 最后断链退出时为内核转发停掉队列并删除ring */
-        if (nextEntry != NULL && KNET_GetCfg(CONF_INNER_NEED_STOP_QUEUE)->intValue == KNET_STOP_QUEUE) {
-            RteRingFree(nextEntry->map.queueId[0]);
+        if (KNET_GetCfg(CONF_INNER_NEED_STOP_QUEUE)->intValue == KNET_STOP_QUEUE) {
+            RteRingFree(savedQueueId);
         }
     }
     return disconnectFlag;

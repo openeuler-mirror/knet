@@ -35,6 +35,6 @@
 |TCP_KEEPCNT|int类型 [1, 127]|支持|-|
 |TCP_KEEPIDLE|int类型 [1, 32767]|支持|-|
 |TCP_KEEPINTVL|int类型 [1, 32767]|支持|-|
-|TCP_MAXSEG|int类型[256, 9600]|支持|-|
+|TCP_MAXSEG|int类型[88, 32767]|支持|-|
 |TCP_NODELAY|int类型，0关闭，非0开启|支持|-|
 |TCP_USER_TIMEOUT|int类型|支持|-|

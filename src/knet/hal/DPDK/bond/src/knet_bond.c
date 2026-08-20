@@ -236,6 +236,8 @@ int KNET_BondUninit(int procType)
     int32_t ret = 0;
     int32_t flag = 0;
 
+    // 注意：此处仅调用 rte_eth_dev_stop 停止端口，不调用 rte_eth_dev_close 关闭端口。
+    // 在 DPDK 23 版本中，rte_eth_dev_close 会导致 core dump。
     for (uint16_t i = 0; i < KNET_BOND_SLAVE_NUM; i++) {
         ret = rte_eth_dev_stop(g_slavePortIds[i]);
         if (ret != 0) {
