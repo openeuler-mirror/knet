@@ -274,7 +274,7 @@ ssize_t SOCK_PopRcvBuf(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t msgD
     }
 
     if (sk->rcvBuf.bufLen < sk->rcvLowat) {
-        SOCK_UnsetState(sk, SOCK_STATE_READ);
+        sk->state &= ~SOCK_STATE_READ;
     }
 
     return ret;
@@ -312,7 +312,7 @@ ssize_t SOCK_PopRcvBufByPkt(Sock_t* sk, struct DP_Msghdr* msg, int flags, size_t
     }
 
     if (sk->rcvBuf.bufLen < sk->rcvLowat) {
-        SOCK_UnsetState(sk, SOCK_STATE_READ);
+        sk->state &= ~SOCK_STATE_READ;
     }
 
     return ret;

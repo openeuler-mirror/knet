@@ -69,6 +69,7 @@ typedef struct DP_EpollNotify {
 #define DP_EPOLLMSG    0x00000400
 #define DP_EPOLLRDHUP  0x00002000
 
+#define DP_EPOLLEXCLUSIVE (1U << 28)
 #define DP_EPOLLWAKEUP  (1U << 29)
 #define DP_EPOLLONESHOT (1U << 30)
 #define DP_EPOLLET      (1U << 31)
