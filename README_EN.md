@@ -1,4 +1,5 @@
 # K-NET
+English | [简体中文](./README.md)
 
 ## What's New
 
