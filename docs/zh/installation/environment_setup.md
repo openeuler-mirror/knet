@@ -395,7 +395,7 @@
 若用户需要在虚拟化环境上运行业务，还需要重新在虚拟机上安装SP670驱动，可参考[《SP200&SP600 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100309168/426cffd9)中“软件安装/独立部件场景下安装/安装驱动和管理工具/一键安装驱动和管理工具（17.12.2.0及之后版本）”章节。虚拟机中无需重新安装固件，请执行以下命令安装驱动。
 
 ```bash
-sh install.sh -i driver_only
+sh install.sh nic
 ```
 
 #### 安装SP233驱动

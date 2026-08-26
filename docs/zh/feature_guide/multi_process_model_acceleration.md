@@ -14,6 +14,7 @@
 >- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
 >- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
 >- 若任务运行失败，请参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
+>- 在SP233网卡上，流表规格为单Function最大1024条，ARP流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
 
 1. 修改服务端/etc/knet/knet_comm.conf文件。
 
