@@ -88,7 +88,7 @@ __attribute__((weak)) bool KNET_IsMpDaemonInit(void)
 static sigset_t BlockAllSignals(void)
 {
     sigset_t mask;
-    sigset_t oldMask;
+    sigset_t oldMask = {0};
 
     sigfillset(&mask);
     int ret = pthread_sigmask(SIG_SETMASK, &mask, &oldMask);

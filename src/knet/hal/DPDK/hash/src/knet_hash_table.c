@@ -425,18 +425,19 @@ int KNET_HashTblLookupEntry(uint32_t tableId, const uint8_t *key, uint8_t *data)
         KNET_ERR("Look up entry invalid params. (TableId %u)", tableId);
         return -1;
     }
-
+    KNET_RwlockReadLock(&tblInfo->rwLock);
     hash_sig_t hash_value = g_hashFunc((uint8_t *)key, tblInfo->keySize);  // 重新计算hash值
     uint8_t *entry = NULL;
     int32_t ret = rte_hash_lookup_with_hash_data(tblInfo->handle, key, hash_value, (void **) &entry);
     if (ret < 0) {
         /* 上层存在查找确定是否已有表项的情况，采用INFO级别即可 */
         KNET_INFO("Look up entry key not exist");
+        KNET_RwlockReadUnlock(&tblInfo->rwLock);
         return -1;
     }
 
     (void) memcpy_s(data, tblInfo->entrySize, entry, tblInfo->entrySize);
-
+    KNET_RwlockReadUnlock(&tblInfo->rwLock);
     return 0;
 }
 

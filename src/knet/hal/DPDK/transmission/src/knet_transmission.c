@@ -351,8 +351,11 @@ int FirstConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
 
 int ConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
 {
+    KNET_SpinLock *flowLock = &g_flowLocks[(*key) % FDIR_LOCK_TABLE_SIZE];
+    KNET_SpinlockLock(flowLock);
     struct Entry *oldEntry = KnetFdirHashTblFind(key);
     if (oldEntry == NULL) {
+        KNET_SpinlockUnlock(flowLock);
         int ret = FirstConnectHandler(id, flowReq, key);
         if (ret != 0) {
             KNET_ERR("FirstConnectHandler failed.");
@@ -363,8 +366,10 @@ int ConnectHandler(int id, struct KNET_FDirRequest *flowReq, uint64_t *key)
     
     if (oldEntry->map.clientId == id) {
         KNET_HalAtomicAdd64(&oldEntry->map.count, 1);
+        KNET_SpinlockUnlock(flowLock);
         return 0;
     }
+    KNET_SpinlockUnlock(flowLock);
     KNET_ERR("Ip port %lu already exist, but clientId %d not match", *key, id);
     return -1;
 }
@@ -378,14 +383,11 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
     uint64_t ip_port = oldEntry->ip_port;
     uint16_t queueIdSize = oldEntry->map.queueIdSize;
     int clientId = oldEntry->map.clientId;
-    KNET_SpinLock *flowLock = &g_flowLocks[(*key) % FDIR_LOCK_TABLE_SIZE];
-    KNET_SpinlockLock(flowLock);
 
     // 删除哈希表条目, 先删哈希表防止查表耗时导致单进程+流量分叉+iperf场景下的流规则并发问题
     ret = KnetFdirHashTblDel(key);
     if (ret != 0) {
         KNET_ERR("Delete Fdirhash table failed. ret %d, key %lu", ret, *key);
-        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
 
@@ -394,7 +396,6 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
     if (ret != 0) {
         KNET_ERR("Delete port %hu flow rule failed, entry ip_port %lu, queueIdSize %hu, clientId %d",
             KNET_GetNetDevCtx()->xmitPortId, ip_port, queueIdSize, clientId);
-        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
 
@@ -403,11 +404,9 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
         ret = CtrFlowChange(arpFlowQueueID, arpFlow);
         if (ret != 0) {
             KNET_ERR("QueueId %hu ctrFlow change failed", arpFlowQueueID);
-            KNET_SpinlockUnlock(flowLock);
             return -1;
         }
     }
-    KNET_SpinlockUnlock(flowLock);
     return 0;
 }
 /**
@@ -415,23 +414,30 @@ int DisconnectCleanup(struct Entry *oldEntry, uint64_t *key)
  */
 int DisconnectHandler(int id, uint64_t *key)
 {
+    KNET_SpinLock *flowLock = &g_flowLocks[(*key) % FDIR_LOCK_TABLE_SIZE];
+    KNET_SpinlockLock(flowLock);
     struct Entry *oldEntry = KnetFdirHashTblFind(key);
     if (oldEntry == NULL) {
         KNET_ERR("Disconnect failed, not find ip_port");
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
     if (oldEntry->map.clientId != id) {
         KNET_ERR("Disconnect failed, clientId not match");
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
     KNET_HalAtomicSub64(&oldEntry->map.count, 1);
     if (KNET_HalAtomicRead64(&oldEntry->map.count) == 0) {
         int ret = DisconnectCleanup(oldEntry, key);
+        KNET_SpinlockUnlock(flowLock);
         if (ret != 0) {
             KNET_ERR("Disconnect cleanup failed");
             return -1;
         }
+        return 0;
     }
+    KNET_SpinlockUnlock(flowLock);
     return 0;
 }
 
@@ -560,16 +566,21 @@ int KNET_FindFdirQue(uint32_t dstIp, uint16_t dstPort, uint16_t *queueId)
         return -1;
     }
     uint64_t ip_port = (((uint64_t)dstIp << 16) | dstPort);
+    KNET_SpinLock *flowLock = &g_flowLocks[ip_port % FDIR_LOCK_TABLE_SIZE];
+    KNET_SpinlockLock(flowLock);
     struct Entry *oldEntry = KnetFdirHashTblFind(&ip_port);
     if (oldEntry == NULL) {
         KNET_WARN("No flow hash table entry found, dstIp %u, dstPort %hu. Maybe use nic rss function.", dstIp, dstPort);
+        KNET_SpinlockUnlock(flowLock);
         return -1;
     }
-    for (int i = 0; i < oldEntry->map.queueIdSize; i++) {
+    uint16_t queueIdSize = oldEntry->map.queueIdSize;
+    for (int i = 0; i < queueIdSize; i++) {
         queueId[i] = oldEntry->map.queueId[i];
     }
+    KNET_SpinlockUnlock(flowLock);
  
-    return oldEntry->map.queueIdSize;
+    return queueIdSize;
 }
 
 KNET_STATIC int CheckPreTrans(enum KNET_ProcType procType)
