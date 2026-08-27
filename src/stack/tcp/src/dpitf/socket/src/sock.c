@@ -186,6 +186,7 @@ static uint16_t SockPbufRead(Pbuf_t** pbuf, uint16_t* readLen, uint8_t* iov, siz
         cpyLen          = (cpyLen > (cur->segLen - offset)) ? (cur->segLen - offset) : cpyLen;
         if (cpyLen == 0) {
             cur = cur->next;
+            *readLen = 0;
             continue;
         }
 
