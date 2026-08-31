@@ -178,6 +178,7 @@ struct Sock {
 
     int priority;
 
+    Spinlock_t notifyLock; // notify锁，解决sock notify同epoll、select、poll等并发冲突
     LIST_HEAD(, SockNotify) notifyList;
 
     int32_t wid;
@@ -269,14 +270,9 @@ static inline void SOCK_NotifyEvent(Sock_t* sk, uint8_t event)
 static inline void SOCK_SetState(Sock_t* sk, uint8_t state)
 {
     uint8_t old = sk->state;
-    if (old == state) {
-        return;
-    }
     sk->state |= state;
 
     SOCK_Notify(sk, old, SOCK_EVENT_NONE, false);
-
-    sk->state &= ~SOCK_STATE_ET;
 }
 
 static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
@@ -290,8 +286,8 @@ static inline void SOCK_UnsetState(Sock_t* sk, uint8_t state)
     SOCK_Notify(sk, old, SOCK_EVENT_NONE, false);
 }
 
-#define SOCK_SET_READABLE(sk)  SOCK_SetState((sk), SOCK_STATE_READ | SOCK_STATE_READ_ET)
-#define SOCK_SET_WRITABLE(sk)  SOCK_SetState((sk), SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET)
+#define SOCK_SET_READABLE(sk)  SOCK_SetState((sk), SOCK_STATE_READ)
+#define SOCK_SET_WRITABLE(sk)  SOCK_SetState((sk), SOCK_STATE_WRITE)
 #define SOCK_SET_EXCEPABLE(sk) SOCK_SetState((sk), SOCK_STATE_EXCEPTION)
 #define SOCK_SET_CANTSENDMORE(sk) SOCK_SetState((sk), SOCK_STATE_CANTSENDMORE)
 #define SOCK_SET_CANTRCVMORE(sk)  SOCK_SetState((sk), SOCK_STATE_CANTRCVMORE)
@@ -326,6 +322,16 @@ static inline void SOCK_Lock(Sock_t* sk)
 static inline void SOCK_Unlock(Sock_t* sk)
 {
     SPINLOCK_Unlock(&sk->lock);
+}
+
+static inline void SOCK_NotifyLock(Sock_t* sk)
+{
+    SPINLOCK_Lock(&sk->notifyLock);
+}
+
+static inline void SOCK_NotifyUnlock(Sock_t* sk)
+{
+    SPINLOCK_Unlock(&sk->notifyLock);
 }
 
 static inline void SOCK_Ref(Sock_t* sk)

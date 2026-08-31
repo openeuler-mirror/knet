@@ -616,7 +616,7 @@ static void TcpInsertListenerComplete(TcpSk_t* parent, TcpSk_t* child)
     SOCK_SET_CONNECTED(sk);
     SOCK_SET_RECV_MORE(sk);
     SOCK_SET_SEND_MORE(sk);
-    SOCK_SetState(sk, SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET);
+    SOCK_SetState(sk, SOCK_STATE_WRITE);
     DP_INC_TCP_STAT(child->wid, DP_TCP_ACCEPTS);
 
     SOCK_Lock(TcpSk2Sk(parent));
@@ -625,7 +625,7 @@ static void TcpInsertListenerComplete(TcpSk_t* parent, TcpSk_t* child)
     LIST_INSERT_TAIL(&parent->complete, child, childNode);
 
     SOCK_WakeupRdSem(TcpSk2Sk(parent));
-    SOCK_SetState(TcpSk2Sk(parent), SOCK_STATE_READ | SOCK_STATE_READ_ET);
+    SOCK_SetState(TcpSk2Sk(parent), SOCK_STATE_READ);
     SOCK_Unlock(TcpSk2Sk(parent));
 
     if (CFG_GET_TCP_VAL(CFG_TCP_TSQ_PASSIVE) == DP_ENABLE) {

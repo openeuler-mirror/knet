@@ -96,7 +96,7 @@ int SOCK_PushRcvBufSafe(Sock_t* sk, DP_Pbuf_t* pbuf)
 
     if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
         SOCK_WakeupRdSem(sk);
-        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
+        SOCK_SetState(sk, SOCK_STATE_READ);
     }
 
     SOCK_Unlock(sk);
@@ -1293,7 +1293,7 @@ static int SockSetRcvLow(Sock_t* sk, const void* optval, DP_Socklen_t optlen)
     sk->rcvLowat = UTILS_MIN(lowWat, sk->rcvHiwat >> 1);
 
     if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
-        SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
+        SOCK_SetState(sk, SOCK_STATE_READ);
     }
 
     return 0;
@@ -1762,6 +1762,7 @@ int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn)
 void SOCK_Notify(Sock_t *sk, uint8_t oldState, uint8_t event, bool includeHook)
 {
     SockNotify_t* notify = NULL;
+    SOCK_NotifyLock(sk);
     LIST_FOREACH(&sk->notifyList, notify, node) {
         // 判断是否处理钩子通知
         bool isHook = (notify->notifyType == SOCK_NOTIFY_TYPE_HOOK);
@@ -1769,6 +1770,7 @@ void SOCK_Notify(Sock_t *sk, uint8_t oldState, uint8_t event, bool includeHook)
             g_notifyFns[notify->notifyType](sk, notify->notifyCtx, oldState, sk->state, event, notify->associateFd);
         }
     }
+    SOCK_NotifyUnlock(sk);
 }
 
 uint32_t SOCK_GetRWStateSafe(Sock_t* sk)
@@ -1810,31 +1812,24 @@ int SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, uint64_t assocFd)
     return 0;
 }
 
-int SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, uint64_t assocFd)
-{
-    SOCK_Lock(sk);
-
-    int ret = SOCK_EnableNotify(sk, type, ctx, assocFd);
-
-    SOCK_Unlock(sk);
-    return ret;
-}
-
 void SOCK_DisableNotify(Sock_t* sk)
 {
     SockNotify_t* notify = NULL;
     SockNotify_t* next = NULL;
+    SOCK_NotifyLock(sk);
     for(notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
         next = LIST_NEXT(notify, node);
         LIST_REMOVE(&sk->notifyList, notify, node);
         OS_FREE(notify);
     }
+    SOCK_NotifyUnlock(sk);
 }
 
 void SOCK_DisableNotifyWithoutHook(Sock_t* sk)
 {
     SockNotify_t* notify = NULL;
     SockNotify_t* next = NULL;
+    SOCK_NotifyLock(sk); 
     for(notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
         next = LIST_NEXT(notify, node);
         if (notify->notifyType != SOCK_NOTIFY_TYPE_HOOK) {
@@ -1842,15 +1837,7 @@ void SOCK_DisableNotifyWithoutHook(Sock_t* sk)
             OS_FREE(notify);
         }
     }
-}
-
-void SOCK_DisableNotifySafe(Sock_t* sk)
-{
-    SOCK_Lock(sk);
-
-    SOCK_DisableNotify(sk);
-
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
 }
 
 static int InitSockMem(Sock_t* sk, size_t objSize)
@@ -1861,11 +1848,17 @@ static int InitSockMem(Sock_t* sk, size_t objSize)
     if (SPINLOCK_Init(&sk->lock) != 0) {
         return -ENOMEM;
     }
+    if (SPINLOCK_Init(&sk->notifyLock) != 0) {
+        SPINLOCK_Deinit(&sk->lock);
+        return -ENOMEM;
+    }
     if (SEM_INIT(sk->rdSem) != 0) {
+        SPINLOCK_Deinit(&sk->notifyLock);
         SPINLOCK_Deinit(&sk->lock);
         return -ENOMEM;
     }
     if (SEM_INIT(sk->wrSem) != 0) {
+        SPINLOCK_Deinit(&sk->notifyLock);
         SPINLOCK_Deinit(&sk->lock);
         SEM_DEINIT(sk->rdSem);
         return -ENOMEM;
@@ -1878,6 +1871,7 @@ static void DeInitSockMem(Sock_t* sk)
 {
     SEM_DEINIT(sk->rdSem);
     SEM_DEINIT(sk->wrSem);
+    SPINLOCK_Deinit(&sk->notifyLock);
     SPINLOCK_Deinit(&sk->lock);
 }
 
@@ -1956,6 +1950,7 @@ void SOCK_DeinitSk(Sock_t* sk)
     SEM_DEINIT(sk->wrSem);
     SPINLOCK_Deinit(&sk->lock);
     SOCK_DisableNotify(sk);
+    SPINLOCK_Deinit(&sk->notifyLock);
 }
 
 int SOCK_NotifyHookCreate(SOCK_NotifyFn_t hook)

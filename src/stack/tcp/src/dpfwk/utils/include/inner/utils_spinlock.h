@@ -13,6 +13,7 @@
 #define UTILS_SPINLOCK_H
 
 #include <stdbool.h>
+#include <pthread.h>
 
 #include "utils_atomic.h"
 #include "utils_cfg.h"
@@ -25,7 +26,7 @@ extern "C" {
 
 
 typedef struct {
-    atomic32_t locked;
+    pthread_spinlock_t locked;
 } Spinlock_t;
 
 static inline void SPINLOCK_CpuRelax(void)
@@ -41,13 +42,12 @@ static inline void SPINLOCK_CpuRelax(void)
 
 static inline int SPINLOCK_Init(Spinlock_t* lock)
 {
-    lock->locked = 0;
-    return 0;
+    return pthread_spin_init(&lock->locked, PTHREAD_PROCESS_PRIVATE);
 }
 
 static inline void SPINLOCK_Deinit(Spinlock_t* lock)
 {
-    (void)lock;
+    pthread_spin_destroy(&lock->locked);
 }
 
 static inline int SPINLOCK_Lock(Spinlock_t* lock)
@@ -56,18 +56,12 @@ static inline int SPINLOCK_Lock(Spinlock_t* lock)
         return 0;
     }
 
-    while (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
-        SPINLOCK_CpuRelax();
-    }
-    return 0;
+    return pthread_spin_lock(&lock->locked);
 }
 
 static inline int SPINLOCK_DoLock(Spinlock_t* lock)
 {
-    while (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
-        SPINLOCK_CpuRelax();
-    }
-    return 0;
+    return pthread_spin_lock(&lock->locked);
 }
 
 static inline int SPINLOCK_TryLock(Spinlock_t* lock)
@@ -76,10 +70,7 @@ static inline int SPINLOCK_TryLock(Spinlock_t* lock)
         return 0;
     }
 
-    if (ATOMIC32_Cas(&lock->locked, 0, 1) != true) {
-        return -1;
-    }
-    return 0;
+    return pthread_spin_trylock(&lock->locked);
 }
 
 static inline void SPINLOCK_Unlock(Spinlock_t* lock)
@@ -88,12 +79,12 @@ static inline void SPINLOCK_Unlock(Spinlock_t* lock)
         return;
     }
 
-    ATOMIC32_Store(&lock->locked, 0);
+    pthread_spin_unlock(&lock->locked);
 }
 
 static inline void SPINLOCK_DoUnlock(Spinlock_t* lock)
 {
-    ATOMIC32_Store(&lock->locked, 0);
+    pthread_spin_unlock(&lock->locked);
 }
 
 #ifdef __cplusplus

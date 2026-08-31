@@ -31,9 +31,6 @@ typedef struct NS_Net NS_Net_t;
 #define SOCK_STATE_CLOSE         0x008    // 独立状态，不会记录到sk->state中
 #define SOCK_STATE_CANTSENDMORE  0x010    /* can't send more data to peer */
 #define SOCK_STATE_CANTRCVMORE   0x020    /* can't receive more data from peer */
-#define SOCK_STATE_READ_ET       0x040
-#define SOCK_STATE_WRITE_ET      0x080
-#define SOCK_STATE_ET (SOCK_STATE_READ_ET | SOCK_STATE_WRITE_ET)
 
 // 以下枚举如需修改顺序/新增，需要同步修改/补充对应ABN事件(DP_NOTIFY_RCVSYN_ERR等)
 enum {
@@ -119,10 +116,8 @@ uint32_t SOCK_GetRWStateSafe(Sock_t* sk);
 int SOCK_SetNotifyFn(int type, SOCK_NotifyFn_t notifyFn);
 
 int SOCK_EnableNotify(Sock_t* sk, int type, void* ctx, uint64_t assocFd);
-int SOCK_EnableNotifySafe(Sock_t* sk, int type, void* ctx, uint64_t assocFd);
 
 void SOCK_DisableNotify(Sock_t* sk);
-void SOCK_DisableNotifySafe(Sock_t* sk);
 
 uint32_t SOCK_GetState(Sock_t* sk);
 

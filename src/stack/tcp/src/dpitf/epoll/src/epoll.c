@@ -9,6 +9,9 @@
  * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
+#include <pthread.h>
+
 #include "dp_epoll.h"
 #include "dp_errno.h"
 
@@ -33,19 +36,21 @@ typedef LIST_HEAD(, EpollItem) EpollItemLists;
 typedef struct EpollItem EpollItem_t;
 
 typedef struct {
-    EpollItemLists ready;
-    EpollItemLists epItemList;
+    pthread_spinlock_t lock; // 保护范围：ep->ovflist、ep->ready、item->linked、item->ovflistNext、waitCnt、wakeupCnt
+    pthread_mutex_t ctlLock; // 保护范围：epoll_wait和epoll_ctl行为、保护item的内容更新、ep->epItemList
+    uint8_t isClosed;
     DP_Sem_t     sem;
-    Spinlock_t     lock; // 保护范围：ep->ovflist、ep->ready、item->linked、item->ovflistNext
-    Spinlock_t     ctlLock; // 保护范围：epoll_wait和epoll_ctl行为、保护item的内容更新、ep->epItemList
-    EpollItem_t*   ovflist;
-    uint8_t        ovflistActive;
     int            waitCnt;
     int            wakeupCnt;
-    int32_t        wid;
+    uint32_t epWatchCnt; // 监听的fd个数
+    EpollItemLists epItemList;
     Fd_t*          file;
+    
+    int32_t        wid;
     DP_EpollNotify_t userNotify;
-    uint8_t isClosed;
+    EpollItemLists ready;
+    EpollItem_t*   ovflist;
+    uint8_t        ovflistActive;
 } Epoll_t;
 
 typedef struct EpollItem {
@@ -64,6 +69,26 @@ typedef struct EpollItem {
     EpollItem_t* ovflistNext;
 } EpollItem_t;
 
+static inline void EpollCtlLock(Epoll_t* ep)
+{
+    pthread_mutex_lock(&ep->ctlLock);
+}
+
+static inline void EpollCtlUnlock(Epoll_t* ep)
+{
+    pthread_mutex_unlock(&ep->ctlLock);
+}
+
+static inline void EpollLock(Epoll_t* ep)
+{
+    pthread_spin_lock(&ep->lock);
+}
+
+static inline void EpollUnlock(Epoll_t* ep)
+{
+    pthread_spin_unlock(&ep->lock);
+}
+
 static inline int EpItemIsLinked(EpollItem_t *item)
 {
     return item->linked;
@@ -72,6 +97,7 @@ static inline int EpItemIsLinked(EpollItem_t *item)
 static SockNotify_t* GetEpollNotify(Sock_t* sk, int epfd)
 {
     SockNotify_t* notify = NULL;
+
     LIST_FOREACH(&sk->notifyList, notify, node)
     {
         if (notify->notifyType == SOCK_NOTIFY_TYPE_EPOLL && notify->associateFd == epfd) {
@@ -90,34 +116,30 @@ static void DisableSockNotify(EpollItem_t* item)
     }
 
     sk = (Sock_t*)(skFile->priv);
-    SOCK_Lock(sk);
+    SOCK_NotifyLock(sk);
     SockNotify_t* notify = GetEpollNotify(sk, item->epfd);
     if (notify != NULL) {
         LIST_REMOVE(&sk->notifyList, notify, node);
         OS_FREE(notify);
     }
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
     FD_Put(skFile);
 }
 
 static int DP_EpollClose(Epoll_t* ep)
 {
     // 加锁原因:若不加锁，epoll并发，UpdateEplist删除ep->idle链表元素，此时EpollClose会发现ep->ready为NULL。所以需加锁，且UpdateEpList要检查epoll是否已关闭
-    SPINLOCK_Lock(&ep->ctlLock);
+    EpollCtlLock(ep);
     ep->isClosed = true; // todo: dp epollwait和dp epollctl、维测getdetail，所有获取epfd上下文的地方 是不是也要检查epoll是否已关闭？
-    SPINLOCK_Unlock(&ep->ctlLock); // todo isClose保护的是epItemList并发，那是不是只加ctlLock就可以？看看每个路径？
+    EpollCtlUnlock(ep);
 
     EpollItem_t* item;
-    // while (!LIST_IS_EMPTY(&ep->ready)) { // 无需从ready中移除，下面代码直接释放item和ep
-    //     item = LIST_FIRST(&ep->ready);
-    //     LIST_REMOVE((&ep->ready), item, node);
-    //     item->linked = 0;
-    // }
 
     while (!LIST_IS_EMPTY(&ep->epItemList)) {
         item = LIST_FIRST(&ep->epItemList);
         DisableSockNotify(item);
         LIST_REMOVE((&ep->epItemList), item, epiNode);
+        --ep->epWatchCnt;
         SHM_FREE(item, DP_MEM_FREE);
     }
 
@@ -125,8 +147,8 @@ static int DP_EpollClose(Epoll_t* ep)
         FD_Free(ep->file);
     }
 
-    SPINLOCK_Deinit(&ep->ctlLock);
-    SPINLOCK_Deinit(&ep->lock);
+    pthread_mutex_destroy(&ep->ctlLock);
+    pthread_spin_destroy(&ep->lock);
     SHM_FREE(ep, DP_MEM_FREE);
     (void)UTILS_DecCbCnt(&g_epollCbCnt);
 
@@ -188,12 +210,13 @@ static Epoll_t* CreateEpoll(DP_EpollNotify_t* callback)
 
     LIST_INIT_HEAD(&ret->ready);
     LIST_INIT_HEAD(&ret->epItemList);
-    SPINLOCK_Init(&ret->lock);
-    SPINLOCK_Init(&ret->ctlLock);
+    ret->epWatchCnt = 0;
+    pthread_spin_init(&ret->lock, PTHREAD_PROCESS_PRIVATE);
+    pthread_mutex_init(&ret->ctlLock, NULL);
 
     if (SEM_INIT(ret->sem) != 0) {
-        SPINLOCK_Deinit(&ret->ctlLock);
-        SPINLOCK_Deinit(&ret->lock);
+        pthread_mutex_destroy(&ret->ctlLock);
+        pthread_spin_destroy(&ret->lock);
         SHM_FREE(ret, DP_MEM_FREE);
         return NULL;
     }
@@ -234,7 +257,9 @@ static void WakeupLocked(Epoll_t* ep)
         return;
     }
     if (ep->waitCnt > ep->wakeupCnt) {
+        EpollUnlock(ep);
         SEM_SIGNAL(ep->sem);
+        EpollLock(ep);
     }
     ep->wakeupCnt++;
 }
@@ -258,13 +283,11 @@ static int Wait(Epoll_t* ep, int timeout)
     }
 
     ep->waitCnt++;
-    SPINLOCK_Unlock(&ep->lock);
-    SPINLOCK_Unlock(&ep->ctlLock);
+    EpollUnlock(ep);
 
     int ret = (int)SEM_WAIT(ep->sem, timeout);
 
-    SPINLOCK_Lock(&ep->ctlLock);
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
     ep->waitCnt--;
 
     if (ret == DP_ERR) {
@@ -281,7 +304,7 @@ static void InsertEpList(EpollItem_t* item)
     uint32_t revents = epItemPoll(item);
     int needWakeup = 0;
 
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
     if (revents != 0) {
         LIST_INSERT_TAIL(&ep->ready, item, node);
         item->linked = 1;
@@ -289,11 +312,12 @@ static void InsertEpList(EpollItem_t* item)
     }
 
     LIST_INSERT_TAIL(&ep->epItemList, item, epiNode);
+    ++ep->epWatchCnt;
 
     if (needWakeup) {
         WakeupLocked(ep);
     }
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
 
     if (needWakeup) {
         WakeupUnlocked(ep);
@@ -332,7 +356,7 @@ static int UpdateEpListMod(EpollItem_t* item, EpollEvent_t* event)
         return 0;
     }
 
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
     if (!EpItemIsLinked(item)) {
         LIST_INSERT_TAIL(&ep->ready, item, node);
         item->linked = 1;
@@ -342,7 +366,7 @@ static int UpdateEpListMod(EpollItem_t* item, EpollEvent_t* event)
     if (needWakeup) {
         WakeupLocked(ep);
     }
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
 
     if (needWakeup) {
         WakeupUnlocked(ep);
@@ -354,26 +378,16 @@ static int UpdateEpListNotify(EpollItem_t* item, uint8_t newState)
 {
     Epoll_t* ep = item->ep;
     int needWakeup = 0;
+    uint32_t sockEvent = SockState2Event(newState);
 
-    SPINLOCK_Lock(&ep->ctlLock);
-    if (ep->isClosed == true) {
-        SPINLOCK_Unlock(&ep->ctlLock);
-        return 0;
-    }
-    SPINLOCK_Unlock(&ep->ctlLock);
-
-    // 下面代码段与DP_EpollClose释放ep资源的竞争通过sock lock保护，todo: 后续参考os优化sock notify路径对socket加锁行为
-    // 内核：socket在执行ep_poll_callback时，用户关闭了epfd，根据代码详解这种竞争是如何解决的？
-    // 内核socket 唤醒回调时， __wake_up_common_lock 全程持 socket 的 wait queue 头锁：
-    // 启示：knet socket的notify也单独搞一个notify锁，原先用sock lock锁范围太大了。
-    SPINLOCK_Lock(&ep->lock); // 隐式包含读屏障
+    EpollLock(ep); // 隐式包含读屏障
     if (!(item->ev.events & ~EP_PRIVATE_BITS)) {
-        SPINLOCK_Unlock(&ep->lock);
+        EpollUnlock(ep);
         return 0;
     }
 
-    if (!(SockState2Event(newState) & item->ev.events)) {
-        SPINLOCK_Unlock(&ep->lock);
+    if (!(sockEvent & item->ev.events)) {
+        EpollUnlock(ep);
         return 0;
     }
 
@@ -393,7 +407,7 @@ static int UpdateEpListNotify(EpollItem_t* item, uint8_t newState)
     if (needWakeup) {
         WakeupLocked(ep);
     }
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
 
     if (needWakeup) {
         WakeupUnlocked(ep);
@@ -405,34 +419,39 @@ static void EpDelRemoveEpList(EpollItem_t* item)
 {
     Epoll_t* ep = item->ep;
 
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
     if (EpItemIsLinked(item)) {
         LIST_REMOVE(&ep->ready, item, node);
         item->linked = 0;
     }
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
 
     LIST_REMOVE(&ep->epItemList, item, epiNode);
+    --ep->epWatchCnt;
 }
 
 static void RemoveEpList(EpollItem_t* item)
 {
     Epoll_t* ep = item->ep;
 
-    SPINLOCK_Lock(&ep->ctlLock);
+    EpollCtlLock(ep);
     if (ep->isClosed == true) {
-        SPINLOCK_Unlock(&ep->ctlLock);
+        EpollCtlUnlock(ep);
         return;
     }
     LIST_REMOVE(&ep->epItemList, item, epiNode);
-    SPINLOCK_Unlock(&ep->ctlLock);
+    --ep->epWatchCnt;
 
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
     if (EpItemIsLinked(item)) {
         LIST_REMOVE(&ep->ready, item, node);
         item->linked = 0;
     }
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
+
+    EpollCtlUnlock(ep);
+
+    SHM_FREE(item, DP_MEM_FREE);
 }
 
 void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint8_t event, uint64_t associateFd)
@@ -447,7 +466,6 @@ void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uin
 
     if ((newState & SOCK_STATE_CLOSE) != 0) {
         RemoveEpList(item);
-        SHM_FREE(item, DP_MEM_FREE);
         return;
     }
 
@@ -456,9 +474,11 @@ void EPOLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uin
 
 static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent_t* event)
 {
+    SOCK_NotifyLock(sk);
     // socket已注册过
     SockNotify_t* notify = GetEpollNotify(sk, epfd);
     if (notify != NULL) {
+        SOCK_NotifyUnlock(sk);
         DP_LOG_ERR("the supplied file descriptor fd is already registered with this epoll instance.");
         return EEXIST;
     }
@@ -466,6 +486,7 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
     /* 在该函数及InsertEpList中全字段赋值，无需初始化 */
     EpollItem_t* item = SHM_MALLOC(sizeof(*item), MOD_EPOLL, DP_MEM_FREE);
     if (item == NULL) {
+        SOCK_NotifyUnlock(sk);
         DP_LOG_ERR("Malloc memory failed for epoll item.");
         return ENOMEM;
     }
@@ -478,13 +499,19 @@ static int CreateEpollItem(Sock_t* sk, Epoll_t* ep, int fd, int epfd, EpollEvent
     item->linked         = 0;
     item->ovflistNext    = EP_UNACTIVE_PTR;
 
+    EpollCtlLock(ep); // 执行SOCK_EnableNotify后，item就对epoll ctl可见，所以需要加锁保护item
     int ret = SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_EPOLL, item, epfd);
     if (ret != 0) {
+        SOCK_NotifyUnlock(sk);
+        EpollCtlUnlock(ep);
         DP_LOG_ERR("CreateEpollItem failed, SOCK_EnableNotify failed, fd = %d, epfd = %d.", fd, epfd);
         SHM_FREE(item, DP_MEM_FREE);
         return ret;
     }
+    SOCK_NotifyUnlock(sk);
+
     InsertEpList(item);
+    EpollCtlUnlock(ep);
     return ret;
 }
 
@@ -521,17 +548,23 @@ static int EpollGetEvents(Epoll_t* ep, EpollItemLists* txlist, struct DP_EpollEv
 
         item = next;
     }
+
     return cnt;
 }
 
-static int UpdateEpollItem(Sock_t* sk, int epfd, EpollEvent_t* event)
+static int UpdateEpollItem(Sock_t* sk, Epoll_t* ep, int epfd, EpollEvent_t* event)
 {
+    SOCK_NotifyLock(sk);
     SockNotify_t* notify = GetEpollNotify(sk, epfd);
     if (notify != NULL) {
         EpollItem_t* item = (EpollItem_t*) notify->notifyCtx;
+        EpollCtlLock(ep);
+        SOCK_NotifyUnlock(sk);
         UpdateEpListMod(item, event);
+        EpollCtlUnlock(ep);
         return 0;
     }
+    SOCK_NotifyUnlock(sk);
 
     DP_LOG_ERR("UpdateEpollItem failed, item is NULL, epfd = %d.", epfd);
     return ENOENT;
@@ -727,23 +760,21 @@ int DP_EpollCtl(int epfd, int op, int fd, struct DP_EpollEvent* event)
         return -1;
     }
 
-    SOCK_Lock(sk);
-    SPINLOCK_Lock(&ep->ctlLock);
-
     if (op == DP_EPOLL_CTL_ADD) {
         struct DP_EpollEvent ev = *event;
-        ev.events |= DP_EPOLLERR | DP_EPOLLERR;
-        ret = CreateEpollItem(sk, ep, fd, epfd, event);
+        ev.events |= DP_EPOLLERR | DP_EPOLLHUP;
+        ret = CreateEpollItem(sk, ep, fd, epfd, &ev);
     } else if (op == DP_EPOLL_CTL_MOD) {
         struct DP_EpollEvent ev = *event;
-        ev.events |= DP_EPOLLERR | DP_EPOLLERR;
-        ret = UpdateEpollItem(sk, epfd, event);
+        ev.events |= DP_EPOLLERR | DP_EPOLLHUP;
+        ret = UpdateEpollItem(sk, ep, epfd, &ev);
     } else {
+        SOCK_NotifyLock(sk);
+        EpollCtlLock(ep);
         ret = DeleteEpollItem(sk, epfd);
+        EpollCtlUnlock(ep);
+        SOCK_NotifyUnlock(sk);
     }
-
-    SPINLOCK_Unlock(&ep->ctlLock);
-    SOCK_Unlock(sk);
 
     DP_SET_ERRNO(ret);
 
@@ -763,7 +794,7 @@ int DP_EpollWait(int epfd, struct DP_EpollEvent* events, int maxevents, int time
     Fd_t*        epFile;
     Epoll_t*     ep;
     int          ret;
-    int          cnt;
+    int          cnt = 0;
     EpollItemLists txlist;
 
     if (events == NULL) {
@@ -784,35 +815,43 @@ int DP_EpollWait(int epfd, struct DP_EpollEvent* events, int maxevents, int time
         return -1;
     }
 
-    LIST_INIT_HEAD(&txlist);
-
-    SPINLOCK_Lock(&ep->ctlLock);
-    SPINLOCK_Lock(&ep->lock);
-
-    if (!EpEventsAvailable(ep)) {
+    EpollLock(ep);
+    bool eventAvail = EpEventsAvailable(ep);
+    if (eventAvail) {
+        EpollUnlock(ep);
+        goto fetchEvents;
+    } else if (timeout == 0) {
+        EpollUnlock(ep);
+        goto finish;
+    } else { // 无事件，睡眠等待
         ret = Wait(ep, timeout);
         if (ret != 0) {
-            ret = (ret == -ETIMEDOUT) ? 0 : ret;        // 超时情况下返回0，不设置错误码
-            SPINLOCK_Unlock(&ep->lock);
-            SPINLOCK_Unlock(&ep->ctlLock);
+            ret = (ret == -ETIMEDOUT) ? 0 : ret; // 超时情况下返回0，不设置错误码
+            EpollUnlock(ep);
             FD_Put(epFile);
             DP_SET_ERRNO(-ret);
             return (ret == 0) ? 0 : -1;
         }
+        EpollUnlock(ep);
     }
 
+fetchEvents:
+    EpollCtlLock(ep);
+    EpollLock(ep);
+
     // Steal phase: move ready list to txlist, activate ovflist
+    LIST_INIT_HEAD(&txlist);
     LIST_CONCAT(&txlist, &ep->ready, node);
     ep->ovflist = NULL;
     ep->ovflistActive = 1;
 
-    SPINLOCK_Unlock(&ep->lock);
+    EpollUnlock(ep);
 
     // Transfer phase: process events without lock
     cnt = EpollGetEvents(ep, &txlist, events, maxevents);
 
     // Reinject phase: move ovflist and remaining txlist items back to ready list
-    SPINLOCK_Lock(&ep->lock);
+    EpollLock(ep);
 
     // Reinject ovflist items
     EpollItem_t* ovflistItem;
@@ -833,9 +872,10 @@ int DP_EpollWait(int epfd, struct DP_EpollEvent* events, int maxevents, int time
     // Reinject remaining txlist items (LT items that were kept)
     LIST_CONCAT(&ep->ready, &txlist, node);
 
-    SPINLOCK_Unlock(&ep->lock);
-    SPINLOCK_Unlock(&ep->ctlLock);
+    EpollUnlock(ep);
+    EpollCtlUnlock(ep);
 
+finish:
     FD_Put(epFile);
     DP_SET_ERRNO(0);
     return cnt;
@@ -849,7 +889,7 @@ static void ListGetDetails(EpollItemLists* list, DP_EpollDetails_t* details, int
     EpollItem_t* item = LIST_FIRST(list);
     EpollItem_t* next;
     while (item != NULL && *cnt < INT_MAX) {
-        next = LIST_NEXT(item, node);
+        next = LIST_NEXT(item, epiNode);
         if (*cnt < len) {
             details[*cnt].fd = (uint32_t)item->fd;
             details[*cnt].expectEvents = item->ev.events;
@@ -866,7 +906,7 @@ static void ListGetDetails(EpollItemLists* list, DP_EpollDetails_t* details, int
 static int EpollGetDetails(Epoll_t* ep, DP_EpollDetails_t* details, int max)
 {
     int cnt = 0;
-    ListGetDetails(&ep->ready, details, max, &cnt);
+    ListGetDetails(&ep->epItemList, details, max, &cnt);
     return cnt;
 }
 
@@ -894,12 +934,12 @@ int DP_GetEpollDetails(int epFd, DP_EpollDetails_t* details, int len, int *wid)
         return -1;
     }
 
-    SPINLOCK_Lock(&ep->ctlLock);
-    SPINLOCK_Lock(&ep->lock);
+    EpollCtlLock(ep);
+    EpollLock(ep);
     *wid = ep->wid;
     int cnt = EpollGetDetails(ep, details, len);
-    SPINLOCK_Unlock(&ep->lock);
-    SPINLOCK_Unlock(&ep->ctlLock);
+    EpollUnlock(ep);
+    EpollCtlUnlock(ep);
 
     FD_Put(epFile);
     DP_SET_ERRNO(0);
