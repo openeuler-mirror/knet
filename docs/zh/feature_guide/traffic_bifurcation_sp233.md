@@ -30,7 +30,7 @@
 
 1. （服务端）确认并配置网卡模板。
 
-    首先使用以下命令查看系统中可用的网卡设备，确定网卡名称（如hinic0）：
+    首先使用以下命令查看系统中可用的网卡设备，确定网卡名称：
 
     ```bash
     hinicadm5 info
@@ -47,6 +47,10 @@
         |----0000:01:00.1(NIC:enp1s0f1)
     ```
 
+    > [!NOTE]说明
+    >- hinic0为查询到的网卡名称。若存在多张网卡，请根据实际情况决定需要用哪张网卡。
+    >- enp1s0f0与enp1s0f1为hinic0网卡的两个网口。
+
 2. （服务端）启用网卡流量分叉功能。
     SP233配置流量分叉时需要将网卡down掉，先修改内核态队列个数，保证有队列预留给用户态，执行ethtool -L相关命令进行修改；使用hinicadm5  traffic_bifur设置用户态队列个数和查询用户态队列信息。配置完成后，需要将网卡up起来。
 
@@ -56,6 +60,9 @@
     hinicadm5 traffic_bifur -i enp1s0f0 -t queue -n 32 # 设置用户态队列个数
     ip link set dev enp1s0f0 up
     ```
+
+    > [!NOTE]说明
+    >- enp1s0f0：使用的网口，根据实际情况替换，下同。
 
     有以下回显则代表设置成功。
 
@@ -131,7 +138,10 @@
 hinicadm5 bond -i hinic0 -t add -s0 phy_port_0 -s1 phy_port_1 -m 1 
 ```
 
-phy_port_x为需要绑定的物理端口，其中x的取值范围时0~3。
+> [!NOTE]说明
+>
+>- hinic0：网卡名称，根据实际情况替换。
+>- phy_port_x：需要绑定的物理端口，其中x的取值范围为0~3。
 
 （交换机）配置参考如下：
 
@@ -163,6 +173,9 @@ commit #保存配置
     hinicadm5 traffic_bifur -i enp1s0f0 -t queue -n 32
     ip link set dev enp1s0f0 up
     ```
+
+    > [!NOTE]说明
+    >- enp1s0f0：使用的网口，根据实际情况替换。
 
 2. （服务端）<term>K-NET</term>启用网卡流量分叉功能。
 
