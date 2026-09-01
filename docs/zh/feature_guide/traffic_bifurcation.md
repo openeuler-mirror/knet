@@ -30,7 +30,7 @@
 
 1. （服务端）确认并配置网卡模板。
 
-    首先使用以下命令查看系统中可用的网卡设备，确定网卡名称（如hinic0）：
+    首先使用以下命令查看系统中可用的网卡设备，确定网卡名称：
 
     ```bash
     hinicadm3 info
@@ -45,11 +45,17 @@
     |----hinic0(CAL_2X100G)
     ```
 
-    流量分叉功能仅支持SP670网卡的ROCE_2X100G_UN_ADAP模板（模板索引为3）。使用查询到的网卡名称执行以下命令查看当前网卡模板：
+    > [!NOTE]说明
+    >- hinic0为查询到的网卡名称。若存在多张网卡，请根据实际情况决定需要用哪张网卡。
+ 
+    流量分叉功能仅支持SP670网卡的ROCE_2X100G_UN_ADAP模板（模板索引为3），执行以下命令查看当前网卡模板：
 
     ```bash
     hinicadm3 cfg_template -i hinic0
     ```
+
+    > [!NOTE]说明
+    >- hinic0：网卡名称，根据实际情况替换，下同。
 
     查看回显中“Current Info”字段的“Cfg template index”：
     - 若显示为“3”，表示模板正确，可直接执行后续步骤。
@@ -140,6 +146,9 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     hinicadm3 cfg_data -i hinic0 -pf 0 -vfnum 1 -vfq 1
     hinicadm3 cfg_data -i hinic0 -pf 1 -vfnum 1 -vfq 1
     hinicadm3 cfg_data -i hinic0 -pf 2 -vfnum 40 -vfq 32
+
+    > [!NOTE]说明
+    >- hinic0：网卡名称，根据实际情况替换，下同。
     
     # 查看网卡队列数，回显如下图红色框中所示，代表配置成功
     hinicadm3 cfg_data -i hinic0
@@ -267,6 +276,9 @@ commit #保存配置
     modprobe vfio-pci
     hinicadm3 traffic_bifur -i hinic0 -e 1
     ```
+
+    > [!NOTE]说明
+    >- hinic0：网卡名称，根据实际情况替换。
 
 2. （服务端）K-NET启用网卡流量分叉功能。
 
