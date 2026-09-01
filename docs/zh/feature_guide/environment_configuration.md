@@ -41,6 +41,16 @@
     ```bash
     ls -la /sys/kernel/mm/hugepages/
     ```
+    
+     回显类似如下：
+
+    ```bash
+    total 0
+    drwxr-xr-x. 2 root root 0 Sep 1 10:30 .
+    drwxr-xr-x. 3 root root 0 Sep 1 10:30 ..
+    -rw-r--r--. 1 root root 0 Sep 1 10:30 hugepages-1048576kB
+    -rw-r--r--. 1 root root 0 Sep 1 10:30 hugepages-2048kB
+    ```
 
 3. 更改Linux默认启动内核版本，修改GRUB设置。
     - 系统架构为aarch64场景时：
@@ -287,7 +297,7 @@
             - "bdf_nums"：填写获取的BDF号，此处以0000:06:00.0为例。
             - "mac"：填写绑定网卡的MAC地址，此处以52:54:00:2e:1b:a0为例。
             - "ip"：填写绑定网卡的IP地址，此处以192.168.1.6为例。
-            - "core_list_global"：数据面绑核。需要为网卡所在CPU的中间值，NUMA node0所用CPU为0-23，此处可以填写1，表示使用1号核。
+            - "core_list_global"：数据面绑核。需要为网卡所在CPU的中间值，NUMA node0所用CPU为0-23，此处可以填写1，表示使用1号核。需要确保与ctrl_vcpu_ids绑定的核不同, ctrl_vcpu_ids为控制面绑核, 在配置文件的common配置项下。
             - "socket_mem"：给网卡所在numa_node分配的大页内存，用户需根据实际情况更改。
                 - 服务端为物理机时：
                     - 如果网卡所在NUMA node0，在0号socket上分配1024MB大页内存，可使用"--socket-mem=1024"。

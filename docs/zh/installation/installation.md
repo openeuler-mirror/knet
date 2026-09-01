@@ -31,7 +31,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 1. 安装系统依赖。
 
     ```bash
-    yum install -y libcap-devel tar gzip vim
+    yum install -y libcap-devel tar gzip vim rpm-build
     ```
 
 2. 安装部署工具依赖。
@@ -51,7 +51,7 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 安装DPDK
 
-参考[版本配套关系](../release_note.md#版本配套关系)确认需要安装的DPDK版本，如果已经安装对应版本的DPDK，且不需要抓包功能，可跳过以下DPDK的安装流程。
+参考[版本配套关系](../release_note.md#版本配套关系)确认需要安装的DPDK版本，如果已经安装对应版本的DPDK，可跳过以下DPDK的安装流程。
 可先通过pkg-config查询DPDK版本：
 
 ```bash
@@ -114,11 +114,12 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
 ## 安装dpdk-hinic3驱动
 
-1. 获取hinic3 PMD源码。
+1. 获取dpdk-hinic3 PMD源码。
 
     ```bash
     cd /home/opt/
-    git clone https://atomgit.com/openeuler/dpdk/.git -b hinic3_master dpdk-hinic3_master
+    # 拉取dpdk仓库代码并切换到hinic3_master分支
+    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
     ```
 
 2. 获取配套版本的tag。
@@ -137,7 +138,14 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     ```bash
     cd dpdk-hinic3_master
     git checkout <commitid>
+    git log --oneline -n 1
     ```
+   
+    以下为`git log --oneline -n 1`回显示例：
+   
+   ```bash
+   0d6bdb7 (HEAD, tag: hinic3-26.1.rc1-0630.r1) !430 [fix] scatter rx enable default
+   ```
 
 4. 编译。
     
@@ -151,9 +159,17 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     ```bash
     cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
     ls -l /usr/lib64/librte_net_hinic3.so*
-    ldconfig
+    ldconfig  # 通过ls确认cp成功后更新库的链接和缓存
     ```
 
+    以下为`ls -l /usr/lib64/librte_net_hinic3.so*`回显示例：
+    
+    ```bash
+    -rw-r--r--. 1 root root       23 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so -> librte_net_hinic3.so.22
+    -rw-r--r--. 1 root root       25 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22 -> librte_net_hinic3.so.22.0
+    -rw-r--r--. 1 root root   371976 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22.0
+    ```
+    
     > [!NOTE]说明
     > {,.22,.22.0}根据实际DPDK版本替换，以DPDK 21.11.7版本为例，此处DPDK的so版本为21 + 1，即为22。
 
@@ -288,8 +304,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
-    1:knet-1.4.0-1       ###################################[100%]
-    Cleaning up/removing...
+         1:knet-1.4.0-1       ###################################[100%]
     ```
 
     若安装过K-NET，执行以下命令直接升级：
@@ -311,8 +326,9 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
-    1:knet-1.4.0-1       ###################################[100%]
+        1:knet-1.4.0-1       ###################################[50%]
     Cleaning up/removing...
+        2:knet-1.4.0-1       ###################################[100%]
     ```        
 
 ### Computing ToolKit批量安装

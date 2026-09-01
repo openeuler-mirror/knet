@@ -108,134 +108,6 @@ vi /etc/knet/knet_comm.conf
 
 通过测试客户端和服务端之间Tperf的性能数据，来对比使用K-NET加速和内核协议栈（未使用K-NET加速）的性能提升。
 
-### 内核协议栈Tperf性能测试（未使用K-NET加速）
-
-1. 运行并发连接数为1的tperf_os。
-
-    并发连接数为1，即服务端指定一个线程进行侦听。
-    1. （服务端）启动Tperf。
-
-        ```bash
-        taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
-        ```
-        > [!NOTE]说明
-        >
-        >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内，具体可参见[绑核与网卡所在NUMA一致](../../docs/zh/reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)。
-        >- -l 192.168.1.6：指定本地侦听的IP地址。
-        >- -s：运行模式为服务端。 
-        >- -p 11111：指定在11111端口进行侦听。
-        >- -n 1：指定一个线程（即一个并发连接数）。
-        >- -S 16：指定CPU绑核的起始值。
-
-        服务端回显:
-
-        ```coldfusion
-        Listening on 192.168.1.6:11111
-        ```
-
-    2. （客户端）进行测试性能。
-
-        ```bash
-        taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
-        ```
-
-        > [!NOTE]说明
-        >
-        >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内。
-        >- -l 192.168.1.7：指定本地侦听的IP地址。
-        >- -c 192.168.1.6：运行模式为客户端，并指定服务端的IP地址为192.168.1.6。
-        >- -m 4096：指定打流message大小为4096。
-        >- -N 1：指定建联的线程数。
-        >- -t write：指定测试模式为write。
-        >- -d 31：指定测试时间为31秒。
-
-        服务端回显：
-
-        ```coldfusion
-        Accepted connection: fd = 6, cli_addr=192.168.1.6, cli_port=11111
-        nr_sock :1
-        ```
-
-        客户端回显：
-
-        ```coldfusion
-        Connection in progress...server port 11111, sockfd 4, cli_port random
-        Connection established with sockfd 4
-            0 w       0.000 read Gbits/sec  20.819 write Gbits/sec
-            1 w       0.000 read Gbits/sec  20.347 write Gbits/sec
-            2 w       0.000 read Gbits/sec  21.650 write Gbits/sec
-            3 w       0.000 read Gbits/sec  21.555 write Gbits/sec
-        ...
-        ...
-        ...
-            30 w       0.000 read Gbits/sec  21.652 write Gbits/sec
-        ---
-        0 nr_conn=1 nr_zero_io_conn=0
-        ```
-        测试值为21Gbits/sec，实际数据以运行为准。
-
-    3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
-
-2. 运行并发连接数为2的tperf_os。
-
-    并发连接数为2，即服务端指定两个线程进行侦听。
-    1. （服务端）启动Tperf。
-
-        ```bash
-        taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
-        ```
-
-        > [!NOTE]说明
-        >- -n 2：指定并发连接数为2.
-        >- -p 11111：指定侦听的端口，因并发连接数为2，所以侦听端口为11111和11112。
-
-        服务端回显:
-
-        ```coldfusion
-        Listening on 192.168.1.6:11111
-        Listening on 192.168.1.6:11112
-        ```
-
-    2. （客户端）进行测试性能。
-
-        ```bash
-        taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
-        ```
-
-        服务端回显：
-
-        ```coldfusion
-        Accepted connection: fd = 9, cli_addr=192.168.1.7, cli_port=11111
-        Accepted connection: fd = 10, cli_addr=192.168.1.7, cli_port=11112
-        nr_sock :2
-        ```
-
-        客户端回显：
-
-        ```coldfusion
-        Connection in progress...server port 11111, sockfd 6, cli_port random
-        Connection in progress...server port 11112, sockfd 5, cli_port random
-        Connection established with sockfd 5
-        Connection established with sockfd 6
-            0 w    0. 0.000 read Gbits/sec  21.126 write Gbits/sec
-            0 w    1. 0.000 read Gbits/sec  21.208 write Gbits/sec
-            0 w       0.000 read Gbits/sec  42.334 write Gbits/sec
-
-            1 w    0. 0.000 read Gbits/sec  21.231 write Gbits/sec
-            1 w    1. 0.000 read Gbits/sec  21.225 write Gbits/sec
-            1 w       0.000 read Gbits/sec  42.456 write Gbits/sec
-
-            2 w    0. 0.000 read Gbits/sec  21.227 write Gbits/sec
-            2 w    1. 0.000 read Gbits/sec  21.232 write Gbits/sec
-            2 w       0.000 read Gbits/sec  42.459 write Gbits/sec
-        ...
-        ...
-        ...
-        ```
-        测试值为42Gbits/sec，实际数据以运行为准。
-
-3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
-
 ### K-NET无感加速tperf_os
 
 > [!NOTE]性能说明
@@ -262,7 +134,7 @@ vi /etc/knet/knet_comm.conf
             "0000:04:00.0"
         ], # 2. 填写获取的BDF号
         "mac": "ac:dc:ca:xx:xx:xx", # 3. 填写绑定网卡的MAC地址 
-        "ip": "192.168.1.58",        # 4. 填写绑定网卡的IP地址
+        "ip": "192.168.1.6",        # 4. 填写绑定网卡的IP地址
         ...
     },
         ...
@@ -278,7 +150,7 @@ vi /etc/knet/knet_comm.conf
     > - "mode": 运行模式，0表示单进程模式，1表示多进程模式。此处填0。
     > - "bdf_nums"：填写获取的BDF号，此处以0000:04:00.0为例。
     > - "mac"：填写绑定网卡的MAC地址，此处以ac:dc:ca:xx:xx:xx为例。
-    > - "ip"：填写绑定网卡的IP地址，此处以192.168.1.58为例。
+    > - "ip"：填写绑定网卡的IP地址，此处以192.168.1.6为例。
     > - "core_list_global"：数据面绑核。需要为网卡所在CPU的中间值，若NUMA node1所用CPU为16-31，此处可以填写17，表示使用17号核。
     > - "socket_mem"：给网卡所在numa_node分配的大页内存。网卡所在NUMA node0，在0号socket上分配1024MB大页内存，用户需要根据实际查看的numa_node编号进行更改。如果网卡所在NUMA node1，在0号socket上预分配0MB大页内存，在1号socket上分配1024MB大页内存，请填写为“--socket-mem=0,1024”。
 
@@ -501,7 +373,7 @@ vi /etc/knet/knet_comm.conf
     按“i”进入编辑模式，修改以下配置项：
 
     ```text
-    "cothread_enable": 1;
+    "cothread_enable": 1
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -865,7 +737,7 @@ vi /etc/knet/knet_comm.conf
 
     ```text
     "zcopy_enable": 1,
-    "cothread_enable": 1;
+    "cothread_enable": 1
     ```
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -1003,19 +875,19 @@ vi /etc/knet/knet_comm.conf
         Connection in progress...server port 11112, sockfd 69, cli_port 49162
         Connection established with sockfd 60
         Connection established with sockfd 59
-            0 w    0. 0.000 read Gbits/sec  72.071 write Gbits/sec
-            0 w    1. 0.000 read Gbits/sec  72.551 write Gbits/sec
-            0 w       0.000 read Gbits/sec  144.622 write Gbits/sec
+            0 w    0. 0.000 read Gbits/sec  45.571 write Gbits/sec
+            0 w    1. 0.000 read Gbits/sec  48.551 write Gbits/sec
+            0 w       0.000 read Gbits/sec  94.122 write Gbits/sec
 
-            1 w    0. 0.000 read Gbits/sec  72.196 write Gbits/sec
-            1 w    1. 0.000 read Gbits/sec  72.707 write Gbits/sec
-            1 w       0.000 read Gbits/sec  144.903 write Gbits/sec
+            1 w    0. 0.000 read Gbits/sec  45.596 write Gbits/sec
+            1 w    1. 0.000 read Gbits/sec  48.707 write Gbits/sec
+            1 w       0.000 read Gbits/sec  94.303 write Gbits/sec
         ...
         ...
         ...
         ```
-        测试值为144Gbits/sec，实际数据以运行为准。
-    通过对比可以看到，使用K-NET进行网络加速后，并发数为1的测试从21Gbits/sec提升到76Gbits/sec，并发数为2的测试值从42Gbits/sec提升到144Gbits/sec。
+        测试值为94Gbits/sec，实际数据以运行为准。
+    通过对比可以看到，使用K-NET进行网络加速后，并发数为1的测试从21Gbits/sec提升到76Gbits/sec，并发数为2的测试值从42Gbits/sec提升到94Gbits/sec。
 
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
 
@@ -1030,3 +902,131 @@ vi /etc/knet/knet_comm.conf
     > [!NOTE]说明
     > 示例使用的“0000:04:00.0”，请以实际BDF号为准。
     > "hisdk3"为SP670网卡使用的驱动。
+
+### 内核协议栈Tperf性能测试（未使用K-NET加速, 需取消dpdk接管网卡）
+
+1. 运行并发连接数为1的tperf_os。
+
+    并发连接数为1，即服务端指定一个线程进行侦听。
+    1. （服务端）启动Tperf。
+
+        ```bash
+        taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
+        ```
+        > [!NOTE]说明
+        >
+        >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内，具体可参见[绑核与网卡所在NUMA一致](../../docs/zh/reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)。
+        >- -l 192.168.1.6：指定本地侦听的IP地址。
+        >- -s：运行模式为服务端。 
+        >- -p 11111：指定在11111端口进行侦听。
+        >- -n 1：指定一个线程（即一个并发连接数）。
+        >- -S 16：指定CPU绑核的起始值。
+
+        服务端回显:
+
+        ```coldfusion
+        Listening on 192.168.1.6:11111
+        ```
+
+    2. （客户端）进行测试性能。
+
+        ```bash
+        taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 1 -N 1 -S 16 -t write -d 31
+        ```
+
+        > [!NOTE]说明
+        >
+        >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内。
+        >- -l 192.168.1.7：指定本地侦听的IP地址。
+        >- -c 192.168.1.6：运行模式为客户端，并指定服务端的IP地址为192.168.1.6。
+        >- -m 4096：指定打流message大小为4096。
+        >- -N 1：指定建联的线程数。
+        >- -t write：指定测试模式为write。
+        >- -d 31：指定测试时间为31秒。
+
+        服务端回显：
+
+        ```coldfusion
+        Accepted connection: fd = 6, cli_addr=192.168.1.6, cli_port=11111
+        nr_sock :1
+        ```
+
+        客户端回显：
+
+        ```coldfusion
+        Connection in progress...server port 11111, sockfd 4, cli_port random
+        Connection established with sockfd 4
+            0 w       0.000 read Gbits/sec  20.819 write Gbits/sec
+            1 w       0.000 read Gbits/sec  20.347 write Gbits/sec
+            2 w       0.000 read Gbits/sec  21.650 write Gbits/sec
+            3 w       0.000 read Gbits/sec  21.555 write Gbits/sec
+        ...
+        ...
+        ...
+            30 w       0.000 read Gbits/sec  21.652 write Gbits/sec
+        ---
+        0 nr_conn=1 nr_zero_io_conn=0
+        ```
+        测试值为21Gbits/sec，实际数据以运行为准。
+
+    3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
+
+2. 运行并发连接数为2的tperf_os。
+
+    并发连接数为2，即服务端指定两个线程进行侦听。
+    1. （服务端）启动Tperf。
+
+        ```bash
+        taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
+        ```
+
+        > [!NOTE]说明
+        >- -n 2：指定并发连接数为2.
+        >- -p 11111：指定侦听的端口，因并发连接数为2，所以侦听端口为11111和11112。
+
+        服务端回显:
+
+        ```coldfusion
+        Listening on 192.168.1.6:11111
+        Listening on 192.168.1.6:11112
+        ```
+
+    2. （客户端）进行测试性能。
+
+        ```bash
+        taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
+        ```
+
+        服务端回显：
+
+        ```coldfusion
+        Accepted connection: fd = 9, cli_addr=192.168.1.7, cli_port=11111
+        Accepted connection: fd = 10, cli_addr=192.168.1.7, cli_port=11112
+        nr_sock :2
+        ```
+
+        客户端回显：
+
+        ```coldfusion
+        Connection in progress...server port 11111, sockfd 6, cli_port random
+        Connection in progress...server port 11112, sockfd 5, cli_port random
+        Connection established with sockfd 5
+        Connection established with sockfd 6
+            0 w    0. 0.000 read Gbits/sec  21.126 write Gbits/sec
+            0 w    1. 0.000 read Gbits/sec  21.208 write Gbits/sec
+            0 w       0.000 read Gbits/sec  42.334 write Gbits/sec
+
+            1 w    0. 0.000 read Gbits/sec  21.231 write Gbits/sec
+            1 w    1. 0.000 read Gbits/sec  21.225 write Gbits/sec
+            1 w       0.000 read Gbits/sec  42.456 write Gbits/sec
+
+            2 w    0. 0.000 read Gbits/sec  21.227 write Gbits/sec
+            2 w    1. 0.000 read Gbits/sec  21.232 write Gbits/sec
+            2 w       0.000 read Gbits/sec  42.459 write Gbits/sec
+        ...
+        ...
+        ...
+        ```
+        测试值为42Gbits/sec，实际数据以运行为准。
+
+3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
