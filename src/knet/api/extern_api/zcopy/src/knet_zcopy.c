@@ -61,18 +61,6 @@ void knet_mp_free(void *addr, void *opaque)
 
 static ssize_t KnetZWritevNotHijackPath(int sockfd, const struct knet_iovec *iov, int iovcnt)
 {
-    if (iovcnt < 0 || iovcnt > ZCOPY_IOV_CNT_MAX) {
-        KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iovcnt %d is invalid", iovcnt);
-        errno = EINVAL;
-        return -1;
-    }
-
-    if (iov == NULL) {
-        KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iov invalid");
-        errno = EFAULT;
-        return -1;
-    }
-
     struct iovec posixIov[iovcnt];
     for (int i = 0; i < iovcnt; ++i) {
         posixIov[i].iov_base = iov[i].iov_base;
@@ -103,6 +91,13 @@ ssize_t knet_zwritev(int sockfd, const struct knet_iovec *iov, int iovcnt)
     if (iov == NULL) {
         KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iov invalid");
         errno = EFAULT;
+        return -1;
+    }
+    
+    /* 修复: iovcnt 校验前移至入口, 防止非劫持路径中栈数组越界与调用DP_ZWritev前的参数校验 */
+    if (iovcnt < 0 || iovcnt > ZCOPY_IOV_CNT_MAX) {
+        KNET_LOG_LINE_LIMIT(KNET_LOG_ERR, "K-NET zero copy writev failed, iovcnt %d is invalid", iovcnt);
+        errno = EINVAL;
         return -1;
     }
 

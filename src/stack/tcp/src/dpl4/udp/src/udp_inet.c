@@ -386,7 +386,8 @@ static int UdpInetAutoBind(Sock_t* sk, InetSk_t* inetSk)
 
     if (UdpInetGenPort(tbl, &tempHi, 0, UdpInetCanBind) == 0) {
         ret = 0;
-    } else if (SOCK_CAN_REUSE(sk) && UdpInetGenPort(tbl, &inetSk->hashinfo, 1, UdpInetCanBind) == 0) {
+    /* 修复: 使用 &tempHi 替代 &inetSk->hashinfo, 确保端口结果回写正确 */
+    } else if (SOCK_CAN_REUSE(sk) && UdpInetGenPort(tbl, &tempHi, 1, UdpInetCanBind) == 0) {
         ret = 0;
     } else {
         ret = -EAGAIN;
@@ -994,10 +995,9 @@ static Pbuf_t* UdpInetInput(Pbuf_t* pbuf)
     UdpHashRefTbl(tbl);
 
     inetSk = UdpInetLookupByPkt(tbl, pbuf, udpHdr);
-    UdpHashDerefTbl(tbl);
     if (inetSk == NULL) {
         ret = UdpGenPortUnreachable(pbuf);
-        goto drop;
+        goto droptbl;
     }
     sk = UdpInetSk2Sk(inetSk);
     // 时间戳选项开启
@@ -1007,7 +1007,7 @@ static Pbuf_t* UdpInetInput(Pbuf_t* pbuf)
 
     if (PBUF_GET_PKT_TYPE(pbuf) == PBUF_PKTTYPE_BROADCAST) {
         if (sk->broadcast == 0) { // 如果是广播报文
-            goto drop;
+            goto droptbl;
         }
     }
 
@@ -1016,11 +1016,14 @@ static Pbuf_t* UdpInetInput(Pbuf_t* pbuf)
     PBUF_SET_IFINDEX(pbuf, dev->ifindex);
     if (SOCK_PushRcvBufSafe(sk, pbuf) < 0) {
         NET_DEV_ADD_RX_DROP(NETDEV_GetRxQue(dev, PBUF_GET_QUE_ID(pbuf)), 1);
-        goto drop;
+        goto droptbl;
     }
+    UdpHashDerefTbl(tbl);
     DP_INC_PKT_STAT(pbuf->wid, DP_PKT_UDP_IN);
     return NULL;
 
+droptbl:
+    UdpHashDerefTbl(tbl);
 drop:
     PBUF_Free(pbuf);
 
