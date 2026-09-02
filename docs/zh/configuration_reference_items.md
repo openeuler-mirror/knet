@@ -90,3 +90,9 @@
 |telemetry    |统计信息的开关。<li>0：表示不开启。</li><li>1：表示开启。</li>|1|0，1|
 |huge_dir     |大页挂载路径。<p>例如：</p>`"huge_dir" : "--huge-dir=/home/username/hugepages"`|-|-|
 |base-virtaddr|DPDK主进程内存映射起始虚拟地址基地址。<p>例如：</p>`"base-virtaddr": "--base-virtaddr=0x100000000"`|-|-|
+
+## 修订记录
+
+|发布版本| 发布日期   | 修订说明  |
+|------|------|-------|
+|  01    | 2026-06-30  | 第一次正式发布。|
