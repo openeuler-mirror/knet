@@ -31,6 +31,7 @@
 1. （服务端）确认并配置网卡模板。
 
     首先使用以下命令查看系统中可用的网卡设备，确定网卡名称：
+    首先使用以下命令查看系统中可用的网卡设备，确定网卡名称：
 
     ```bash
     hinicadm3 info
@@ -148,6 +149,9 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     hinicadm3 cfg_data -i hinic0 -pf 0 -vfnum 1 -vfq 1
     hinicadm3 cfg_data -i hinic0 -pf 1 -vfnum 1 -vfq 1
     hinicadm3 cfg_data -i hinic0 -pf 2 -vfnum 40 -vfq 32
+
+    > [!NOTE]说明
+    >- hinic0：网卡名称，根据实际情况替换，下同。
     
     # 查看网卡队列数，回显如下图红色框中所示，代表配置成功
     hinicadm3 cfg_data -i hinic0
