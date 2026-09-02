@@ -1,7 +1,7 @@
 isManual: true
 label: 安装指南
 sections:
-  - label: 搭建环境
+  - label: 环境准备
     href: ./environment_setup.md
   - label: 安装
     href: ./installation.md
@@ -13,3 +13,5 @@ sections:
     href: ./uninstallation.md
   - label: 安装流程
     href: ./installation_processes.md
+  - label: 修订记录
+    href: ./change_history.md

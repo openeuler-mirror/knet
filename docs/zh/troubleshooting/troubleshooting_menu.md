@@ -14,3 +14,4 @@
 - [重启虚拟机失败进入shell界面](./vm_restart.md)
 - [零拷贝故障](./zero_copy.md)
 - [丢包故障](./packet_loss.md)
+- [修订记录](./change_history.md)

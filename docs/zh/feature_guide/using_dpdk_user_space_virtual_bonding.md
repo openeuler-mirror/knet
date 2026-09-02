@@ -89,7 +89,7 @@
 
 3. 配置服务端环境。
 
-    参考[环境配置](./environment_configuration.md)，注意执行DPDK接管网卡时Bond场景需要接管两个网口，另外配置文件做以下修改：
+    参考[使用前配置](./environment_configuration.md)，注意执行DPDK接管网卡时Bond场景需要接管两个网口，另外配置文件做以下修改：
 
     ```json
     "interface": {

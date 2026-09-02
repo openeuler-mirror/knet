@@ -10,7 +10,7 @@
 
 > [!NOTE]说明
 >
->- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行使用前配置。
 >- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
 >- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
 >- 若任务运行失败，请参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
@@ -81,7 +81,7 @@
     2. 另起一个终端运行第一个业务。
 
         > [!NOTE]说明
-        >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[环境配置](./environment_configuration.md)进行设置。
+        >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[使用前配置](./environment_configuration.md)进行设置。
         >- 以KNET_USER为用户名占位符，推荐在“/home/KNET_USER”目录下执行该命令（KNET_USER用户在此目录下拥有读写权限），实际运行时将其替换为实际用户名。KNET_USER需具有命令执行权限。
         >- 若为root用户，执行时需添加so文件路径，运行命令如下：
         >
