@@ -4,7 +4,7 @@
 
 ### 现象描述
 
-多进程模式启动，knet\_mp\_daemon进程被意外挂起。导致客户端打流失败，且knet\_comm.log报错。
+多进程模式启动，knet_mp_daemon进程被意外挂起。导致客户端打流失败，且knet_comm.log报错。
 
 ![](../figures/zh-cn_image_0000002504028414.png)
 
@@ -33,12 +33,12 @@ K-NET rpc client socket failed to be connected, clientFd: xx, error: 111
 
 ### 原因
 
-- 意外终止knet\_mp\_daemon进程。
-- knet\_mp\_daemon进程运行过程中意外终止。
+- 意外终止knet_mp_daemon进程。
+- knet_mp_daemon进程运行过程中意外终止。
 
 ### 处理步骤
 
-关闭K-NET所有的业务进程，然后重新启动knet\_mp\_daemon进程，再启动从进程业务。业务启动命令参见[多进程模式加速](../feature_guide/multi_process_model_acceleration.md)。
+关闭K-NET所有的业务进程，然后重新启动knet_mp_daemon进程，再启动从进程业务。业务启动命令参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
 
 ## 启动业务进程失败提示“error allocating core states array”
 
@@ -68,18 +68,18 @@ Mbuf pool usage is too high: 0.xx
 
 ### 原因
 
-没有足够的可用的大页内存：可能是/etc/knet/knet\_comm.conf配置文件中socket\_limit配置得太小，或者大页内存碎片化严重。
+没有足够的可用的大页内存：可能是/etc/knet/knet_comm.conf配置文件中socket_limit配置得太小，或者大页内存碎片化严重。
 
 ### 处理步骤
 
-1. 增大/etc/knet/knet\_comm.conf配置文件中socket\_limit配置，并增加实际可用大页内存。
-2. 关闭K-NET knet\_mp\_daemon进程以及所有的业务进程，然后重新启动。业务启动命令参考[多进程模式加速](../feature_guide/multi_process_model_acceleration.md)。
+1. 增大/etc/knet/knet_comm.conf配置文件中socket_limit配置，并增加实际可用大页内存。
+2. 关闭K-NET knet_mp_daemon进程以及所有的业务进程，然后重新启动。业务启动命令参考[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
 
-## 启动业务进程长时间阻塞且knet\_comm.log无错误日志输出
+## 启动业务进程长时间阻塞且knet_comm.log无错误日志输出
 
 ### 现象描述
 
-启动业务进程长时间阻塞且knet\_comm.log无错误日志输出。
+启动业务进程长时间阻塞且knet_comm.log无错误日志输出。
 
 ![](../figures/zh-cn_image_0000002535748371.png)
 
@@ -91,7 +91,7 @@ Mbuf pool usage is too high: 0.xx
 
 上述问题可以通过两个方法解决：
 
-- 方案1：关闭K-NET knet\_mp\_daemon进程以及所有的业务进程，然后重新启动，业务启动命令参见[多进程模式加速](../feature_guide/multi_process_model_acceleration.md)。
-- 方案2：将dpdk源码中的rte\_spinlock\_lock修改为pthread的锁实现，可以保证进程异常退出之后可以释放锁。
+- 方案1：关闭K-NET knet_mp_daemon进程以及所有的业务进程，然后重新启动，业务启动命令参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
+- 方案2：将dpdk源码中的rte_spinlock_lock修改为pthread的锁实现，可以保证进程异常退出之后可以释放锁。
 
 用户可以根据实际情况选择相应的方法。

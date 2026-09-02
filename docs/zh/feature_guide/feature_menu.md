@@ -1,7 +1,7 @@
 # 特性指南
 
 - [特性支持](./feature_overview.md)
-- [环境配置](./environment_configuration.md)
+- [使用前配置](./environment_configuration.md)
 - [网络加速功能](./network_acceleration_verification.md)
   - [单进程加速功能](./single_process_model_acceleration.md)
   - [多进程加速功能](./multi_process_model_acceleration.md)
@@ -14,3 +14,4 @@
   - [本地流量环回功能](./local_loopback.md)
 - [使用示例](./usage_example.md)
   - [使用共线程、零拷贝功能进行Tperf加速](../../../demo/tperf/tperf.md)
+- [修订记录](./change_history.md)
