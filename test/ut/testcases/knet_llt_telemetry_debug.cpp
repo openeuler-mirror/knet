@@ -67,6 +67,9 @@ KNET_STATIC int CreateTcpBaseInfoAndAddReply(DP_SockDetails_t *dpSockDetails, st
 KNET_STATIC int CreateTcpTransInfoAndAddReply(DP_SockDetails_t *dpSockDetails, struct rte_tel_data* data);
 KNET_STATIC int ProcessSocketInfo(DP_SockDetails_t *socketDetails, struct rte_tel_data* data);
 KNET_STATIC struct rte_hash *KnetGetFdirHandle(void);
+void KNET_Usleep(uint64_t usec);
+int AddPidTid(struct rte_tel_data *data, uint32_t queId);
+extern char g_knetDebugOutput[MAX_OUTPUT_LEN];
 
 }
 
@@ -808,5 +811,411 @@ DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetGetTidByWorkerId, NULL, NULL)
 
     Mock->Delete(KNET_GetCfg);
     Mock->Delete(KNET_GetQueIdMapPidTidLcoreInfo);
+    DeleteMock(Mock);
+}
+
+/* ========== 新增用例: 覆盖 knet_telemetry_debug.c 未覆盖函数 ========== */
+
+static void MockKnetUsleep(uint64_t usec) { (void)usec; }
+static int MockIsQueueIdUsedQ0Q2(int queId) { return (queId == 0 || queId == 2) ? 1 : 0; }
+static int MockIsQueueIdUsedQ0(int queId) { return (queId == 0) ? 1 : 0; }
+static KNET_QueIdMapPidTid_t g_mockQueData = {};
+static KNET_QueIdMapPidTid_t* MockGetQueIdMapStatic(void) { return &g_mockQueData; }
+/* malloc版本: 返回动态分配内存, MockTelDataAddDictContainer可安全free */
+static struct rte_tel_data* MockRteTelDataAllocMalloc(void)
+{
+    return (struct rte_tel_data *)calloc(1, sizeof(struct rte_tel_data));
+}
+
+/**
+ * @brief ParseTelemetryParams: 成功解析/NULL输入/非法数字/参数过多
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_ParseTelemetryParams, NULL, NULL)
+{
+    uint32_t paramsArr[4] = {0};
+
+    /* NULL输入 */
+    int ret = ParseTelemetryParams(NULL, paramsArr, 4);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* 成功解析2个参数 */
+    ret = ParseTelemetryParams("1 2", paramsArr, 4);
+    DT_ASSERT_EQUAL(ret, 2);
+    DT_ASSERT_EQUAL(paramsArr[0], 1);
+    DT_ASSERT_EQUAL(paramsArr[1], 2);
+
+    /* 非法数字 */
+    ret = ParseTelemetryParams("abc 2", paramsArr, 4);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* 参数过多(maxCount=1, 但给了2个) */
+    ret = ParseTelemetryParams("1 2", paramsArr, 1);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* maxCount <= 0 */
+    ret = ParseTelemetryParams("1", paramsArr, 0);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* paramsArr为NULL */
+    ret = ParseTelemetryParams("1", NULL, 4);
+    DT_ASSERT_EQUAL(ret, -1);
+}
+
+/**
+ * @brief KnetGetQueIdByPid: 找到/未找到
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetGetQueIdByPid, NULL, NULL)
+{
+    KNET_TelemetryInfo telemetryInfo = {};
+    telemetryInfo.pid[0] = 100;
+    telemetryInfo.pid[5] = 200;
+    telemetryInfo.pid[10] = 300;
+
+    /* 找到pid=200 -> queId=5 */
+    int queId = KnetGetQueIdByPid(200, &telemetryInfo);
+    DT_ASSERT_EQUAL(queId, 5);
+
+    /* 找到pid=100 -> queId=0 */
+    queId = KnetGetQueIdByPid(100, &telemetryInfo);
+    DT_ASSERT_EQUAL(queId, 0);
+
+    /* 未找到pid=999 -> queId=-1 */
+    queId = KnetGetQueIdByPid(999, &telemetryInfo);
+    DT_ASSERT_EQUAL(queId, -1);
+}
+
+/**
+ * @brief KnetHandleTimeout: msgReady=0直接返回OK, msgReady=1超时返回错误
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetHandleTimeout, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* mock KNET_Usleep 避免实际睡眠 */
+    Mock->Create(KNET_Usleep, MockKnetUsleep);
+
+    KNET_TelemetryInfo telemetryInfo = {};
+
+    /* msgReady[0]=0 -> while不执行, 直接返回OK */
+    telemetryInfo.msgReady[0] = 0;
+    int ret = KnetHandleTimeout(&telemetryInfo, 0);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    /* msgReady[1]=1 -> while执行10次后超时, 返回错误 */
+    telemetryInfo.msgReady[1] = 1;
+    ret = KnetHandleTimeout(&telemetryInfo, 1);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    Mock->Delete(KNET_Usleep);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetUpdateSlaveProcessPidInfo: 更新队列映射
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetUpdateSlaveProcessPidInfo, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* mock KNET_IsQueueIdUsed: queue 0和2返回true, 其他false */
+    Mock->Create(KNET_IsQueueIdUsed, MockIsQueueIdUsedQ0Q2);
+
+    KNET_TelemetryInfo telemetryInfo = {};
+    KnetUpdateSlaveProcessPidInfo(&telemetryInfo);
+    DT_ASSERT_EQUAL(telemetryInfo.telemetryType, KNET_TELEMETRY_UPDATE_QUE_INFO);
+    DT_ASSERT_EQUAL(telemetryInfo.msgReady[0], 1);
+    DT_ASSERT_EQUAL(telemetryInfo.msgReady[2], 1);
+    DT_ASSERT_EQUAL(telemetryInfo.msgReady[1], 0);
+
+    Mock->Delete(KNET_IsQueueIdUsed);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetWaitAllSlavePorcessHandle: 无队列使用/成功/失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetWaitAllSlavePorcessHandle, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(KNET_Usleep, MockKnetUsleep);
+
+    /* 所有队列都未使用 -> 直接返回OK */
+    Mock->Create(KNET_IsQueueIdUsed, TEST_GetFuncRetPositive(0));
+    KNET_TelemetryInfo telemetryInfo = {};
+    int ret = KnetWaitAllSlavePorcessHandle(&telemetryInfo);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    Mock->Delete(KNET_IsQueueIdUsed);
+
+    /* queue 0使用, msgReady[0]=0 -> 成功 */
+    Mock->Create(KNET_IsQueueIdUsed, MockIsQueueIdUsedQ0);
+    telemetryInfo.msgReady[0] = 0;
+    ret = KnetWaitAllSlavePorcessHandle(&telemetryInfo);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    Mock->Delete(KNET_IsQueueIdUsed);
+
+    /* queue 0使用, msgReady[0]=1 -> 超时失败 */
+    Mock->Create(KNET_IsQueueIdUsed, MockIsQueueIdUsedQ0);
+    telemetryInfo.msgReady[0] = 1;
+    ret = KnetWaitAllSlavePorcessHandle(&telemetryInfo);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    Mock->Delete(KNET_IsQueueIdUsed);
+    Mock->Delete(KNET_Usleep);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetGetTidByWorkerId: workerId未找到失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetGetTidByWorkerIdFail, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* MockKnetGetQueIdMapPidTidLcoreInfo返回workerId=1, 查找workerId=999不会匹配 */
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(KNET_GetQueIdMapPidTidLcoreInfo, MockKnetGetQueIdMapPidTidLcoreInfo);
+
+    uint32_t tid = 0;
+    int ret = KnetGetTidByWorkerId(999, &tid);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(KNET_GetQueIdMapPidTidLcoreInfo);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief AddPidTid: queId超限/tid无效/成功路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_AddPidTid, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    struct rte_tel_data data = {};
+
+    /* queId >= MAX_QUEUE_NUM -> 返回错误 */
+    int ret = AddPidTid((struct rte_tel_data *)&data, QUEUEID_EXCEED_MAX_QUEUENUM);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* tid=INVALID_TID(0) -> 返回OK但不添加 */
+    (void)memset_s(&g_mockQueData, sizeof(g_mockQueData), 0, sizeof(g_mockQueData));
+    g_mockQueData.tid = 0; /* INVALID_TID */
+    Mock->Create(KNET_GetQueIdMapPidTidLcoreInfo, MockGetQueIdMapStatic);
+    ret = AddPidTid((struct rte_tel_data *)&data, 0);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    /* tid非0 -> 成功路径(使用malloc版alloc, MockTelDataAddDictContainer可安全free) */
+    g_mockQueData.tid = 1;
+    g_mockQueData.pid = 100;
+    g_mockQueData.lcoreId = 2;
+    g_mockQueData.workerId = 1;
+    Mock->Create(rte_tel_data_alloc, MockRteTelDataAllocMalloc);
+    Mock->Create(rte_tel_data_start_dict, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_tel_data_add_dict_u64, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_tel_data_add_dict_container, MockTelDataAddDictContainer);
+    ret = AddPidTid((struct rte_tel_data *)&data, 0);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    Mock->Delete(KNET_GetQueIdMapPidTidLcoreInfo);
+    Mock->Delete(rte_tel_data_alloc);
+    Mock->Delete(rte_tel_data_start_dict);
+    Mock->Delete(rte_tel_data_add_dict_u64);
+    Mock->Delete(rte_tel_data_add_dict_container);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetTelemetryQueIdMapPidTidCallback: data为NULL/成功路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetTelemetryQueIdMapPidTidCallback, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* data为NULL -> 返回错误 */
+    int ret = KnetTelemetryQueIdMapPidTidCallback("/knet/queue", NULL, NULL);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* params不为NULL -> 返回错误 */
+    struct rte_tel_data data = {};
+    ret = KnetTelemetryQueIdMapPidTidCallback("/knet/queue", "1", (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* 成功路径: data非NULL, params=NULL, 使用malloc版alloc */
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(rte_tel_data_alloc, MockRteTelDataAllocMalloc);
+    Mock->Create(rte_tel_data_start_dict, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_GetQueIdMapPidTidLcoreInfo, MockKnetGetQueIdMapPidTidLcoreInfo);
+    Mock->Create(rte_tel_data_add_dict_u64, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_tel_data_add_dict_container, MockTelDataAddDictContainer);
+
+    ret = KnetTelemetryQueIdMapPidTidCallback("/knet/queue", NULL, (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(rte_tel_data_alloc);
+    Mock->Delete(rte_tel_data_start_dict);
+    Mock->Delete(KNET_GetQueIdMapPidTidLcoreInfo);
+    Mock->Delete(rte_tel_data_add_dict_u64);
+    Mock->Delete(rte_tel_data_add_dict_container);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CheckAddContainerToDict: rte_tel_data_add_dict_container返回非0时的错误路径
+ */
+static int MockAddDictContainerErr(struct rte_tel_data *d, const char *name,
+                                   struct rte_tel_data *val, int keep)
+{
+    (void)d; (void)name; (void)val; (void)keep;
+    return 1;
+}
+
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_CheckAddContainerToDictErr, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    struct rte_tel_data data = {};
+    struct rte_tel_data value = {};
+
+    /* mock add_dict_container 返回1(失败) -> 释放value并返回-1 */
+    Mock->Create(rte_tel_data_add_dict_container, MockAddDictContainerErr);
+    Mock->Create(rte_tel_data_free, TEST_GetFuncRetPositive(0));
+
+    int ret = CheckAddContainerToDict((struct rte_tel_data *)&data, "test", (struct rte_tel_data *)&value);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(rte_tel_data_add_dict_container);
+    Mock->Delete(rte_tel_data_free);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetTelemetryFlowTableCallback: 参数解析失败/成功路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetTelemetryFlowTableCallback, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    struct rte_tel_data data = {};
+
+    /* data为NULL -> 返回错误 */
+    int ret = KnetTelemetryFlowTableCallback("/knet/flow_table", NULL, NULL);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* 参数格式错误(只有一个参数) -> ParseFlowTableParams失败 */
+    ret = KnetTelemetryFlowTableCallback("/knet/flow_table", "1", (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* 成功路径: 参数"0 10"(startIndex=0, count=10) */
+    Mock->Create(rte_tel_data_start_dict, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_ProcessFlowTable, TEST_GetFuncRetPositive(0));
+
+    ret = KnetTelemetryFlowTableCallback("/knet/flow_table", "0 10", (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    /* count超过MAX(256) -> 失败 */
+    ret = KnetTelemetryFlowTableCallback("/knet/flow_table", "0 257", (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    Mock->Delete(rte_tel_data_start_dict);
+    Mock->Delete(KNET_ProcessFlowTable);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KnetTelemetryStatisticCallback: 成功路径(单进程模式)
+ *        覆盖 GetStatTypeFromString/ValidateParams/HandleTelemetryHook/ProcessJsonData
+ */
+static void MockShowStatisticsHook(DP_StatType_t type, int pid, uint32_t outputTo)
+{
+    (void)type; (void)pid; (void)outputTo;
+    /* 设置g_knetDebugOutput为有效JSON */
+    const char *json = "{\"key1\":\"123\",\"key2\":\"456\"}";
+    (void)snprintf_s(g_knetDebugOutput, MAX_OUTPUT_LEN, strlen(json), "%s", json);
+}
+
+static int MockSocketCountGetHook(int socketType)
+{
+    (void)socketType;
+    return 0;
+}
+
+static int MockGetSocketStateHook(int fd, DP_SocketState_t *state)
+{
+    (void)fd; (void)state;
+    return 0;
+}
+
+static int MockGetSocketDetailsHook(int fd, DP_SockDetails_t *details)
+{
+    (void)fd; (void)details;
+    return 0;
+}
+
+static int MockGetEpollDetailsHook(int epollfd, DP_EpollDetails_t *details, int size, int *workerId)
+{
+    (void)epollfd; (void)details; (void)size; (void)workerId;
+    return 0;
+}
+
+static union KNET_CfgValue g_cfgSingle;
+static union KNET_CfgValue *MockKnetGetCfgSingle(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgSingle, sizeof(g_cfgSingle), 0, sizeof(g_cfgSingle));
+    if (key == CONF_COMMON_MODE) {
+        g_cfgSingle.intValue = 0; /* KNET_RUN_MODE_SINGLE */
+    } else {
+        g_cfgSingle.intValue = 1;
+    }
+    return &g_cfgSingle;
+}
+
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_KnetTelemetryStatisticCallback, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* 注册hooks */
+    KNET_DpTelemetryHooks hooks = {0};
+    hooks.dpShowStatisticsHook = MockShowStatisticsHook;
+    hooks.dpSocketCountGetHook = MockSocketCountGetHook;
+    hooks.dpGetSocketStateHook = MockGetSocketStateHook;
+    hooks.dpGetSocketDetailsHook = MockGetSocketDetailsHook;
+    hooks.dpGetEpollDetailsHook = MockGetEpollDetailsHook;
+    int ret = KNET_DpTelemetryHookReg(hooks);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    /* mock单进程模式 + rte_tel_data函数 */
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgSingle);
+    Mock->Create(rte_tel_data_start_dict, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_tel_data_add_dict_u64, TEST_GetFuncRetPositive(0));
+
+    struct rte_tel_data data = {};
+    /* cmd="/knet/stack/tcp_stat" -> type=DP_STAT_TCP, params=NULL -> ValidateParams OK */
+    ret = KnetTelemetryStatisticCallback("/knet/stack/tcp_stat", NULL, (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+
+    /* cmd无效 -> GetStatTypeFromString返回DP_STAT_MAX -> 失败 */
+    ret = KnetTelemetryStatisticCallback("/invalid/cmd", NULL, (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    /* params为非NULL但非数字 -> ValidateParams失败 */
+    ret = KnetTelemetryStatisticCallback("/knet/stack/tcp_stat", "abc", (struct rte_tel_data *)&data);
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(rte_tel_data_start_dict);
+    Mock->Delete(rte_tel_data_add_dict_u64);
     DeleteMock(Mock);
 }
