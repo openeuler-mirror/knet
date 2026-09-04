@@ -44,6 +44,14 @@ void *KnetRteMalloc(const char *type, size_t size, unsigned align)
     return malloc(size);
 }
 
+static union KNET_CfgValue g_cfgMul = {0};
+static union KNET_CfgValue *MockGetCfgMultiple(enum KNET_ConfKey key)
+{
+    (void)key;
+    g_cfgMul.intValue = (int)KNET_RUN_MODE_MULTIPLE;
+    return &g_cfgMul;
+}
+
 DTEST_CASE_F(MEM, TEST_MEM_ALLOC_NORMAL, NULL, NULL)
 {
     KTestMock *Mock = CreateMock();
@@ -123,5 +131,56 @@ DTEST_CASE_F(MEM, TEST_MEM_FREE_SIGNALQUIT, NULL, NULL)
     KNET_MemFree(mem);
 
     Mock->Delete(rte_free);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_MemAlloc: MULTIPLE模式(走malloc分支)
+ */
+DTEST_CASE_F(MEM, TEST_MEM_ALLOC_MULTIPLE, NULL, NULL)
+{
+    KNET_SetRunMode(KNET_RUN_MODE_MULTIPLE);
+
+    size_t sz = 64;
+    void *mem = KNET_MemAlloc(sz);
+    DT_ASSERT_NOT_EQUAL(mem, NULL);
+
+    free(mem);
+}
+
+/**
+ * @brief KNET_MemFree: MULTIPLE模式正常路径(非signalquit,走free分支)
+ */
+DTEST_CASE_F(MEM, TEST_MEM_FREE_MULTIPLE_NORMAL, NULL, NULL)
+{
+    KNET_SetRunMode(KNET_RUN_MODE_MULTIPLE);
+    /* 确保不在signalquit状态(前一个用例可能设置了) */
+    g_isInSignalQuit = false;
+
+    void *mem = malloc(64);
+    DT_ASSERT_NOT_EQUAL(mem, NULL);
+
+    KNET_MemFree(mem);
+}
+
+/**
+ * @brief KNET_MemAlloc: INVALID模式,通过KNET_GetCfg返回MULTIPLE
+ */
+DTEST_CASE_F(MEM, TEST_MEM_ALLOC_INVALID_GETCFG_MULTIPLE, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(KNET_GetCfg, MockGetCfgMultiple);
+
+    KNET_SetRunMode(KNET_RUN_MODE_INVALID);
+
+    size_t sz = 32;
+    void *mem = KNET_MemAlloc(sz);
+    DT_ASSERT_NOT_EQUAL(mem, NULL);
+
+    free(mem);
+
+    Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }

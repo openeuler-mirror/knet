@@ -145,3 +145,69 @@ DTEST_CASE_F(LOG, TEST_LOG_LOGNORMAL, NULL, NULL)
 
     DeleteMock(Mock);
 }
+
+/* ===== knet_log.c 未覆盖函数测试 ===== */
+
+/**
+ * @brief KNET_GetCurrentTimeMillis 正常路径
+ */
+DTEST_CASE_F(LOG, TEST_LOG_GET_TIME_MILLIS, NULL, NULL)
+{
+    uint64_t ret = KNET_GetCurrentTimeMillis();
+    DT_ASSERT_NOT_EQUAL(ret, (uint64_t)KNET_ERROR);
+}
+
+/**
+ * @brief KNET_LogLevelSetByStr 传入有效level字符串(match found path)
+ */
+DTEST_CASE_F(LOG, TEST_LOG_LEVEL_SET_BY_STR_VALID, NULL, NULL)
+{
+    KNET_LogLevelSetByStr("ERROR");
+    KNET_LogLevelSetByStr("WARNING");
+    KNET_LogLevelSetByStr("INFO");
+    KNET_LogLevelSetByStr("DEBUG");
+}
+
+/**
+ * @brief KNET_LogLevelGet 获取日志级别
+ */
+DTEST_CASE_F(LOG, TEST_LOG_LEVEL_GET, NULL, NULL)
+{
+    KNET_LogLevel level = KNET_LogLevelGet();
+    (void)level;
+}
+
+/**
+ * @brief KNET_LogMutexLock / KNET_LogMutexUnlock
+ */
+DTEST_CASE_F(LOG, TEST_LOG_MUTEX_LOCK_UNLOCK, NULL, NULL)
+{
+    KNET_LogMutexLock();
+    KNET_LogMutexUnlock();
+}
+
+/**
+ * @brief KNET_LogFixLenOutputHook vsprintf_s失败
+ */
+DTEST_CASE_F(LOG, TEST_LOG_FIX_HOOK_VSPRINTF_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(vsprintf_s, TEST_GetFuncRetNegative(1));
+    KNET_LogFixLenOutputHook("test %s", "msg");
+    Mock->Delete(vsprintf_s);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_LogNormal vsprintf_s失败
+ */
+DTEST_CASE_F(LOG, TEST_LOG_LOGNORMAL_VSPRINTF_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(vsprintf_s, TEST_GetFuncRetNegative(1));
+    KNET_LogNormal("test %s", "msg");
+    Mock->Delete(vsprintf_s);
+    DeleteMock(Mock);
+}

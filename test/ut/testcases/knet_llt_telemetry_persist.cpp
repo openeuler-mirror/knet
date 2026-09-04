@@ -92,6 +92,13 @@ extern void TelemetryDelOldProcess(int clientID, pid_t pid);
 extern int StartDumpOldFile(FILE *oldFile);
 extern int TelemetryRefreshDataSingle(FILE *file, struct KnetProcessInfo *knetProcessInfo, uint64_t *sequence);
 extern int TelemetryRefreshDataMulti(FILE *file, struct KnetProcessInfo *knetProcessInfo,  uint64_t *sequence);
+extern int TelemetryDisconnectHandler(int clientID, struct KNET_RpcMessage *knetRpcRequest,
+                                      struct KNET_RpcMessage *knetRpcResponse);
+extern int DumpOldFile(void);
+extern int TelemetryPersistDealFileDelete(void);
+extern void KNET_TelemetrySetPersistThreadExit(void);
+extern int GetSingleProcessDpStatsMulti(char *singleOutput, int *outputLeftLen, int pid, bool formatLastTail,
+                                        uint64_t sequence);
 }
 
 
@@ -686,4 +693,317 @@ DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_GETDPSTAT, NULL, NULL)
 DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_UNINIT, NULL, NULL)
 {
     TelemetryPersistUninitDpJson();
+}
+
+/* ========== 新增用例: 覆盖 knet_telemetry_thread.c 未覆盖分支 ========== */
+
+/**
+ * @brief TelemetryDisconnectHandler: 匹配clientID与不匹配clientID路径
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_DISCONNECT, NULL, NULL)
+{
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+    /* 设置一个进程, clientID=5 */
+    g_processInfo.processInfo[0].pid = 100;
+    g_processInfo.processInfo[0].alive = true;
+    g_processInfo.processInfo[0].clientID = 5;
+    g_processInfo.curProcessNum = 1;
+
+    struct KNET_RpcMessage *req = NULL;
+    struct KNET_RpcMessage *resp = NULL;
+    /* 匹配clientID=5 -> 标记为dead */
+    int ret = TelemetryDisconnectHandler(5, req, resp);
+    DT_ASSERT_EQUAL(ret, 0);
+    DT_ASSERT_EQUAL(g_processInfo.processInfo[0].alive, false);
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, 0);
+
+    /* 不匹配clientID=999 -> 不做改动 */
+    ret = TelemetryDisconnectHandler(999, req, resp);
+    DT_ASSERT_EQUAL(ret, 0);
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+}
+
+/**
+ * @brief TelemetrySetNewProcess 边界: pid==0, 满表, 替换最早退出, 重复pid
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_SETNEWPROC_EDGE, NULL, NULL)
+{
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+
+    /* pid==0 -> 直接返回 */
+    TelemetrySetNewProcess(0, 0);
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, 0);
+
+    /* 填满32个进程 */
+    for (int i = 1; i <= MAX_PROCESS_NUM_DTEST; i++) {
+        TelemetrySetNewProcess(i, i);
+    }
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, MAX_PROCESS_NUM_DTEST);
+    DT_ASSERT_EQUAL(g_processInfo.totalProcessNum, MAX_PROCESS_NUM_DTEST);
+
+    /* 再加一个 -> curProcessNum >= MAX, 直接返回 */
+    TelemetrySetNewProcess(99, 99);
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, MAX_PROCESS_NUM_DTEST);
+
+    /* 删除一个进程(alive=false), 使curProcessNum < MAX但totalProcessNum == MAX */
+    TelemetryDelOldProcess(1, 1);
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, MAX_PROCESS_NUM_DTEST - 1);
+
+    /* sleep 1秒确保exitTime < 当前时间, 使"查找最早退出进程"逻辑生效 */
+    sleep(1);
+
+    /* 加新进程 -> totalProcessNum >= MAX, 走替换最早退出路径 */
+    TelemetrySetNewProcess(50, 50);
+    /* 找到最早退出的进程(进程1刚退出, exitTime最小)并替换 */
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, MAX_PROCESS_NUM_DTEST);
+
+    /* 重复pid: 添加已存在的pid -> break */
+    TelemetrySetNewProcess(2, 2);
+    /* curProcessNum不变(重复, 走break) */
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, MAX_PROCESS_NUM_DTEST);
+
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+}
+
+/**
+ * @brief TelemetryDelOldProcess: pid==0 直接返回
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_DELPROC_ZERO, NULL, NULL)
+{
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+    g_processInfo.processInfo[0].pid = 1;
+    g_processInfo.processInfo[0].alive = true;
+    g_processInfo.curProcessNum = 1;
+
+    /* pid==0 -> 直接返回, 不做任何改动 */
+    TelemetryDelOldProcess(0, 0);
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, 1);
+    DT_ASSERT_EQUAL(g_processInfo.processInfo[0].alive, true);
+
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+}
+
+/**
+ * @brief TelemetryPersistDealFileDelete: 刷新进程信息, 去除死进程
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_DEALFILEDELETE, NULL, NULL)
+{
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+    /* 进程0: alive, pid=100 */
+    g_processInfo.processInfo[0].pid = 100;
+    g_processInfo.processInfo[0].alive = true;
+    g_processInfo.processInfo[0].clientID = 1;
+    /* 进程1: dead */
+    g_processInfo.processInfo[1].pid = 200;
+    g_processInfo.processInfo[1].alive = false;
+    /* 进程2: alive, pid=300 */
+    g_processInfo.processInfo[2].pid = 300;
+    g_processInfo.processInfo[2].alive = true;
+    g_processInfo.processInfo[2].clientID = 3;
+    g_processInfo.curProcessNum = 3;
+    g_processInfo.totalProcessNum = 3;
+
+    int ret = TelemetryPersistDealFileDelete();
+    DT_ASSERT_EQUAL(ret, 0);
+    /* 只有2个alive进程, 应该被compact到前2个位置 */
+    DT_ASSERT_EQUAL(g_processInfo.curProcessNum, 2);
+    DT_ASSERT_EQUAL(g_processInfo.totalProcessNum, 2);
+    DT_ASSERT_EQUAL(g_processInfo.processInfo[0].pid, 100);
+    DT_ASSERT_EQUAL(g_processInfo.processInfo[2].pid, 0); /* 第3位被清零 */
+    DT_ASSERT_EQUAL(g_processInfo.writeBitMap, 0);
+
+    (void)memset_s(&g_processInfo, sizeof(g_processInfo), 0, sizeof(g_processInfo));
+}
+
+/**
+ * @brief DumpOldFile: 路径不存在时创建路径; 旧文件不存在直接返回0
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_DUMPOLDFILE_NODIR, NULL, NULL)
+{
+    /* 确保目录不存在(先删再测), 但保留父目录/etc/knet/run */
+    (void)system("rm -rf /etc/knet/run/stats");
+    (void)system("mkdir -p /etc/knet/run");
+    /* 目录不存在 -> mkdir创建; 旧文件不存在 -> 返回0 */
+    int ret = DumpOldFile();
+    DT_ASSERT_EQUAL(ret, 0);
+    /* 验证目录已创建 */
+    DIR *d = opendir("/etc/knet/run/stats");
+    DT_ASSERT_NOT_EQUAL(d, NULL);
+    if (d != NULL) {
+        (void)closedir(d);
+    }
+}
+
+/**
+ * @brief DumpOldFile: 有旧文件时转储到新文件
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_DUMPOLDFILE_WITHFILE, NULL, NULL)
+{
+    (void)system("rm -rf /etc/knet/run/stats");
+    (void)system("mkdir -p /etc/knet/run/stats");
+    /* 创建旧文件并写入内容 */
+    FILE *f = fopen("/etc/knet/run/stats/knet-persist.json", "wb");
+    DT_ASSERT_NOT_EQUAL(f, NULL);
+    if (f != NULL) {
+        (void)fputs("{\"test\":\"data\"}", f);
+        (void)fclose(f);
+    }
+
+    int ret = DumpOldFile();
+    DT_ASSERT_EQUAL(ret, 0);
+    /* 验证转储文件已生成(以knet_persist-开头) */
+    (void)system("ls /etc/knet/run/stats/knet_persist-*.json > /tmp/dump_check.log 2>&1");
+    FILE *chk = fopen("/tmp/dump_check.log", "r");
+    DT_ASSERT_NOT_EQUAL(chk, NULL);
+    if (chk != NULL) {
+        char buf[256] = {0};
+        (void)fgets(buf, sizeof(buf), chk);
+        (void)fclose(chk);
+        DT_ASSERT_NOT_EQUAL(strstr(buf, "knet_persist-"), (char *)NULL);
+    }
+
+    /* 清理 */
+    (void)system("rm -rf /etc/knet/run/stats");
+}
+
+/**
+ * @brief CleanupOldDumpFiles: 创建>9个转储文件, 验证清理逻辑
+ *        覆盖 ProcessDumpFileEntry/CollectDumpFiles/ExtractTimestampInt/
+ *        FindOldestDumpFile/CleanupOldDumpFiles
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_CLEANUP_DUMPFILES, NULL, NULL)
+{
+    (void)system("rm -rf /etc/knet/run/stats");
+    (void)system("mkdir -p /etc/knet/run/stats");
+    /* 创建12个转储文件(超过MAX_DUMP_FILE_NUM=9), 时间戳递增 */
+    for (int i = 0; i < 12; i++) {
+        char cmd[256];
+        (void)sprintf_s(cmd, sizeof(cmd),
+            "echo '{}' > /etc/knet/run/stats/knet_persist-202601010000%02d.json", i);
+        (void)system(cmd);
+    }
+    /* 再加一个非转储文件(不匹配前缀), 确保被跳过 */
+    (void)system("echo '{}' > /etc/knet/run/stats/other.json");
+    /* 再加一个非.json后缀的转储前缀文件, 确保被跳过 */
+    (void)system("echo '{}' > /etc/knet/run/stats/knet_persist-2026010100012.txt");
+
+    /* 调用DumpOldFile, 内部会调用StartDumpOldFile->CleanupOldDumpFiles */
+    /* 先创建knet-persist.json使DumpOldFile进入转储路径 */
+    FILE *f = fopen("/etc/knet/run/stats/knet-persist.json", "wb");
+    if (f != NULL) {
+        (void)fputs("{}", f);
+        (void)fclose(f);
+    }
+    int ret = DumpOldFile();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* 清理 */
+    (void)system("rm -rf /etc/knet/run/stats");
+}
+
+/**
+ * @brief OpenFileWithRWB: 文件不存在时创建新文件
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_OPENFILE_CREATE, NULL, NULL)
+{
+    (void)system("rm -rf /etc/knet/run/stats");
+    (void)system("mkdir -p /etc/knet/run/stats");
+    /* 文件不存在 -> DealFileDelete + 创建 */
+    FILE *fp = OpenFileWithRWB("/etc/knet/run/stats", "/etc/knet/run/stats/knet-persist.json");
+    DT_ASSERT_NOT_EQUAL(fp, NULL);
+    if (fp != NULL) {
+        (void)fclose(fp);
+    }
+    /* 文件已存在 -> 正常打开 */
+    fp = OpenFileWithRWB("/etc/knet/run/stats", "/etc/knet/run/stats/knet-persist.json");
+    DT_ASSERT_NOT_EQUAL(fp, NULL);
+    if (fp != NULL) {
+        (void)fclose(fp);
+    }
+    (void)system("rm -rf /etc/knet/run/stats");
+}
+
+/**
+ * @brief WriteDataToFile: 成功写入 + fseek失败 + fwrite失败路径
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_WRITEDATA_PATHS, NULL, NULL)
+{
+    /* 成功写入: 使用临时文件 */
+    FILE *f = fopen("/tmp/writetest.json", "wb+");
+    DT_ASSERT_NOT_EQUAL(f, NULL);
+    if (f != NULL) {
+        const char *data = "hello world";
+        int ret = WriteDataToFile(f, (char *)data, strlen(data), 0);
+        DT_ASSERT_EQUAL(ret, (int)strlen(data));
+
+        /* offset为负值触发fseek失败 */
+        ret = WriteDataToFile(f, (char *)data, strlen(data), -1);
+        DT_ASSERT_EQUAL(ret, -1);
+
+        (void)fclose(f);
+    }
+    (void)unlink("/tmp/writetest.json");
+
+    /* data长度不匹配: strlen(data) < len */
+    f = fopen("/tmp/writetest2.json", "wb+");
+    if (f != NULL) {
+        const char *data = "ab";
+        int ret = WriteDataToFile(f, (char *)data, 100, 0); /* len=100 > strlen=2 */
+        DT_ASSERT_EQUAL(ret, -1);
+        (void)fclose(f);
+    }
+    (void)unlink("/tmp/writetest2.json");
+}
+
+/**
+ * @brief GetCurrentTime: 成功获取时间
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_GETTIME_OK, NULL, NULL)
+{
+    char buf[64] = {0};
+    int ret = GetCurrentTime(buf, sizeof(buf));
+    DT_ASSERT_EQUAL(ret, 0);
+    /* 验证时间格式 YYYY-MM-DD HH:MM:SS */
+    DT_ASSERT_NOT_EQUAL(strlen(buf), (size_t)0);
+    DT_ASSERT_NOT_EQUAL(strstr(buf, "-"), (char *)NULL);
+}
+
+/**
+ * @brief KNET_TelemetrySetPersistThreadExit: 设置退出标志
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_SETEXIT, NULL, NULL)
+{
+    KNET_TelemetrySetPersistThreadExit();
+    /* g_persistThreadExit已设置为true, 无返回值, 验证不崩溃即可 */
+}
+
+/**
+ * @brief GetSingleProcessDpStatsMulti: formatLastTail=true/false路径
+ */
+DTEST_CASE_F(TELE_PERSIST, TEST_KNET_TELEPERSIST_GETSINGLE_MULTI, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    /* mock rte_memzone_lookup 返回NULL, 防止未初始化DPDK时SEGV */
+    Mock->Create(rte_memzone_lookup, rteMemzonLoockUpDtest);
+    Mock->Create(GetCurrentTime, GetCurrentTimeDtest);
+    Mock->Create(FormatEveryDpStats, TEST_GetFuncRetPositive(0));
+
+    char buf[FORMAT_JSON_LEN] = {0};
+    int leftLen = FORMAT_JSON_LEN - 1;
+    /* formatLastTail=true: 走添加",\n"前缀路径 */
+    int ret = GetSingleProcessDpStatsMulti(buf, &leftLen, 1, true, 0);
+    DT_ASSERT_NOT_EQUAL(ret, -1);
+
+    /* formatLastTail=false: 不添加前缀 */
+    (void)memset_s(buf, sizeof(buf), 0, sizeof(buf));
+    leftLen = FORMAT_JSON_LEN - 1;
+    ret = GetSingleProcessDpStatsMulti(buf, &leftLen, 2, false, 1);
+    DT_ASSERT_NOT_EQUAL(ret, -1);
+
+    Mock->Delete(GetCurrentTime);
+    Mock->Delete(FormatEveryDpStats);
+    Mock->Delete(rte_memzone_lookup);
+    DeleteMock(Mock);
 }

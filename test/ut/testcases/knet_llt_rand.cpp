@@ -91,3 +91,78 @@ DTEST_CASE_F(RAND, TEST_KNET_GET_RAND_NUM_READ_ABNORMAL, NULL, NULL)
     Mock->Delete(read);
     DeleteMock(Mock);
 }
+
+/**
+ * @brief KNET_RandInit: open失败(g_randFd<0)
+ */
+DTEST_CASE_F(RAND, TEST_KNET_RAND_INIT_OPEN_FAIL, NULL, NULL)
+{
+    int64_t ret = 0;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(open, TEST_GetFuncRetNegative(1));
+
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(open);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_RandInit: 已初始化(g_randFd>=0),直接返回0
+ */
+DTEST_CASE_F(RAND, TEST_KNET_RAND_INIT_ALREADY, NULL, NULL)
+{
+    int64_t ret = 0;
+
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    KNET_RandUninit();
+}
+
+/**
+ * @brief KNET_GetRandomNum: read失败(先正常init再mock read失败)
+ */
+DTEST_CASE_F(RAND, TEST_KNET_GET_RAND_NUM_READ_FAIL_AFTER_INIT, NULL, NULL)
+{
+    uint8_t data[RAND_DATA_LENGTH] = {0};
+    uint32_t len = RAND_DATA_LENGTH;
+    int64_t ret = 0;
+
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(read, MockReadFunc);
+
+    ret = KNET_GetRandomNum(data, len);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(read);
+    DeleteMock(Mock);
+    KNET_RandUninit();
+}
+
+/**
+ * @brief KNET_GetRandomNum: 参数len为0,read返回0(bytesRead=0正常路径)
+ */
+DTEST_CASE_F(RAND, TEST_KNET_GET_RAND_NUM_ZERO_LEN, NULL, NULL)
+{
+    uint8_t data[RAND_DATA_LENGTH] = {0};
+    int64_t ret = 0;
+
+    ret = KNET_RandInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    ret = KNET_GetRandomNum(data, 0);
+    DT_ASSERT_EQUAL(ret, 0);
+
+    KNET_RandUninit();
+}

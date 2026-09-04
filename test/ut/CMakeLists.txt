@@ -28,7 +28,16 @@ set(DPDK_STATIC_LIBRARIES
 
 project(knet_ut)
 cmake_minimum_required(VERSION 3.16)
-add_compile_options(-g -fPIC -O0 -fpermissive -fprofile-arcs -ftest-coverage -fsanitize=address -static-libasan)
+# -mssse3 仅为 DPDK rte_memcpy.h 在 x86 上所需;非 x86(如 aarch64/鲲鹏)编译器不支持,按需开启
+include(CheckCCompilerFlag)
+check_c_compiler_flag("-mssse3" KNET_CC_SUPPORTS_MSSSE3)
+if(KNET_CC_SUPPORTS_MSSSE3)
+    set(KNET_SIMD_OPTS -mssse3)
+else()
+    set(KNET_SIMD_OPTS "")
+endif()
+
+add_compile_options(-g -fPIC -O0 -fpermissive ${KNET_SIMD_OPTS} -fprofile-arcs -ftest-coverage -fsanitize=address -static-libasan)
 
 set(UT_NAME knet_ut_BIN)
 

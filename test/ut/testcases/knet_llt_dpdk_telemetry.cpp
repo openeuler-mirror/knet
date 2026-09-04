@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
 #include "rte_ethdev.h"
 #include "knet_mock.h"
@@ -251,5 +252,160 @@ DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_REGCMD, NULL, NULL)
     DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
     Mock->Delete(rte_memzone_reserve);
     Mock->Delete(rte_telemetry_register_cmd);
+    DeleteMock(Mock);
+}
+
+/* ===== knet_telemetry.c 错误路径覆盖测试 ===== */
+
+static char *MockGetenvNull(const char *name)
+{
+    (void)name;
+    return NULL;
+}
+
+static int MockLstatFail(const char *path, struct stat *buf)
+{
+    (void)path;
+    (void)buf;
+    return -1;
+}
+
+static int MockLstatSuccessSock(const char *path, struct stat *buf)
+{
+    (void)path;
+    (void)memset(buf, 0, sizeof(*buf));
+    buf->st_mode = S_IFSOCK;
+    return 0;
+}
+
+static char *MockRealpathNull(const char *path, char *resolved)
+{
+    (void)path;
+    (void)resolved;
+    return NULL;
+}
+
+static union KNET_CfgValue g_cfgTele0 = {0};
+static union KNET_CfgValue *MockKnetGetCfgTele0(enum KNET_ConfKey key)
+{
+    (void)key;
+    g_cfgTele0.intValue = 0;
+    return &g_cfgTele0;
+}
+
+static union KNET_CfgValue g_cfgTele1 = {.intValue = 1};
+static union KNET_CfgValue *MockKnetGetCfgTele1(enum KNET_ConfKey key)
+{
+    (void)key;
+    g_cfgTele1.intValue = 1;
+    return &g_cfgTele1;
+}
+
+static struct rte_memzone *MockRteMemzoneReserveNull(const char *name, size_t len, int socketId, unsigned flags)
+{
+    (void)name;
+    (void)len;
+    (void)socketId;
+    (void)flags;
+    return NULL;
+}
+
+/**
+ * @brief KNET_InitDpdkTelemetry: DpdkRuntimeDirInit失败(非root且无XDG_RUNTIME_DIR)
+ *        覆盖 DpdkRuntimeDirInit 行105-106, KNET_InitDpdkTelemetry 行338-339
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_INIT_TELEMETRY_RUNTIME_DIR_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(getuid, TEST_GetFuncRetPositive(1));
+    Mock->Create(getenv, MockGetenvNull);
+    int32_t ret = KNET_InitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(getuid);
+    Mock->Delete(getenv);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_InitDpdkTelemetry: DpdkTelemetryFindSocket lstat失败
+ *        覆盖 DpdkTelemetryFindSocket 行257-259, KNET_InitDpdkTelemetry 行342-345
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_INIT_TELEMETRY_FIND_SOCKET_LSTAT_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(getuid, TEST_GetFuncRetPositive(0));
+    Mock->Create(lstat, MockLstatFail);
+    int32_t ret = KNET_InitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(getuid);
+    Mock->Delete(lstat);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_InitDpdkTelemetry: DpdkTelemetrySocketPidCheck socket失败
+ *        覆盖 DpdkTelemetrySocketPidCheck 行165-166, DpdkTelemetryFindSocket 行266
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_INIT_TELEMETRY_PID_CHECK_SOCKET_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(getuid, TEST_GetFuncRetPositive(0));
+    Mock->Create(lstat, MockLstatSuccessSock);
+    Mock->Create(socket, TEST_GetFuncRetNegative(1));
+    int32_t ret = KNET_InitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(getuid);
+    Mock->Delete(lstat);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_UninitDpdkTelemetry: telemetry未启用(intValue=0), 直接返回KNET_OK
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_UNINIT_TELEMETRY_DISABLED, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgTele0);
+    int32_t ret = KNET_UninitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_UninitDpdkTelemetry: realpath失败(g_knetTelemetrySocketNew不存在)
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_UNINIT_TELEMETRY_REALPATH_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgTele1);
+    Mock->Create(realpath, MockRealpathNull);
+    int32_t ret = KNET_UninitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(realpath);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief RegTelemetryCmd: 多进程模式, TelemetryMzInit失败(rte_memzone_reserve返回NULL)
+ *        覆盖 TelemetryMzInit 行274-275, RegTelemetryCmd 行312
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_REG_TELEMETRY_MZ_INIT_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(rte_memzone_reserve, MockRteMemzoneReserveNull);
+    int ret = RegTelemetryCmd();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(rte_memzone_reserve);
+    Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }

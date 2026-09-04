@@ -76,6 +76,10 @@ void KnetUninit(void);
 int LcoreMainloop(void *arg);
 void ProcessTelemetryQueueMapWorker();
 int JoinDpdkAndStackThread(void);
+void ProcessTelemetryShowStats(bool flag, KNET_TelemetryInfo *telemetryInfo, int queId);
+void ProcessTelemetryPersist(bool flag, KNET_TelemetryPersistInfo *telemetryPersistInfo, pid_t pid);
+int CreateTelemetryPersistThread(void);
+void PrepareAllDpStates(KNET_TelemetryPersistInfo *info);
 }
 
 #define MAX_WORKER_ID 512
@@ -340,7 +344,7 @@ DTEST_CASE_F(KNET_INIT, TEST_KNET_SHOW_TCP_STATS, NULL, NULL)
 {
     KNET_TelemetryInfo telemetryInfo = {0};
     int queId = 0; // 以queue 0 为例
-    telemetryInfo.msgReady[queId] == 1;
+    telemetryInfo.msgReady[queId] = 1;
 
     KTestMock *Mock = CreateMock();
     DT_ASSERT_NOT_EQUAL(Mock, NULL);
@@ -649,5 +653,124 @@ DTEST_CASE_F(KNET_INIT, TEST_KNET_ProcessTelemetryQueueMapWorker, NULL, NULL)
     Mock->Delete(KNET_GetCfg);
     Mock->Delete(DP_GetNetdevQueMap);
 
+    DeleteMock(Mock);
+}
+
+/* ===== knet_init.c 未覆盖函数测试 ===== */
+
+/**
+ * @brief KNET_PosixOpsApiInit 正常路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_KNET_POSIX_OPS_API_INIT, NULL, NULL)
+{
+    struct KNET_PosixApiOps ops = {0};
+    int32_t ret = KNET_PosixOpsApiInit(&ops);
+    DT_ASSERT_EQUAL(ret, 0);
+}
+
+/**
+ * @brief ProcessTelemetryShowStats flag=true 路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_PROCESS_TELEMETRY_SHOW_STATS, NULL, NULL)
+{
+    KNET_TelemetryInfo telemetryInfo = {0};
+    int queId = 0;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(ShowDpStats, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+
+    ProcessTelemetryShowStats(true, &telemetryInfo, queId);
+
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(ShowDpStats);
+    Mock->Delete(KNET_SpinlockUnlock);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief ProcessTelemetryPersist flag=true 且条件满足
+ */
+DTEST_CASE_F(KNET_INIT, TEST_PROCESS_TELEMETRY_PERSIST, NULL, NULL)
+{
+    KNET_TelemetryPersistInfo telemetryPersistInfo = {0};
+    telemetryPersistInfo.curPid = getpid();
+    telemetryPersistInfo.state = KNET_TELE_PERSIST_WAITSECOND;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(PrepareAllDpStates, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+
+    ProcessTelemetryPersist(true, &telemetryPersistInfo, getpid());
+
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(PrepareAllDpStates);
+    Mock->Delete(KNET_SpinlockUnlock);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CreateTelemetryPersistThread KNET_TelemetryStartPersistThread失败
+ */
+DTEST_CASE_F(KNET_INIT, TEST_CREATE_TELEMETRY_PERSIST_THREAD_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg0);
+    Mock->Create(KNET_TelemetryStartPersistThread, TEST_GetFuncRetPositive(0));
+
+    int32_t ret = CreateTelemetryPersistThread();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(KNET_TelemetryStartPersistThread);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief JoinDpdkAndStackThread rte_eal_wait_lcore失败路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_JOIN_THREAD_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(KNET_JoinThread, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_DpMaxWorkerIdGet, TEST_GetFuncRetPositive(1));
+    Mock->Create(rte_eal_wait_lcore, TEST_GetFuncRetNegative(1));
+
+    int ret = JoinDpdkAndStackThread();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(rte_eal_wait_lcore);
+    Mock->Delete(KNET_DpMaxWorkerIdGet);
+    Mock->Delete(KNET_JoinThread);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_AllThreadLock / KNET_AllThreadUnlock worker循环路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_KNET_ALL_THREAD_LOCK_UNLOCK, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_DpMaxWorkerIdGet, TEST_GetFuncRetPositive(1));
+
+    KNET_AllThreadLock();
+    KNET_AllThreadUnlock();
+
+    Mock->Delete(KNET_DpMaxWorkerIdGet);
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_SpinlockUnlock);
+    Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }
