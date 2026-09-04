@@ -1,5 +1,5 @@
 isManual: true
-label: "API 接口"
+label: API 接口
 sections:
   - label: POSIX接口
     href: ./posix_apis/_toc.yaml
@@ -9,3 +9,5 @@ sections:
     href: ./zero_copy_apis/_toc.yaml
   - label: API 接口
     href: ./api_menu.md
+  - label: 修订记录
+    href: ./change_history.md

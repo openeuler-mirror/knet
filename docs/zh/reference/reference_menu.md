@@ -9,3 +9,5 @@
   - [批量运维](./common_operations/batch_om.md)
 
 - [安全管理](./security.md)
+
+- [修订记录](./change_history.md)

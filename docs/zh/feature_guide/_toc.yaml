@@ -3,7 +3,7 @@ label: 特性指南
 sections:
   - label: 共线程功能
     href: ./cothread.md
-  - label: 环境配置
+  - label: 使用前配置
     href: ./environment_configuration.md
   - label: 特性指南
     href: ./feature_menu.md
@@ -29,3 +29,5 @@ sections:
     href: ./usage_example.md
   - label: 使用共线程、零拷贝功能进行Tperf加速
     href: ../../../demo/tperf/tperf.md
+  - label: 修订记录
+    href: ./change_history.md

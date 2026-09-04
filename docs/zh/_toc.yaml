@@ -47,7 +47,7 @@ sections:
     href: ./feature_guide/cothread.md
   - label: 运维信息收集脚本collect.sh
     href: ./om/collect.md
-  - label: 搭建环境
+  - label: 环境准备
     href: ./installation/environment_setup.md
   - label: K-NET 产品描述
     href: ./product_descriptions/descriptions_menu.md
@@ -59,7 +59,7 @@ sections:
     href: ./api/zero_copy_apis/knet_mp_free.md
   - label: 日常运维
     href: ./om/daily_om.md
-  - label: 环境配置
+  - label: 使用前配置
     href: ./feature_guide/environment_configuration.md
   - label: 安装
     href: ./installation/installation.md
