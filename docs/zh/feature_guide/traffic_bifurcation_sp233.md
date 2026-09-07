@@ -9,14 +9,14 @@
 > - SP233网卡流量分叉功能支持在Kylin-V10-SP3-2403-release系统上使用。
 > - SP233网卡支持流量分叉功能，通过hinicadm5工具将队列分组，每组队列数为最大支持的队列数减去工具分配给用户态的队列数，至多创建8个分组。
 > - 开启流量分叉时，支持使用SP233 Bond全卸载功能。
-> - 业务IP配置约束：非Bond卸载场景下，业务IP（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond全卸载场景下，在指定物理端口创建卸载bond后，这些端口对应的function共享端口在Bond模式的能力(模式4下，流量会对每个port负载均衡)。网卡各function仍保持独立使用，仅其出端口的转发模式发生变化。
+> - 业务IP配置约束：非Bond卸载场景下，业务IP（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond全卸载场景下，在指定物理端口创建卸载bond后，这些端口对应的function共享端口在Bond模式的能力（模式4下，流量会对每个port负载均衡）。网卡各function仍保持独立使用，仅其出端口的转发模式发生变化。
 > - 流表规格为单Function最大1024条，ARP流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
 
 流量分叉能使DPDK无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
 
 ## 前提条件
 
-- 服务端已完成[环境配置](environment_configuration.md)。
+- 服务端已完成[使用前配置](environment_configuration.md)。
 - （可选）客户端如需启用K-NET加速（双端加速模式），也需完成相同的环境配置。
 - 默认示例为单端加速模式（仅服务端启用K-NET）。
 
@@ -48,6 +48,7 @@
     ```
 
     > [!NOTE]说明
+    >
     >- hinic0为查询到的网卡名称。若存在多张网卡，请根据实际情况决定需要用哪张网卡。
     >- enp1s0f0与enp1s0f1为hinic0网卡的两个网口。
 
@@ -87,7 +88,6 @@
     按“i”进入编辑模式。
 
     ```json
-    # common配置项
     "hw_offload": {
         "bifur_enable": 1
     }
@@ -175,7 +175,7 @@ commit #保存配置
     ```
 
     > [!NOTE]说明
-    >- enp1s0f0：使用的网口，根据实际情况替换。
+    > enp1s0f0：使用的网口，根据实际情况替换。
 
 2. （服务端）<term>K-NET</term>启用网卡流量分叉功能。
 
@@ -186,7 +186,6 @@ commit #保存配置
    按“i”进入编辑模式。
     
     ```json
-    # common配置项
     "hw_offload": {
         "bifur_enable": 1
     }

@@ -7,15 +7,16 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 
 ## 前提条件
 
-1. **安装要求**：
- 	- 无感劫持tperf_os：在本章示例中仅需在服务端单端完成[安装](../../docs/zh/installation/installation.md)与[环境配置](../../docs/zh/feature_guide/environment_configuration.md)；
- 	- 共线程/零拷贝/共线程+零拷贝：在本章示例中需在服务端和客户端双端完成[安装](../../docs/zh/installation/installation.md)与[环境配置](../../docs/zh/feature_guide/environment_configuration.md)。
+- **安装要求**：
+  - 无感劫持tperf_os：在本章示例中仅需在服务端单端完成[安装](../../docs/zh/installation/installation.md)与[使用前配置](../../docs/zh/feature_guide/environment_configuration.md)；
+  - 共线程/零拷贝/共线程+零拷贝：在本章示例中需在服务端和客户端双端完成[安装](../../docs/zh/installation/installation.md)与[使用前配置](../../docs/zh/feature_guide/environment_configuration.md)。
  	 
-2. **大页内存配置**：Tperf零拷贝场景需要在大页中进行pbuf的读写，因此在零拷贝/共线程+零拷贝场景下，服务端与客户端均需增加大页内存。以20GB为例（网卡在node0）：
+- **大页内存配置**：Tperf零拷贝场景需要在大页中进行pbuf的读写，因此在零拷贝/共线程+零拷贝场景下，服务端与客户端均需增加大页内存。以20GB为例（网卡在node0）：
 
     ```bash
     echo 20 > /sys/devices/system/node/node0/hugepages/hugepages-1048576kB/nr_hugepages
     ```
+
     > [!NOTE]说明
     > 具体请修改为实际网卡所在NUMA节点。
 
@@ -60,7 +61,8 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 
 ### 修改配置文件参数进行性能调优
 
-> [!NOTE]运行场景说明
+> [!NOTE]说明 
+>
 > 无感劫持tperf_os需要在服务端单端完成配置。
 > 共线程/零拷贝/共线程+零拷贝场景下，服务端与客户端均需完成配置。
 
@@ -71,7 +73,11 @@ vi /etc/knet/knet_comm.conf
 按“i”进入编辑模式。
 
 > [!NOTE]说明  
->以下配置项针对Tperf场景进行了性能优化：增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`以提升网络吞吐能力；配置`zcopy_sge_len`和`zcopy_sge_num`优化零拷贝性能；调整DPDK的`tx_cache_size`、`rx_cache_size`及内存参数以适配大流量场景。
+> 以下配置项针对Tperf场景进行了性能优化：
+>
+>- 增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`可提升网络吞吐能力。
+>- 配置`zcopy_sge_len`和`zcopy_sge_num`优化零拷贝性能。
+>- 调整DPDK的`tx_cache_size`、`rx_cache_size`及内存参数以适配大流量场景。
 
 ```text
 {
@@ -110,7 +116,7 @@ vi /etc/knet/knet_comm.conf
 
 ### K-NET无感加速tperf_os
 
-> [!NOTE]性能说明
+> [!NOTE]说明
 > 相比内核协议栈测试（并发1为21Gbits/sec，并发2为42Gbits/sec），K-NET无感加速tperf_os性能略有下降（并发1为18Gbits/sec，并发2为35Gbits/sec）。这是由于DPDK轮询模式较快，导致LRO（Large Receive Offload）聚包较小，影响了整体吞吐量。
 
 1. （服务端）修改K-NET配置文件<a id="step1"></a>。
@@ -471,11 +477,17 @@ vi /etc/knet/knet_comm.conf
         vim /etc/knet/knet_comm.conf
         ```
 
-        按“i”进入编辑模式，修改以下配置项。
+        按“i”进入编辑模式，将`max_worker_num`和`queue_num`的值修为2。
 
         ```text
-        "max_worker_num": 2,
-        "queue_num":2,
+        "proto_stack":{
+            "max_worker_num": 2,
+            ...
+        }
+        "dpdk":{
+            "queue_num":2,
+            ...
+        }
         ```
 
         按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
@@ -760,6 +772,7 @@ vi /etc/knet/knet_comm.conf
 ### K-NET共线程和零拷贝特性加速tperf_knetcozcopy
 
 使用K-NET共线程加零拷贝特性的Tperf demo。
+
 1. 服务端和客户端已完成K-NET配置文件修改和DPDK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。

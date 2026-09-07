@@ -19,3 +19,5 @@ sections:
     href: ./merge_conf.md
   - label: 运维工具介绍
     href: ./om_tools_introduction.md
+  - label: 修订记录
+    href: ./change_history.md

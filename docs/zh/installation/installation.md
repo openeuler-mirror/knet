@@ -143,9 +143,9 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
    
     以下为`git log --oneline -n 1`回显示例：
    
-   ```bash
-   0d6bdb7 (HEAD, tag: hinic3-26.1.rc1-0630.r1) !430 [fix] scatter rx enable default
-   ```
+    ```bash
+    0d6bdb7 (HEAD, tag: hinic3-26.1.rc1-0630.r1) !430 [fix] scatter rx enable default
+    ```
 
 4. 编译。
     

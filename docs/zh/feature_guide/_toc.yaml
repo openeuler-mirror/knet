@@ -3,7 +3,7 @@ label: 特性指南
 sections:
   - label: 共线程功能
     href: ./cothread.md
-  - label: 环境配置
+  - label: 使用前配置
     href: ./environment_configuration.md
   - label: 特性指南
     href: ./feature_menu.md
@@ -11,13 +11,13 @@ sections:
     href: ./feature_overview.md
   - label: 内核流量转发功能
     href: ./kernel_traffic_forwarding.md
-  - label: 多进程模式加速
+  - label: 多进程加速功能
     href: ./multi_process_model_acceleration.md
   - label: 网络加速功能
     href: ./network_acceleration_verification.md
-  - label: 单进程模式加速
+  - label: 单进程加速功能
     href: ./single_process_model_acceleration.md
-  - label: 用户态网卡bond功能
+  - label: 用户态网卡Bond功能
     href: ./using_dpdk_user_space_virtual_bonding.md
   - label: 零拷贝功能
     href: ./zero_copy.md
@@ -31,3 +31,5 @@ sections:
     href: ./traffic_bifurcation_sp233.md
   - label: 网卡流量分叉功能（SP670网卡）
     href: ./traffic_bifurcation_sp670.md
+  - label: 修订记录
+    href: ./change_history.md

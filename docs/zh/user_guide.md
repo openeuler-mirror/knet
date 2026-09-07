@@ -5,17 +5,19 @@
   - [方案架构](./product_descriptions/solution_architecture.md)
   - [典型应用场景](./product_descriptions/typical_application_scenarios.md)
   - [特性和功能](./product_descriptions/features_and_functions.md)
+  - [修订记录](./product_descriptions/change_history.md)
 
 - [安装指南](./installation/installation_menu.md)
   - [组网规划](./installation/installation_planning.md)
   - [安装流程](./installation/installation_processes.md)
-  - [搭建环境](./installation/environment_setup.md)
+  - [环境准备](./installation/environment_setup.md)
   - [安装](./installation/installation.md)
   - [卸载](./installation/uninstallation.md)
+  - [修订记录](./installation/change_history.md)
 
 - [特性使用](./feature_guide/feature_menu.md)
   - [特性支持](./feature_guide/feature_overview.md)
-  - [环境配置](./feature_guide/environment_configuration.md)
+  - [使用前配置](./feature_guide/environment_configuration.md)
   - [网络加速功能](./feature_guide/network_acceleration_verification.md)
     - [单进程加速功能](./feature_guide/single_process_model_acceleration.md)
     - [多进程加速功能](./feature_guide/multi_process_model_acceleration.md)
@@ -28,6 +30,7 @@
     - [本地流量环回功能](./feature_guide/local_loopback.md)
   - [使用示例](./feature_guide/usage_example.md)
     - [使用共线程、零拷贝功能进行Tperf加速](../../demo/tperf/tperf.md)
+  - [修订记录](./feature_guide/change_history.md)
 
 - [运维管理](./om/om_menu.md)
   - [运维架构](./om/om_architecture.md)
@@ -38,6 +41,7 @@
     - [抓包工具dumpcap](./om/dumpcap.md)
     - [配置文件合并脚本merge_conf.sh](./om/merge_conf.md)
     - [运维信息收集脚本collect.sh](./om/collect.md)
+  - [修订记录](./om/change_history.md)    
 
 - [故障处理](./troubleshooting/troubleshooting_menu.md)
   - [Bond故障](./troubleshooting/bond.md)
@@ -54,6 +58,7 @@
   - [重启虚拟机失败进入shell界面](./troubleshooting/vm_restart.md)
   - [零拷贝故障](./troubleshooting/zero_copy.md)
   - [丢包故障](./troubleshooting/packet_loss.md)
+  - [修订记录](./troubleshooting/change_history.md)
 
 - [API参考](./api/api_menu.md)
   - [POSIX接口](./api/posix_apis/posix_menu.md)
@@ -108,6 +113,7 @@
     - [knet\_zwritev](./api/zero_copy_apis/knet_zwritev.md)
     - [knet\_mp\_alloc](./api/zero_copy_apis/knet_mp_alloc.md)
     - [knet\_mp\_free](./api/zero_copy_apis/knet_mp_free.md)
+  - [修订记录](./api/change_history.md)
 
 - [配置项参考](./configuration_reference_items.md)
 
@@ -119,3 +125,4 @@
   - [常用操作](./reference/common_operations/common_menu.md)
     - [批量运维](./reference/common_operations/batch_om.md)
   - [安全管理](./reference/security.md)
+  - [修订记录](./reference/change_history.md)
