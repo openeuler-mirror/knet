@@ -56,6 +56,11 @@
 #include "knet_signal_tcp.h"
 #include "tcp_fd.h"
 #include "tcp_os.h"
+#include "knet_utils.h"
+#include "knet_mem.h"
+#include "knet_transmission.h"
+#include "knet_pdump.h"
+#include "knet_rand.h"
 
 #include "common.h"
 #include "mock.h"
@@ -80,6 +85,7 @@ void ProcessTelemetryShowStats(bool flag, KNET_TelemetryInfo *telemetryInfo, int
 void ProcessTelemetryPersist(bool flag, KNET_TelemetryPersistInfo *telemetryPersistInfo, pid_t pid);
 int CreateTelemetryPersistThread(void);
 void PrepareAllDpStates(KNET_TelemetryPersistInfo *info);
+void *MultiPdumpThreadFunc(void *args);
 }
 
 #define MAX_WORKER_ID 512
@@ -771,6 +777,382 @@ DTEST_CASE_F(KNET_INIT, TEST_KNET_ALL_THREAD_LOCK_UNLOCK, NULL, NULL)
     Mock->Delete(KNET_DpMaxWorkerIdGet);
     Mock->Delete(KNET_SpinlockLock);
     Mock->Delete(KNET_SpinlockUnlock);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/* ===== knet_init.c 补充覆盖率测试 ===== */
+
+/**
+ * @brief MultiPdumpThreadFunc - g_threadStop=true, pdumpRequestMz=NULL, telemetryFlag=false
+ * 覆盖函数主体setup和单次循环退出路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_MULTI_PDUMP_THREAD_FUNC_NULL_MZ, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(rte_memzone_lookup, TEST_GetFuncRetPositive(0)); /* 返回NULL */
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg0); /* 所有cfg返回0, telemetryFlag=false, persistFlag=false */
+    Mock->Create(getpid, TEST_GetFuncRetPositive(1));
+    Mock->Create(KNET_Usleep, TEST_GetFuncRetPositive(0));
+
+    g_threadStop = true;
+    void *ret = MultiPdumpThreadFunc(NULL);
+    DT_ASSERT_EQUAL(ret, (void *)NULL);
+
+    Mock->Delete(KNET_Usleep);
+    Mock->Delete(getpid);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(rte_memzone_lookup);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief MultiPdumpThreadFunc - pdumpRequestMz有效, KNET_SetPdumpRxTxCbs调用
+ */
+static struct rte_memzone g_testMz;
+static struct rte_memzone *MockMemzoneLookupPdump(const char *name)
+{
+    return &g_testMz;
+}
+DTEST_CASE_F(KNET_INIT, TEST_MULTI_PDUMP_THREAD_FUNC_WITH_MZ, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(rte_memzone_lookup, MockMemzoneLookupPdump);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg0);
+    Mock->Create(getpid, TEST_GetFuncRetPositive(1));
+    Mock->Create(KNET_Usleep, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SetPdumpRxTxCbs, TEST_GetFuncRetPositive(0));
+
+    g_threadStop = true;
+    void *ret = MultiPdumpThreadFunc(NULL);
+    DT_ASSERT_EQUAL(ret, (void *)NULL);
+
+    Mock->Delete(KNET_SetPdumpRxTxCbs);
+    Mock->Delete(KNET_SpinlockUnlock);
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_Usleep);
+    Mock->Delete(getpid);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(rte_memzone_lookup);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CreateTelemetryPersistThread - 成功路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_CREATE_TELEMETRY_PERSIST_THREAD_SUCCESS, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg0); /* runMode != MULTIPLE, procType != SECONDARY */
+    Mock->Create(KNET_TelemetryStartPersistThread, TEST_GetFuncRetPositive(1)); /* tid != 0 */
+
+    int32_t ret = CreateTelemetryPersistThread();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    Mock->Delete(KNET_TelemetryStartPersistThread);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief ConfigInit - KNET_RandInit失败路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_CONFIG_INIT_RAND_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_RandInit, TEST_GetFuncRetNegative(1));
+    Mock->Create(KNET_LogLevelSetByStr, MOCK_KNET_LogLevelSetByStr);
+
+    ConfigInit();
+
+    Mock->Delete(KNET_RandInit);
+    Mock->Delete(KNET_LogLevelSetByStr);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief Uninit - 信号处理中 + forked parent 路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_UNINIT_SIGNAL_PARENT, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_DpSignalIsInSigHandler, TEST_GetFuncRetPositive(1)); /* true */
+    Mock->Create(KNET_DpIsForkedParent, MOCK_KNET_DpIsForkedParent); /* true */
+    Mock->Create(KNET_DpExit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_Usleep, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_TelemetrySetPersistThreadExit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_FreeTapGlobal, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_PktBatchFree, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_LogLevelSet, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_MemSetFlagInSignalQuiting, TEST_GetFuncRetPositive(0));
+
+    Uninit();
+
+    Mock->Delete(KNET_MemSetFlagInSignalQuiting);
+    Mock->Delete(KNET_LogLevelSet);
+    Mock->Delete(KNET_PktBatchFree);
+    Mock->Delete(KNET_FreeTapGlobal);
+    Mock->Delete(KNET_TelemetrySetPersistThreadExit);
+    Mock->Delete(KNET_Usleep);
+    Mock->Delete(KNET_DpExit);
+    Mock->Delete(KNET_DpIsForkedParent);
+    Mock->Delete(KNET_DpSignalIsInSigHandler);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief Uninit - 信号处理中 + 非forked parent 路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_UNINIT_SIGNAL_NOT_PARENT, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_DpSignalIsInSigHandler, TEST_GetFuncRetPositive(1)); /* true */
+    Mock->Create(KNET_DpIsForkedParent, TEST_GetFuncRetPositive(0)); /* false */
+    Mock->Create(KNET_DpExit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_Usleep, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(KNET_UninitDpdk, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_HashTblDeinit, MOCK_KNET_HashTblDeinit);
+    Mock->Create(KNET_JoinThread, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_DpMaxWorkerIdGet, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_PktBatchFree, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_TelemetrySetPersistThreadExit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_LogLevelSet, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_MemSetFlagInSignalQuiting, TEST_GetFuncRetPositive(0));
+    Mock->Create(JoinDpdkAndStackThread, TEST_GetFuncRetPositive(0));
+
+    Uninit();
+
+    Mock->Delete(JoinDpdkAndStackThread);
+    Mock->Delete(KNET_MemSetFlagInSignalQuiting);
+    Mock->Delete(KNET_LogLevelSet);
+    Mock->Delete(KNET_TelemetrySetPersistThreadExit);
+    Mock->Delete(KNET_PktBatchFree);
+    Mock->Delete(KNET_DpMaxWorkerIdGet);
+    Mock->Delete(KNET_JoinThread);
+    Mock->Delete(KNET_HashTblDeinit);
+    Mock->Delete(KNET_UninitDpdk);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(KNET_Usleep);
+    Mock->Delete(KNET_DpExit);
+    Mock->Delete(KNET_DpIsForkedParent);
+    Mock->Delete(KNET_DpSignalIsInSigHandler);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief LcoreMainloop - 多进程模式路径
+ */
+static union KNET_CfgValue g_cfgMulti = {.intValue = 0};
+static union KNET_CfgValue *MockKnetGetCfgMultiMode(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgMulti, sizeof(g_cfgMulti), 0, sizeof(g_cfgMulti));
+    if (key == CONF_COMMON_MODE) {
+        g_cfgMulti.intValue = KNET_RUN_MODE_MULTIPLE;
+    } else {
+        g_cfgMulti.intValue = 1;
+    }
+    return &g_cfgMulti;
+}
+DTEST_CASE_F(KNET_INIT, TEST_LCORE_MAINLOOP_MULTI_MODE, NULL, NULL)
+{
+    KNET_DpWorkerInfo workerInfo = {0};
+    workerInfo.workerId = 0;
+    workerInfo.lcoreId = 0;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgMultiMode);
+    Mock->Create(rte_lcore_id, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_get_timer_hz, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_get_timer_cycles, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(DP_RunWorkerOnce, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SetQueIdMapPidTidLcoreInfo, TEST_GetFuncRetPositive(0));
+
+    g_threadStop = true;
+    int ret = LcoreMainloop(&workerInfo);
+    DT_ASSERT_EQUAL(ret, 0);
+
+    Mock->Delete(KNET_SetQueIdMapPidTidLcoreInfo);
+    Mock->Delete(KNET_SpinlockUnlock);
+    Mock->Delete(DP_RunWorkerOnce);
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(rte_get_timer_cycles);
+    Mock->Delete(rte_get_timer_hz);
+    Mock->Delete(rte_lcore_id);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CpThreadFunc - kernelForwardEnabled != KERNEL_FORWARD_ENABLE 路径
+ */
+static union KNET_CfgValue g_cfgNotKernel = {.intValue = 0};
+static union KNET_CfgValue *MockKnetGetCfgNotKernel(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgNotKernel, sizeof(g_cfgNotKernel), 0, sizeof(g_cfgNotKernel));
+    g_cfgNotKernel.intValue = 0; /* != KERNEL_FORWARD_ENABLE */
+    return &g_cfgNotKernel;
+}
+DTEST_CASE_F(KNET_INIT, TEST_CP_THREAD_FUNC_NOT_KERNEL, NULL, NULL)
+{
+    CtrlThreadArgs ctrlArgs = {0};
+    ctrlArgs.ctrlVcpuID = 0;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_SetThreadAffinity, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgNotKernel);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(DP_CpdRunOnce, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_Usleep, TEST_GetFuncRetPositive(0));
+
+    g_threadStop = true;
+    CpThreadFunc(&ctrlArgs);
+
+    Mock->Delete(KNET_Usleep);
+    Mock->Delete(KNET_SpinlockUnlock);
+    Mock->Delete(DP_CpdRunOnce);
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(KNET_SetThreadAffinity);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CreateCpThread - ctrlVcpuNum > MAX_VCPU_NUMS 路径
+ */
+static union KNET_CfgValue g_cfgBigVcpu = {.intValue = 0};
+static union KNET_CfgValue *MockKnetGetCfgBigVcpu(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgBigVcpu, sizeof(g_cfgBigVcpu), 0, sizeof(g_cfgBigVcpu));
+    g_cfgBigVcpu.intValue = MAX_VCPU_NUMS + 1;
+    return &g_cfgBigVcpu;
+}
+DTEST_CASE_F(KNET_INIT, TEST_CREATE_CP_THREAD_TOO_MANY, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgBigVcpu);
+
+    int32_t ret = CreateCpThread();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CreateCpThread - snprintf_s失败路径
+ */
+static int32_t g_snprintfCallCount = 0;
+static int32_t MockSnprintfFail(char *dest, uint32_t destMax, uint32_t count, const char *fmt, ...)
+{
+    g_snprintfCallCount++;
+    if (g_snprintfCallCount == 1) {
+        return -1; /* 第一次调用(线程名)失败 */
+    }
+    return 0;
+}
+DTEST_CASE_F(KNET_INIT, TEST_CREATE_CP_THREAD_SNPRINTF_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg); /* ctrlVcpuNum=1 */
+    Mock->Create(KNET_CreateThread, TEST_GetFuncRetPositive(0));
+    Mock->Create(snprintf_s, MockSnprintfFail);
+
+    g_snprintfCallCount = 0;
+    int32_t ret = CreateCpThread();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(snprintf_s);
+    Mock->Delete(KNET_CreateThread);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief StartDpThread - cothread模式直接返回
+ */
+static union KNET_CfgValue g_cfgCothread = {.intValue = 1};
+static union KNET_CfgValue *MockKnetGetCfgCothread(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgCothread, sizeof(g_cfgCothread), 0, sizeof(g_cfgCothread));
+    g_cfgCothread.intValue = 1; /* CONF_COMMON_COTHREAD == 1 */
+    return &g_cfgCothread;
+}
+DTEST_CASE_F(KNET_INIT, TEST_START_DP_THREAD_COTHREAD, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgCothread);
+
+    int32_t ret = StartDpThread();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief CreateTelemetryPersistThread - 多进程+从进程返回0
+ */
+static union KNET_CfgValue g_cfgMultiSecondary = {.intValue = 0};
+static union KNET_CfgValue *MockKnetGetCfgMultiSecondary(enum KNET_ConfKey key)
+{
+    (void)memset_s(&g_cfgMultiSecondary, sizeof(g_cfgMultiSecondary), 0, sizeof(g_cfgMultiSecondary));
+    if (key == CONF_COMMON_MODE) {
+        g_cfgMultiSecondary.intValue = KNET_RUN_MODE_MULTIPLE;
+    } else if (key == CONF_INNER_PROC_TYPE) {
+        g_cfgMultiSecondary.intValue = KNET_PROC_TYPE_SECONDARY;
+    } else {
+        g_cfgMultiSecondary.intValue = 1;
+    }
+    return &g_cfgMultiSecondary;
+}
+DTEST_CASE_F(KNET_INIT, TEST_CREATE_TELE_PERSIST_MULTI_SECONDARY, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgMultiSecondary);
+
+    int32_t ret = CreateTelemetryPersistThread();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief JoinDpdkAndStackThread - cp thread join失败 + multidump join失败路径
+ */
+DTEST_CASE_F(KNET_INIT, TEST_JOIN_THREAD_CP_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg); /* ctrlVcpuNum=1 */
+    Mock->Create(KNET_JoinThread, TEST_GetFuncRetNegative(1)); /* join失败 */
+    Mock->Create(KNET_DpMaxWorkerIdGet, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_eal_wait_lcore, TEST_GetFuncRetPositive(0));
+
+    int ret = JoinDpdkAndStackThread();
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(rte_eal_wait_lcore);
+    Mock->Delete(KNET_DpMaxWorkerIdGet);
+    Mock->Delete(KNET_JoinThread);
     Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }

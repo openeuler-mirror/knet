@@ -71,3 +71,169 @@ DTEST_CASE_F(TUN, TEST_KNET_TAP_CREATE, NULL, NULL)
     Mock->Delete(fcntl);
     DeleteMock(Mock);
 }
+
+/**
+ * @brief KNET_TapFree 传入 INVALID_FD, 覆盖非法 fd 早返回分支
+ */
+DTEST_CASE_F(TUN, TEST_KNET_TAP_FREE_INVALID_FD, NULL, NULL)
+{
+    int32_t ret = KNET_TapFree(INVALID_FD);
+    DT_ASSERT_EQUAL(ret, -1);
+}
+
+/**
+ * @brief KNET_FetchIfIndex socket 失败
+ */
+DTEST_CASE_F(TUN, TEST_FETCH_IFINDEX_SOCKET_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(socket, TEST_GetFuncRetNegative(1));
+
+    char ifname[IF_NAME_SIZE] = "testtap";
+    int ifIndex = 0;
+    int32_t ret = KNET_FetchIfIndex(ifname, IF_NAME_SIZE, &ifIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_FetchIfIndex strcpy_s 失败
+ */
+DTEST_CASE_F(TUN, TEST_FETCH_IFINDEX_STRCPY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strcpy_s, TEST_GetFuncRetNegative(1));
+
+    char ifname[IF_NAME_SIZE] = "testtap";
+    int ifIndex = 0;
+    int32_t ret = KNET_FetchIfIndex(ifname, IF_NAME_SIZE, &ifIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(strcpy_s);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_FetchIfIndex ioctl 失败
+ */
+DTEST_CASE_F(TUN, TEST_FETCH_IFINDEX_IOCTL_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strcpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(ioctl, TEST_GetFuncRetNegative(1));
+
+    char ifname[IF_NAME_SIZE] = "testtap";
+    int ifIndex = 0;
+    int32_t ret = KNET_FetchIfIndex(ifname, IF_NAME_SIZE, &ifIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(ioctl);
+    Mock->Delete(strcpy_s);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_FetchIfIndex 全部成功, 覆盖成功路径返回 0
+ */
+DTEST_CASE_F(TUN, TEST_FETCH_IFINDEX_SUCCESS, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strcpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(ioctl, TEST_GetFuncRetPositive(0));
+
+    char ifname[IF_NAME_SIZE] = "testtap";
+    int ifIndex = 0;
+    int32_t ret = KNET_FetchIfIndex(ifname, IF_NAME_SIZE, &ifIndex);
+    DT_ASSERT_EQUAL(ret, 0);
+
+    Mock->Delete(ioctl);
+    Mock->Delete(strcpy_s);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_TAPCreate snprintf_truncated_s 失败
+ */
+DTEST_CASE_F(TUN, TEST_TAP_CREATE_SNPRINTF_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(snprintf_truncated_s, TEST_GetFuncRetNegative(1));
+
+    int32_t fd = 0;
+    int tapIfIndex = 0;
+    int ret = KNET_TAPCreate(&fd, &tapIfIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(snprintf_truncated_s);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_TAPCreate open 失败导致 CreateInitTap 失败
+ */
+DTEST_CASE_F(TUN, TEST_TAP_CREATE_OPEN_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(snprintf_truncated_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(open, TEST_GetFuncRetNegative(1));
+
+    int32_t fd = 0;
+    int tapIfIndex = 0;
+    int ret = KNET_TAPCreate(&fd, &tapIfIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(open);
+    Mock->Delete(snprintf_truncated_s);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_TAPCreate TapAlloc 成功但 TapSetTapInfo 中 socket 失败
+ */
+DTEST_CASE_F(TUN, TEST_TAP_CREATE_SOCKET_FAIL_IN_SETTAPINFO, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(snprintf_truncated_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(open, TEST_GetFuncRetPositive(0));
+    Mock->Create(strcpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(ioctl, TEST_GetFuncRetPositive(0));
+    Mock->Create(fcntl, TEST_GetFuncRetPositive(0));
+    Mock->Create(memcpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(socket, TEST_GetFuncRetNegative(1));
+
+    int32_t fd = 0;
+    int tapIfIndex = 0;
+    int ret = KNET_TAPCreate(&fd, &tapIfIndex);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(socket);
+    Mock->Delete(memcpy_s);
+    Mock->Delete(fcntl);
+    Mock->Delete(ioctl);
+    Mock->Delete(strcpy_s);
+    Mock->Delete(open);
+    Mock->Delete(snprintf_truncated_s);
+    DeleteMock(Mock);
+}

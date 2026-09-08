@@ -858,3 +858,143 @@ DTEST_CASE_F(HASH, TEST_HASH_DESTROY_NOT_INIT, NULL, NULL)
     /* KNET_HashTblDeinit 未初始化的路径 */
     KNET_HashTblDeinit();
 }
+
+/**
+ * @brief GetHashTblId: 所有table id都被占用, 返回-1
+ */
+DTEST_CASE_F(HASH, TEST_HASH_GET_ID_NO_FREE, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_RwlockInit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+
+    int ret = KNET_HashTblInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* 占满所有table id (DEFAULT_HASH_TBL_NUM=128) */
+    uint32_t ids[DEFAULT_HASH_TBL_NUM];
+    for (int i = 0; i < DEFAULT_HASH_TBL_NUM; i++) {
+        ret = GetHashTblId(&ids[i]);
+        DT_ASSERT_EQUAL(ret, 0);
+        DT_ASSERT_EQUAL(ids[i], (uint32_t)i);
+    }
+
+    /* 再获取应该失败 */
+    uint32_t extraId = 0;
+    ret = GetHashTblId(&extraId);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* 释放所有id */
+    for (int i = 0; i < DEFAULT_HASH_TBL_NUM; i++) {
+        ReleaseHashTblId(ids[i]);
+    }
+
+    KNET_HashTblDeinit();
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_RwlockInit);
+    Mock->Delete(KNET_SpinlockUnlock);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_CreateHashTbl: NULL参数
+ *        ParameterCheck失败
+ */
+DTEST_CASE_F(HASH, TEST_HASH_CREATE_NULL_PARAMS, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+
+    int ret = KNET_HashTblInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* cfg=NULL */
+    ret = KNET_CreateHashTbl(NULL, NULL);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    /* tableId=NULL, cfg非NULL */
+    KNET_HashTblCfg cfg = {0};
+    cfg.entryNum = 10;
+    cfg.keySize = 4;
+    cfg.entrySize = 4;
+    cfg.hashFunc = FuncHash;
+    ret = KNET_CreateHashTbl(&cfg, NULL);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    KNET_HashTblDeinit();
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_DestroyHashTbl: tableId >= tableIdNum
+ */
+DTEST_CASE_F(HASH, TEST_HASH_DESTROY_INVALID_ID, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+
+    int ret = KNET_HashTblInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* tableId超出范围 */
+    ret = KNET_DestroyHashTbl(DEFAULT_HASH_TBL_NUM + 10);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    KNET_HashTblDeinit();
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_SpinlockUnlock);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief GetValidHashTbl: tableId未初始化 initFlag==0
+ *        通过KNET_HashTblAddEntry/LookupEntry/DelEntry/ModifyEntry触发
+ */
+DTEST_CASE_F(HASH, TEST_HASH_ENTRY_NOT_INIT_TABLE, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    Mock->Create(KNET_SpinlockLock, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_RwlockInit, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SpinlockUnlock, TEST_GetFuncRetPositive(0));
+
+    int ret = KNET_HashTblInit();
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* 获取一个tableId但不创建hash表, initFlag=1但handle=NULL */
+    uint32_t tableId = 0;
+    ret = GetHashTblId(&tableId);
+    DT_ASSERT_EQUAL(ret, 0);
+
+    /* 释放该id, 使initFlag=0 */
+    ReleaseHashTblId(tableId);
+
+    /* 现在该tableId的initFlag=0, GetValidHashTbl应返回NULL */
+    uint8_t key = 1;
+    uint8_t data = 1;
+    ret = KNET_HashTblAddEntry(tableId, &key, &data);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    ret = KNET_HashTblLookupEntry(tableId, &key, &data);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    ret = KNET_HashTblDelEntry(tableId, &key);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    ret = KNET_HashTblModifyEntry(tableId, &key, &data);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    KNET_HashTblDeinit();
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(KNET_SpinlockLock);
+    Mock->Delete(KNET_RwlockInit);
+    Mock->Delete(KNET_SpinlockUnlock);
+    DeleteMock(Mock);
+}

@@ -236,7 +236,7 @@ KNET_STATIC int CollectDumpFiles(char dumpFiles[][PATH_MAX + 1], int maxFiles)
     return fileCount;
 }
 
-static int ExtractTimestampInt(const char *filePath, long long *timestamp)
+KNET_STATIC int ExtractTimestampInt(const char *filePath, long long *timestamp)
 {
     /* 从文件名中提取时间戳字符串 */
     const char *basename = strrchr(filePath, '/');
@@ -276,7 +276,7 @@ static int ExtractTimestampInt(const char *filePath, long long *timestamp)
  * @return int 返回值：0表示不需要跳过，1表示需要跳过
  * @note 即使memZone查找失败也会返回0（不跳过），保持容错性
  */
-static int CheckProcessSkipByTelemetryState(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset)
+KNET_STATIC int CheckProcessSkipByTelemetryState(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset)
 {
     struct ProcessInfo *processInfo = knetProcessInfo->processInfo;
     const struct rte_memzone *memZone = rte_memzone_lookup(KNET_TELEMETRY_PERSIST_MZ_NAME);
@@ -304,7 +304,7 @@ static int CheckProcessSkipByTelemetryState(struct KnetProcessInfo *knetProcessI
  * @param formatLastTail 指向formatLastTail标志的指针，用于输出更新后的值
  * @return bool true表示需要跳过，false表示不需要跳过
  */
-static bool ShouldSkipDeadProcess(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset,
+KNET_STATIC bool ShouldSkipDeadProcess(struct KnetProcessInfo *knetProcessInfo, int processIndex, int *offset,
                                   bool *formatLastTail)
 {
     struct ProcessInfo *processInfo = knetProcessInfo->processInfo;
@@ -331,7 +331,7 @@ static bool ShouldSkipDeadProcess(struct KnetProcessInfo *knetProcessInfo, int p
  * @return int 成功返回0，失败返回-1
  * @note 跳过空字符串（已删除标记）
  */
-static int FindOldestDumpFile(char dumpFiles[][PATH_MAX + 1], int fileCount, int *oldestIndex)
+KNET_STATIC int FindOldestDumpFile(char dumpFiles[][PATH_MAX + 1], int fileCount, int *oldestIndex)
 {
     long long oldestTime = LLONG_MAX;
     bool found = false;

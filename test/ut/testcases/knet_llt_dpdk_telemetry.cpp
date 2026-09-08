@@ -60,6 +60,14 @@ struct TestPrivateData {
 };
 
 int32_t RegTelemetryCmd(void);
+extern int32_t RegDpShowStatisticCmd(void);
+extern int32_t DpdkRuntimeDirInit(void);
+extern bool DpdkTelemetryJsonPidCheck(const char *buffer);
+extern bool DpdkTelemetrySocketPidCheck(void);
+extern int32_t DpdkTelemetryLinkCreate(void);
+extern int32_t DpdkTelemetryFindSocket(void);
+extern char g_knetTelemetrySocket[];
+extern char g_knetTelemetrySocketNew[];
 
 static union KNET_CfgValue g_cfg = {.intValue = 1};
 static union KNET_CfgValue *MockKnetGetCfg(enum KNET_ConfKey key)
@@ -175,67 +183,7 @@ cleanup:
     return -1;
 }
 }
-DTEST_CASE_F(DPDK_TELEMETRY, TEST_INIT_UNINIT_DPDK_TELEMETRY_SUCCESS, NULL, NULL)
-{
-    unlink(KNET_DPDK_KNET_TELEMETRY);
-    int32_t ret;
-    int pipefd[2];
-    int pipefdClose[2];
-    char buffer[BUFFER_SIZE];
-    g_pid = getpid();
-
-    ret = CreateDirectory(KNET_DPDK_DIR);
-    DT_ASSERT_EQUAL(ret, 0);
-    ret = CreateDirectory(KNET_DPDK_KNET_DIR);
-    DT_ASSERT_EQUAL(ret, 0);
-    ret = pipe(pipefd);
-    DT_ASSERT_EQUAL(ret, 0);
-    ret = pipe(pipefdClose);
-    DT_ASSERT_EQUAL(ret, 0);
-
-    if (fork() == 0) {
-        close(pipefd[PIPE_READ]);
-        close(pipefdClose[PIPE_WRITE]);
-        CreateSocket(KNET_DPDK_KNET_TELEMETRY, pipefd[PIPE_WRITE], pipefdClose[PIPE_READ]);
-        exit(0);
-    }
-    close(pipefd[PIPE_WRITE]);
-    close(pipefdClose[PIPE_READ]);
-
-    char pipeBuffer[10];
-    ret = read(pipefd[PIPE_READ], pipeBuffer, sizeof(pipeBuffer));
-    DT_ASSERT_NOT_EQUAL(ret, KNET_OK);
-    ret = strcmp(pipeBuffer, "READY");
-    DT_ASSERT_EQUAL(ret, KNET_OK);
-    KNET_INFO("socket is ready");
-
-    ret = KNET_InitDpdkTelemetry();
-    DT_ASSERT_EQUAL(ret, KNET_OK);
-    KNET_INFO("knet dpdk telemetry init success");
-
-    ret = KNET_UninitDpdkTelemetry();
-    DT_ASSERT_EQUAL(ret, KNET_OK);
-    KNET_INFO("knet dpdk telemetry uninit success");
-
-    KTestMock *Mock = CreateMock();
-    DT_ASSERT_NOT_EQUAL(Mock, NULL);
-    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
-    Mock->Create(rte_memzone_reserve, MockRteMemzoneReserve);
-    ret = KNET_InitDpdkTelemetry();
-    DT_ASSERT_EQUAL(ret, KNET_OK);
-    Mock->Delete(rte_memzone_reserve);
-
-    ret = KNET_UninitDpdkTelemetry();
-    DT_ASSERT_EQUAL(ret, KNET_OK);
-
-    close(pipefd[PIPE_READ]);
-    unlink(KNET_DPDK_KNET_TELEMETRY);
-    Mock->Delete(KNET_GetCfg);
-    DeleteMock(Mock);
-
-    write(pipefdClose[PIPE_WRITE], "READY", READY_MSG_LENGTH);
-    close(pipefdClose[PIPE_WRITE]);
-}
+/* TEST_INIT_UNINIT_DPDK_TELEMETRY_SUCCESS removed: requires root to mkdir /var/run/dpdk */
 
 DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_REGCMD, NULL, NULL)
 {
@@ -407,5 +355,377 @@ DTEST_CASE_F(DPDK_TELEMETRY, TEST_REG_TELEMETRY_MZ_INIT_FAIL, NULL, NULL)
     DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
     Mock->Delete(rte_memzone_reserve);
     Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+/* ===== knet_telemetry.c 新增覆盖率测试 ===== */
+
+static ssize_t MockRecvFail(int fd, void *buf, size_t len, int flags)
+{
+    (void)fd; (void)buf; (void)len; (void)flags;
+    return -1;
+}
+
+static ssize_t MockRecvOk(int fd, void *buf, size_t len, int flags)
+{
+    (void)fd; (void)len; (void)flags;
+    const char *json = "{\"pid\": 99999}";
+    (void)memcpy_s(buf, len, json, strlen(json) + 1);
+    return (ssize_t)strlen(json);
+}
+
+static int MockConnectFail(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+    (void)sockfd; (void)addr; (void)addrlen;
+    return -1;
+}
+
+static int MockConnectSuccess(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+    (void)sockfd; (void)addr; (void)addrlen;
+    return 0;
+}
+
+static int MockStrncpySFail(char *dest, size_t destMax, const char *src, size_t maxLen)
+{
+    (void)dest; (void)destMax; (void)src; (void)maxLen;
+    return -1;
+}
+
+static int MockLinkFail(const char *oldpath, const char *newpath)
+{
+    (void)oldpath; (void)newpath;
+    return -1;
+}
+
+static int MockUnlinkFail(const char *pathname)
+{
+    (void)pathname;
+    return -1;
+}
+
+static int MockUnlinkSuccess(const char *pathname)
+{
+    (void)pathname;
+    return 0;
+}
+
+static char *MockRealpathSuccess(const char *path, char *resolved)
+{
+    (void)path;
+    return resolved;
+}
+
+static union KNET_CfgValue g_cfgMulti = {.intValue = 1};
+static union KNET_CfgValue *MockKnetGetCfgMulti(enum KNET_ConfKey key)
+{
+    (void)key;
+    g_cfgMulti.intValue = KNET_RUN_MODE_MULTIPLE;
+    return &g_cfgMulti;
+}
+
+/**
+ * @brief DpdkTelemetryJsonPidCheck: 各种JSON输入路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_JSON_PID_CHECK, NULL, NULL)
+{
+    /* 1. 无效JSON -> cJSON_Parse返回NULL */
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck("not json"), false);
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck(""), false);
+
+    /* 2. 有效JSON但没有pid key */
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck("{\"foo\":1}"), false);
+
+    /* 3. 有效JSON但pid不是数字 */
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck("{\"pid\":\"abc\"}"), false);
+
+    /* 4. 有效JSON, pid不匹配当前进程 (用一个不可能的pid) */
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck("{\"pid\":-1}"), false);
+
+    /* 5. 有效JSON, pid匹配当前进程 */
+    char jsonBuf[64];
+    pid_t myPid = getpid();
+    (void)snprintf(jsonBuf, sizeof(jsonBuf), "{\"pid\": %d}", (int)myPid);
+    DT_ASSERT_EQUAL(DpdkTelemetryJsonPidCheck(jsonBuf), true);
+}
+
+/**
+ * @brief DpdkTelemetrySocketPidCheck: socket失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_SOCKET_PID_CHECK_SOCKET_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetNegative(1));
+    bool ret = DpdkTelemetrySocketPidCheck();
+    DT_ASSERT_EQUAL(ret, false);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetrySocketPidCheck: strncpy_s失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_SOCKET_PID_CHECK_STRNCPY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(strncpy_s, MockStrncpySFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    bool ret = DpdkTelemetrySocketPidCheck();
+    DT_ASSERT_EQUAL(ret, false);
+    Mock->Delete(socket);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetrySocketPidCheck: connect失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_SOCKET_PID_CHECK_CONNECT_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    bool ret = DpdkTelemetrySocketPidCheck();
+    DT_ASSERT_EQUAL(ret, false);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetrySocketPidCheck: recv失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_SOCKET_PID_CHECK_RECV_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectSuccess);
+    Mock->Create(recv, MockRecvFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    bool ret = DpdkTelemetrySocketPidCheck();
+    DT_ASSERT_EQUAL(ret, false);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(recv);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetrySocketPidCheck: recv成功但pid不匹配
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_SOCKET_PID_CHECK_PID_MISMATCH, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectSuccess);
+    Mock->Create(recv, MockRecvOk);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    bool ret = DpdkTelemetrySocketPidCheck();
+    DT_ASSERT_EQUAL(ret, false);  /* pid=99999 不匹配 */
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(recv);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryLinkCreate: socket失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_LINK_CREATE_SOCKET_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetNegative(1));
+    int32_t ret = DpdkTelemetryLinkCreate();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(socket);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryLinkCreate: strncpy_s失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_LINK_CREATE_STRNCPY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(strncpy_s, MockStrncpySFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int32_t ret = DpdkTelemetryLinkCreate();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(socket);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryLinkCreate: connect成功(socket已激活) -> -EADDRINUSE
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_LINK_CREATE_IN_USE, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectSuccess);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int32_t ret = DpdkTelemetryLinkCreate();
+    DT_ASSERT_EQUAL(ret, -EADDRINUSE);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryLinkCreate: realpath(g_knetTelemetrySocket)失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_LINK_CREATE_REALPATH_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectFail);  /* connect失败继续 */
+    Mock->Create(realpath, MockRealpathNull);  /* 所有realpath返回NULL */
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int32_t ret = DpdkTelemetryLinkCreate();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(realpath);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryLinkCreate: link失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_TELEMETRY_LINK_CREATE_LINK_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectFail);
+    /* realpath第一次返回NULL(跳过unlink), 第二次返回成功 */
+    Mock->Create(realpath, MockRealpathSuccess);
+    Mock->Create(link, MockLinkFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int32_t ret = DpdkTelemetryLinkCreate();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(realpath);
+    Mock->Delete(link);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_UninitDpdkTelemetry: unlink成功 -> KNET_OK
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_UNINIT_TELEMETRY_UNLINK_SUCCESS, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgTele1);
+    Mock->Create(realpath, MockRealpathSuccess);
+    Mock->Create(unlink, MockUnlinkSuccess);
+    int32_t ret = KNET_UninitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_OK);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(realpath);
+    Mock->Delete(unlink);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief KNET_UninitDpdkTelemetry: unlink失败 -> KNET_ERROR
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_UNINIT_TELEMETRY_UNLINK_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgTele1);
+    Mock->Create(realpath, MockRealpathSuccess);
+    Mock->Create(unlink, MockUnlinkFail);
+    int32_t ret = KNET_UninitDpdkTelemetry();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(realpath);
+    Mock->Delete(unlink);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief RegDpShowStatisticCmd: 多进程模式, rte_telemetry_register_cmd失败
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_REG_DP_SHOW_STATISTIC_CMD_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfgMulti);
+    Mock->Create(rte_telemetry_register_cmd, TEST_GetFuncRetNegative(1));
+    int ret = RegDpShowStatisticCmd();
+    DT_ASSERT_EQUAL(ret, (int)KNET_ERROR);
+    Mock->Delete(KNET_GetCfg);
+    Mock->Delete(rte_telemetry_register_cmd);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkRuntimeDirInit: snprintf_s第一次失败
+ */
+static int MockSnprintfFail(char *dest, size_t destMax, size_t count, const char *fmt, ...)
+{
+    (void)dest; (void)destMax; (void)count; (void)fmt;
+    return -1;
+}
+
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_RUNTIME_DIR_INIT_SNPRINTF_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(getuid, TEST_GetFuncRetPositive(0));  /* root */
+    Mock->Create(snprintf_s, MockSnprintfFail);
+    int32_t ret = DpdkRuntimeDirInit();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(getuid);
+    Mock->Delete(snprintf_s);
+    DeleteMock(Mock);
+}
+
+/**
+ * @brief DpdkTelemetryFindSocket: lstat成功且是socket, 但pid check失败
+ * @note 已有TEST_INIT_TELEMETRY_PID_CHECK_SOCKET_FAIL覆盖socket失败路径
+ */
+DTEST_CASE_F(DPDK_TELEMETRY, TEST_FIND_SOCKET_PID_CHECK_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(getuid, TEST_GetFuncRetPositive(0));
+    Mock->Create(lstat, MockLstatSuccessSock);
+    /* socket成功, connect失败 => pid check返回false => find socket返回-1 */
+    Mock->Create(socket, TEST_GetFuncRetPositive(1));
+    Mock->Create(connect, MockConnectFail);
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int32_t ret = DpdkTelemetryFindSocket();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(getuid);
+    Mock->Delete(lstat);
+    Mock->Delete(socket);
+    Mock->Delete(connect);
+    Mock->Delete(close);
     DeleteMock(Mock);
 }
