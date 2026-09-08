@@ -1,4 +1,4 @@
-# 多进程模式加速
+# 多进程加速功能
 
 ## 功能描述
 
@@ -133,7 +133,7 @@
         hinic3: Add fdir tcam rule, function_id: 0x1, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
         ```
 
-4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口一致，及IP地址保持一致。<a id="客户端打流"></a>
+4. 客户端主机中运行多个redis-benchmark，进行性能测试。需要与服务端指定端口和IP地址保持一致。<a id="客户端打流"></a>
     1. 启动一个终端运行redis-benchmark。
 
         ```bash
