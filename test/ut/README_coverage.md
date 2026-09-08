@@ -2,11 +2,13 @@
 
 ## 功能简介
 
-`test/ut/coverage.sh` 用于一键获取 knet 单元测试的代码覆盖率报告。脚本串联了完整的覆盖率流水线：
+`test/ut/get_cover.sh` 用于在 UT 运行后生成 knet 单元测试的代码覆盖率报告。脚本串联了完整的覆盖率流水线：
 
-**构建（可选）→ 运行 UT → gcovr 生成报告 → 增量覆盖率（可选）→ 阈值检查（可选）**
+**gcovr 生成全量报告 → 模块聚合报告 → 增量覆盖率（自动）→ 阈值检查**
 
-覆盖率插桩由 `test/ut/CMakeLists.txt` 完成（`-fprofile-arcs -ftest-coverage`，链接 `gcov` 库），构建产物 `knet_ut_BIN` 输出到 `test/ut/` 根目录，`.gcno/.gcda` 生成在 `test/ut/build/CMakeFiles/knet_ut_BIN.dir/` 下。脚本通过 `gcovr` 将 `.gcda/.gcno` 转换为 Cobertura 格式的 `coverage.xml`/`coverage.html`，并支持 `diff-cover` 做增量覆盖率检查。
+> 前置条件：`./knet_ut_BIN` 已运行且 `.gcda` 文件存在。本脚本不负责构建与运行 UT，需用户自行执行 `test/build.sh` 与 `./knet_ut_BIN`。
+
+覆盖率插桩由 `test/ut/CMakeLists.txt` 完成（`-fprofile-arcs -ftest-coverage`，链接 `gcov` 库），构建产物 `knet_ut_BIN` 输出到 `test/ut/` 根目录，`.gcno/.gcda` 生成在 `test/ut/build/CMakeFiles/knet_ut_BIN.dir/` 下。脚本通过 `gcovr` 将 `.gcda/.gcno` 转换为 Cobertura 格式的 `coverage.xml`/`coverage.html`，并基于内嵌 Python 解析 XML 生成模块聚合报告 `coverage_modules.html` 与 folly 风格的增量覆盖率报告 `diff-coverage.txt`（不依赖 `diff-cover`）。
 
 ## 依赖
 
@@ -15,63 +17,63 @@
 | 命令 | 用途 | 说明 |
 |------|------|------|
 | `bash` | 脚本运行 | 推荐 4.x 及以上 |
-| `gcc` / `g++` | 编译插桩 | 由 CMakeLists.txt 调用 |
-| `gcov` | gcno/gcda 解析 | gcc 配套工具 |
-| `python3` | 阈值检查 / gcovr 依赖 | 3.6+ |
+| `gcov` | gcno/gcda 解析 | gcc 配套工具（插桩由 CMakeLists.txt 调用 `gcc`/`g++` 完成） |
+| `python3` | 模块聚合报告 / 增量覆盖率 / gcovr 依赖 | 3.6+ |
+| `git` | 增量覆盖率（解析 `git diff`） | 仅增量阶段需要 |
 
 ### Python 依赖
 
 ```bash
-pip install gcovr          # 覆盖率报告生成
-pip install diff-cover     # 增量覆盖率（仅 --diff 时需要）
+pip install gcovr          # 覆盖率报告生成（脚本缺失时会自动尝试 pip 安装）
 ```
+
+> 说明：增量覆盖率不依赖 `diff-cover`，脚本内嵌 Python 解析 `git diff` 与 `coverage.xml` 完成计算。
 
 ## 快速开始
 
 ```bash
 # 1. 首次构建（clone dpdk + build.py debug + cmake + make，生成 knet_ut_BIN）
-cd test
-bash build.sh
+cd test && bash build.sh
 
-# 2. 复用已有二进制生成覆盖率报告
-bash test/ut/coverage.sh --no-build
+# 2. 运行 UT 生成 .gcda
+./test/ut/knet_ut_BIN
 
-# 3. 一条命令完成构建+运行+报告
-bash test/ut/coverage.sh
+# 3. 生成覆盖率报告（全量 + 自动增量）
+bash test/ut/get_cover.sh
 ```
 
-报告默认输出到 `test/ut/build/coverage/`，包含 `coverage.txt`、`coverage.html`、`coverage.xml`。
+报告默认输出到 `test/ut/build/coverage/`，包含 `coverage.txt`、`coverage.html`、`coverage.xml`、`coverage_modules.html`；增量阶段还会生成 `diff-coverage.txt`。
 
 ## 命令行选项
 
 | 选项 | 说明 | 默认值 |
 |------|------|--------|
-| `--build` | 执行构建（调用 `test/build.sh`） | 默认行为 |
-| `--no-build` | 跳过构建，复用已有 `knet_ut_BIN` 与 `.gcno`（缺失则报错退出） | — |
-| `--run` | 运行 UT 二进制 | 默认行为 |
-| `--no-run` | 跳过运行，复用已有 `.gcda` | — |
 | `--format FORMAT` | 报告格式：`text` / `html` / `xml` / `all` | `all` |
+| `--build-dir DIR` | 包含 `.gcda` 的构建目录 | 自动探测 |
 | `--output DIR` | 报告输出目录 | `test/ut/build/coverage` |
 | `--filter PATH` | gcovr `--filter` 被统计源码路径 | `<root>/src/knet` |
-| `--fail-under N` | 行覆盖率最低阈值，低于则退出码非 0 | `0`（不检查） |
-| `--diff BRANCH` | 增量覆盖率，对比 `BRANCH...HEAD` | 关闭 |
-| `--jobs N` | make 并发数 | `8` |
+| `--diff BRANCH` | 增量覆盖率，对比 `BRANCH...HEAD` | 自动探测基线 |
+| `--fail-under N` | 增量行覆盖率最低阈值，低于则退出码非 0 | `80` |
+| `--full-fail-under N` | 全量行覆盖率最低阈值，低于则退出码非 0 | `70` |
 | `-h, --help` | 打印帮助并退出 | — |
 
-> 说明：`--jobs` 用于控制 make 并发数。当前 `test/build.sh` 内部硬编码 `make -j8`，`--jobs` 通过环境变量 `KNET_UT_BUILD_JOBS` 透传，待 `build.sh` 适配后生效。
+> 说明：
+> - **构建目录自动探测**：依次检查 `KNET_BUILD_DIR`、`/root/knet_wsl/test/ut/build`、`<script>/build`，选取第一个含 `.gcda` 的目录；都未找到则报错退出。
+> - **增量基线自动探测**：未显式指定 `--diff` 时，依次尝试 `origin/master`、`origin/main`、`master`、`main`、`HEAD~1`，选取第一个可解析的引用；都不可用则跳过增量阶段。
+> - 未显式指定 `--diff` 时，脚本同时生成全量与增量报告；显式指定 `--diff` 后只针对该基线生成增量报告。
+> - `gcovr` 缺失时脚本会尝试 `pip install gcovr`，安装失败则跳过报告生成并以退出码 0 退出，避免影响构建流水线。
 
 ## 环境变量
 
 环境变量优先级低于命令行参数（即命令行参数会覆盖同名环境变量）。
 
-| 变量 | 说明 | 对应选项 |
-|------|------|----------|
-| `KNET_COVERAGE_OUTPUT` | 覆盖默认输出目录 | `--output` |
-| `KNET_COVERAGE_FORMAT` | 覆盖默认报告格式 | `--format` |
-| `KNET_COVERAGE_FAIL_UNDER` | 覆盖默认阈值 | `--fail-under` |
-| `KNET_COVERAGE_DIFF_BRANCH` | 覆盖默认增量分支 | `--diff` |
-| `KNET_UT_BUILD_JOBS` | 覆盖默认 make 并发数 | `--jobs` |
-| `ASAN_OPTIONS` | 覆盖默认 ASan 选项（默认 `detect_leaks=0:abort_on_error=1`） | — |
+| 变量 | 说明 | 对应选项 | 默认值 |
+|------|------|----------|--------|
+| `KNET_BUILD_DIR` | 覆盖默认构建目录 | `--build-dir` | 自动探测 |
+| `KNET_COVERAGE_OUTPUT` | 覆盖默认输出目录 | `--output` | `<script>/build/coverage` |
+| `KNET_COVERAGE_DIFF_BRANCH` | 覆盖默认增量分支 | `--diff` | 自动探测 |
+| `KNET_COVERAGE_FAIL_UNDER` | 覆盖默认增量阈值 | `--fail-under` | `80` |
+| `KNET_COVERAGE_FULL_FAIL_UNDER` | 覆盖默认全量阈值 | `--full-fail-under` | `70` |
 
 ## 产物说明
 
@@ -81,40 +83,35 @@ bash test/ut/coverage.sh
 |------|------|
 | `coverage.txt` | 文本版覆盖率摘要 |
 | `coverage.html` | HTML 覆盖率报告（含逐行详情 `--html-details`） |
-| `coverage.xml` | Cobertura XML 报告（阈值检查与增量覆盖率的输入） |
-| `diff-coverage.txt` | 增量覆盖率报告（仅 `--diff` 时生成） |
+| `coverage.xml` | Cobertura XML 报告（模块聚合与增量覆盖率的输入） |
+| `coverage_modules.html` | 模块聚合 HTML 报告（按 `src/knet` 子目录聚合，可点击展开查看文件级覆盖） |
+| `diff-coverage.txt` | 增量覆盖率报告（自动或 `--diff` 时生成） |
+| `gcovr.stderr` | gcovr 运行的标准错误输出 |
 
-阈值检查与增量覆盖率说明：
+阈值检查说明：
 
-- `--fail-under N`：解析 `coverage.xml` 根节点 `line-rate` 属性，行覆盖率 < N% 则脚本退出码非 0。
-- `--diff BRANCH`：调用 `diff-cover` 对比 `BRANCH...HEAD` 的增量代码覆盖率，低于阈值则退出码非 0；启用 `--diff` 时阈值检查由 `diff-cover` 兜底，不再重复执行。
-
-## 与 numpy pipline 的对应关系
-
-本脚本参考 numpy 的覆盖率流水线实现，对应关系如下：
-
-| numpy pipline | knet coverage.sh | 说明 |
-|---------------|------------------|------|
-| `gcovr`（生成 Cobertura XML/HTML） | `run_gcovr` | gcovr 适配 C/C++ 的 `.gcno/.gcda` 覆盖率数据 |
-| `--root` / `--filter` / `--exclude` | 同名参数 | 只统计被测源码，排除第三方/生成代码 |
-| `--gcov-ignore-parse-errors negative_hits.warn_once_per_file` | 同 | 忽略 gcov 解析告警 |
-| `--print-summary` | 同 | 打印覆盖率摘要 |
-| `find ... -name '*.gcda' -delete` | `run_tests` 运行前清理 | 清理脏数据 |
-| `incremental_coverage.sh`（`diff-cover`） | `run_diff` | 增量覆盖率检查 |
-| 内嵌 Python 解析 XML `line-rate` | `check_threshold` | 阈值检查 |
+- `--full-fail-under N`：基于模块聚合报告的全量行覆盖率，低于 N% 则退出码非 0（默认 70%）。
+- `--fail-under N`：基于 folly 风格增量覆盖率（`git diff` 新增行 ∩ `coverage.xml` 行命中），低于 N% 则退出码非 0（默认 80%，仅增量阶段检查）。
+- 退出码：gcovr 失败、全量阈值未达标、增量阈值未达标，任一发生则退出码非 0。
 
 ## 常用示例
 
 ```bash
-# 仅生成 HTML 报告
-bash test/ut/coverage.sh --no-build --no-run --format html
+# 1. 默认全量+增量报告（自动探测构建目录与基线分支）
+bash test/ut/get_cover.sh
 
-# 行覆盖率阈值 80%
-bash test/ut/coverage.sh --no-build --fail-under 80
+# 2. 仅生成 HTML 报告（仍会生成 XML 供模块聚合与增量使用）
+bash test/ut/get_cover.sh --format html
 
-# 增量覆盖率，对比 origin/master，阈值 90%
-bash test/ut/coverage.sh --no-build --diff origin/master --fail-under 90
+# 3. 指定构建目录（如 WSL 内 ext4 路径）
+bash test/ut/get_cover.sh --build-dir /root/knet_wsl/test/ut/build
 
-# 自定义输出目录与过滤路径
-bash test/ut/coverage.sh --no-build --output /tmp/cov --filter /path/to/src
+# 4. 增量覆盖率对比指定分支
+bash test/ut/get_cover.sh --diff origin/master
+
+# 5. 调整阈值（全量 75%，增量 85%）
+bash test/ut/get_cover.sh --full-fail-under 75 --fail-under 85
+
+# 6. 自定义输出目录与过滤路径
+bash test/ut/get_cover.sh --output /tmp/cov --filter /path/to/src
 ```

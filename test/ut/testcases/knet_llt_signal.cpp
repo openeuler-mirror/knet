@@ -508,3 +508,61 @@ DTEST_CASE_F(SIGNAL, TEST_SIGNAL_CLEAR_CURSIG, NULL, NULL)
     curSig = KNET_DpSignalGetCurSig();
     DT_ASSERT_EQUAL(curSig, 0);
 }
+
+/* ===== knet_signal_tcp.c 新增覆盖率测试 ===== */
+
+/**
+ * @brief KNET_DpSignalSetWaitExit + KNET_DpSignalGetWaitExit
+ */
+DTEST_CASE_F(SIGNAL, TEST_SIGNAL_SET_GET_WAIT_EXIT, NULL, NULL)
+{
+    KNET_DpSignalSetWaitExit();
+    bool ret = KNET_DpSignalGetWaitExit();
+    DT_ASSERT_EQUAL(ret, true);
+}
+
+/**
+ * @brief KNET_DpSignalDoSigaction: 无效signum
+ */
+DTEST_CASE_F(SIGNAL, TEST_SIGNAL_SIGACTION_INVALID_SIGNUM, NULL, NULL)
+{
+    int ret = KNET_DpSignalDoSigaction(-1, NULL, NULL);
+    DT_ASSERT_EQUAL(ret, -1);
+    ret = KNET_DpSignalDoSigaction(0, NULL, NULL);
+    DT_ASSERT_EQUAL(ret, -1);
+}
+
+/**
+ * @brief KNET_DpSignalDoSigaction: act==NULL, oldact!=NULL
+ */
+DTEST_CASE_F(SIGNAL, TEST_SIGNAL_SIGACTION_NULL_ACT, NULL, NULL)
+{
+    struct sigaction oldact = {0};
+    int ret = KNET_DpSignalDoSigaction(SIGINT, NULL, &oldact);
+    DT_ASSERT_EQUAL(ret, 0);
+}
+
+/**
+ * @brief KNET_DpSignalDoSignal: 无效signum
+ */
+DTEST_CASE_F(SIGNAL, TEST_SIGNAL_SIGNAL_INVALID_SIGNUM, NULL, NULL)
+{
+    sighandler_t ret = KNET_DpSignalDoSignal(-1, SIG_DFL);
+    DT_ASSERT_EQUAL(ret, SIG_ERR);
+    ret = KNET_DpSignalDoSignal(0, SIG_DFL);
+    DT_ASSERT_EQUAL(ret, SIG_ERR);
+}
+
+/**
+ * @brief KNET_DpSignalGetSigDelayCurSig: getter
+ *        KNET_DpSignalIsInSigHandler: getter
+ */
+DTEST_CASE_F(SIGNAL, TEST_SIGNAL_GETTERS, NULL, NULL)
+{
+    /* sigDelayCurSig默认为0 */
+    bool ret = KNET_DpSignalGetSigDelayCurSig();
+    DT_ASSERT_EQUAL(ret, false);
+    /* inSigHandler默认为false */
+    bool inHandler = KNET_DpSignalIsInSigHandler();
+    DT_ASSERT_EQUAL(inHandler, false);
+}

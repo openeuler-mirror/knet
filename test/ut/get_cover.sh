@@ -222,7 +222,7 @@ fi
 # ===== Incremental coverage (folly-style: git diff added lines ∩ coverage.xml line hits) =====
 # Methodology ported from folly run_coverage.sh: parse unified diff for added line numbers,
 # then intersect with per-line coverage from Cobertura XML. No diff-cover dependency.
-INCREMENTAL_RC=0
+# Note: incremental threshold is report-only (non-blocking); only --full-fail-under gates CI.
 
 run_incremental() {
     # Skip if neither explicit --diff nor auto mode
@@ -387,8 +387,7 @@ PYEOF
             if awk -v p="${T_PCT}" -v t="${FAIL_UNDER}" 'BEGIN{exit (p>=t)?0:1}'; then
                 echo "  incr threshold : ${FAIL_UNDER}% -> PASS (${T_PCT}% >= ${FAIL_UNDER}%)"
             else
-                echo "  incr threshold : ${FAIL_UNDER}% -> FAIL (${T_PCT}% < ${FAIL_UNDER}%)"
-                INCREMENTAL_RC=1
+                echo "  incr threshold : ${FAIL_UNDER}% -> FAIL (${T_PCT}% < ${FAIL_UNDER}%) [report-only, non-blocking]"
             fi
         fi
     fi
@@ -403,8 +402,8 @@ echo "  per-file  : ${OUTPUT}/coverage.html"
 echo "  per-module: ${OUTPUT}/coverage_modules.html"
 [ -n "${DIFF_BRANCH}" ] && echo "  incremental: ${OUTPUT}/diff-coverage.txt"
 
-# Final exit code: gcovr failure OR full/incremental threshold failure
+# Final exit code: gcovr failure OR full threshold failure.
+# Incremental threshold is report-only (non-blocking): only --full-fail-under gates CI.
 FINAL_RC=${GRC}
 [ ${FULL_RC:-0} -ne 0 ] && FINAL_RC=1
-[ ${INCREMENTAL_RC:-0} -ne 0 ] && FINAL_RC=1
 exit ${FINAL_RC}

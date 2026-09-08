@@ -25,6 +25,7 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <thread>
 
 #include "securec.h"
 #include "knet_lock.h"
@@ -95,6 +96,37 @@ static union KNET_CfgValue *MockKnetGetCfgPkt(enum KNET_ConfKey key)
 {
     (void)key;
     return &g_pktCfg;
+}
+
+static struct rte_mbuf g_testMbufs[32];
+static struct rte_mempool g_testPool;
+
+static struct rte_mempool *MockKnetPktGetMemPoolNonNull(uint32_t poolId)
+{
+    (void)poolId;
+    return (struct rte_mempool *)0x1;
+}
+
+static int MockAllocBulkSuccess(struct rte_mempool *pool, struct rte_mbuf **mbufs, unsigned int count)
+{
+    (void)pool;
+    for (unsigned int i = 0; i < count && i < 32; i++) {
+        memset(&g_testMbufs[i], 0, sizeof(struct rte_mbuf));
+        g_testMbufs[i].refcnt = 1;
+        g_testMbufs[i].pool = &g_testPool;
+        mbufs[i] = &g_testMbufs[i];
+    }
+    return 0;
+}
+
+static void InitTestMbufs(void)
+{
+    for (int i = 0; i < 32; i++) {
+        memset(&g_testMbufs[i], 0, sizeof(struct rte_mbuf));
+        g_testMbufs[i].refcnt = 1;
+        g_testMbufs[i].pool = &g_testPool;
+    }
+    memset(&g_testPool, 0, sizeof(struct rte_mempool));
 }
 
 /**
@@ -174,3 +206,45 @@ DTEST_CASE_F(MBUF, TEST_MBUF_ATTACH_EXTBUF_NORMAL, NULL, NULL)
     Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }
+
+/* ===== knet_pkt.c 补充覆盖率测试 ===== */
+
+/**
+ * @brief KnetIsCurrentMainThread - OTHER线程路径
+ * 在新线程中调用，g_threadMain为UNINITED，syscall != getpid => OTHER
+ */
+static int32_t g_otherThreadRet = 0;
+static void OtherThreadFunc(volatile bool *done)
+{
+    KTestMock *Mock = CreateMock();
+    Mock->Create(syscall, TEST_GetFuncRetPositive(1));  /* tid = 1 */
+    Mock->Create(getpid, TEST_GetFuncRetPositive(2));    /* pid = 2, tid != pid */
+
+    bool ret = KnetIsCurrentMainThread();
+    g_otherThreadRet = (int32_t)ret;
+
+    Mock->Delete(syscall);
+    Mock->Delete(getpid);
+    DeleteMock(Mock);
+    *done = true;
+}
+
+DTEST_CASE_F(MBUF, TEST_IS_CURRENT_MAIN_THREAD_OTHER, NULL, NULL)
+{
+    volatile bool done = false;
+    std::thread t(OtherThreadFunc, &done);
+    t.join();
+    DT_ASSERT_EQUAL(g_otherThreadRet, 0); /* OTHER thread returns false */
+}
+
+/**
+ * @brief KNET_PktFree - 外部buffer detach路径 (ol_flags & RTE_MBUF_F_EXTERNAL)
+ * 注: rte_pktmbuf_detach_extbuf是rte_pktmbuf_detach的宏别名, 内部调用rte_mempool_virt2iova(m)
+ * 该inline函数会访问mbuf前方的mempool_objhdr(栈/堆分配的mbuf没有此header),
+ * 且rte_pktmbuf_priv_flags/rte_pktmbuf_priv_size均访问pool私有数据区,
+ * 这些inline DPDK函数无法打桩, 该路径需通过集成测试而非UT覆盖.
+ */
+
+/* 注: KNET_PktFree/KNET_PktBatchFree的批量释放路径(rte_mempool_put_bulk/rte_mempool_generic_put)
+ * 无法在UT中覆盖, 因为这些DPDK函数是static __rte_always_inline, 无法打桩,
+ * 直接调用会访问pool内部数据导致SEGV. 该路径需通过集成测试覆盖. */
