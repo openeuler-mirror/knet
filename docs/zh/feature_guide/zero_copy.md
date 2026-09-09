@@ -220,7 +220,7 @@
 
 2. 业务编译。
     1. 添加编译选项：指定头文件搜索路径与链接的库名称，以iPerf3为例。
-       在Makefile.am文件中加入以下编译选项。
+       在iPerf3源码根目录下的Makefile.am文件中加入以下编译选项。
 
         ```text
         libiperf_la_LIBADD = -lknet_frame
@@ -235,7 +235,7 @@
         ```
 
 3. 修改K-NET配置文件。
-    以iPerf3为例，假设发送包长为65535，每次发送的iovcnt为1，进行单条TCP链接的打流。
+    以iPerf3为例，假设发送包长为65535，每次发送的iovcnt为1，进行单条TCP连接的打流。
 
         ```bash
         vi /etc/knet/knet_comm.conf

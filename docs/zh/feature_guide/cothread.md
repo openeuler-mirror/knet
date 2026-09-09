@@ -9,21 +9,21 @@
 
 ## 使用示例
 
-以通用服务端/客户端伪代码说明，Tperf实例见文末链接。
 本节主要说明如何配置、使用[API参考](../api/cothread_apis/cothread_list.md)的共线程接口，提供共线程使用伪代码，指导用户使用。
+示例主要以通用服务端/客户端伪代码说明，Tperf实例请参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。
 
 > [!NOTE]说明
 >共线程功能指K-NET用户态协议栈与业务在同一个线程中运行，并在此业务线程中进行数据包的收发、事件处理和数据读写。
 >具有如下约束：
 >
->- 业务需适配非阻塞socket接口，带有超时时间的接口（例如epoll\_wait）必须使接口立即返回，如果违反约束可能导致线程阻塞。
->- 业务编译的时候，建议优先链接-lknet\_frame，再链接其他库，如-lpthread、-lc。
->- 业务线程的绑核由业务控制，建议K-NET worker业务绑核要在调用knet\_worker\_init\(\)之前执行，且不与“ctrl\_vcpu\_ids”共核；共线程场景下，“core\_list\_global”配置不生效。
+>- 业务需适配非阻塞socket接口，带有超时时间的接口（例如epoll_wait）必须使接口立即返回，如果违反约束可能导致线程阻塞。
+>- 业务编译的时候，建议优先链接-lknet_frame，再链接其他库，如-lpthread、-lc。
+>- 业务线程的绑核由业务控制，建议K-NET worker业务绑核要在调用knet_worker_init()之前执行，且不与“ctrl_vcpu_ids”共核；共线程场景下，“core_list_global”配置不生效。
 >- K-NET worker业务线程之间不得共享与跨线程操作socket fd、epoll fd。
 >- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见[步骤4](#step4)。
->- K-NET worker业务线程个数与配置项中的“max\_worker\_num”一致，超过“max\_worker\_num”部分线程执行knet\_worker\_init\(\)会失败。
+>- K-NET worker业务线程个数与配置项中的“max_worker_num”一致，超过“max_worker_num”部分线程执行knet_worker_init()会失败。
 >- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启“bifur_enable”并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流，失败时可参考[共线程故障](../troubleshooting/cothread.md)。
->- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入IP地址非0，为业务IP地址。
+>- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind()，需要保证输入IP地址非0，为业务IP地址。
 
 1. 业务适配<term>K-NET</term>共线程模式。
     - 以下为业务服务端使用共线程模式时的伪代码：
@@ -34,13 +34,13 @@
         int ret = knet_init();
         
         for (i = 0; i < thread_num; i++) {
-            # 设置cpu亲和性，须与knet_comm.conf中"ctrl_vcpu_ids"不同
+            // 设置cpu亲和性，须与knet_comm.conf中"ctrl_vcpu_ids"不同
             pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
                 
-            # 创建业务线程
+            // 创建业务线程
             pthread_create(&tid, &attr, server_loop, arg);
         }
-        # 业务线程运行函数
+        // 业务线程运行函数
         void *server_loop(void *arg) {
             ret = knet_worker_init(); // 初始化此线程的K-NET worker
             ret = knet_is_worker_thread(); // 判断此线程是否在K-NET中，ret为0表示在K-NET用户态协议栈线程中；
@@ -102,13 +102,13 @@
         int ret = knet_init();
         
         for (i = 0; i < thread_num; i++) {
-            # 设置cpu亲和性，须与knet_comm.conf中"ctrl_vcpu_ids"不同
+            // 设置cpu亲和性，须与knet_comm.conf中"ctrl_vcpu_ids"不同
             pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &cpuset);
                 
-            # 创建业务线程
+            // 创建业务线程
             pthread_create(&tid, &attr, client_loop, arg);
         }
-        # 业务线程运行函数
+        // 业务线程运行函数
         void *client_loop(void *arg) {
             ret = knet_worker_init(); // 初始化此线程的K-NET worker
             ret = knet_is_worker_thread(); 
@@ -152,7 +152,7 @@
 
     - 总结
 
-        上述伪代码的核心在于：引入knet\_socket\_api.h头文件，在业务进程初始化中进行knet\_init\(\)，设置线程CPU亲和性，注意需与“ctrl\_vcpu\_ids”不同；在业务线程运行时，首先进行knet\_worker\_init\(\)初始化worker，并可以通过knet\_is\_worker\_thread\(\)判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet\_worker\_run\(\)一直被调用。
+        上述伪代码的核心在于：引入knet_socket_api.h头文件，在业务进程初始化中进行knet_init()，设置线程CPU亲和性，注意需与“ctrl_vcpu_ids”不同；在业务线程运行时，首先进行knet_worker_init()初始化worker，并可以通过knet_is_worker_thread()判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet_worker_run()一直被调用。
 
 2. 业务编译。
     - 添加编译选项：指定头文件搜索路径与链接的库名称：
@@ -182,8 +182,9 @@
     vi /etc/knet/knet_comm.conf
     ```
 
-    ```text
-    #common配置项
+    按“i”进入编辑模式，修改以下变量。
+
+    ```json
         "common": {
             "cothread_enable": 1
         }
@@ -194,7 +195,9 @@
         }
     ```
 
-    开启共线程模式，确定端口范围。
+    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
+
+    开启共线程模式需确定端口范围。
 
 4. 保证内核协议栈与K-NET端口范围不交叉。<a id="step4"></a>
     - 查看内核协议栈使用的端口范围。
@@ -220,4 +223,4 @@
 
 ## Demo示例
 
-    以Tperf为例，参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。
+以Tperf为例，参考[tperf_knet.patch使用示例](../../../demo/tperf/tperf.md)使用。

@@ -1,4 +1,4 @@
-# 单进程模式加速
+# 单进程加速功能
 
 ## 功能描述
 
@@ -39,7 +39,7 @@ vi /etc/knet/knet_comm.conf
     >
     > ```bash
     > taskset -c 33-62 LD_PRELOAD=/usr/lib64/libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
-    >    ```
+    > ```
 
     ```bash
     taskset -c 33-62 LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
