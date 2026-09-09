@@ -82,7 +82,7 @@ struct ConfKeyHandle g_hwConfHandler[CONF_HW_MAX - CONF_HW_MIN] = {
 };
 
 struct ConfKeyHandle g_tcpConfHandler[CONF_TCP_MAX - CONF_TCP_MIN] = {
-    {CONF_TCP_MAX_MBUF, "max_mbuf", {20480}, IntSetter, {.intValue = {.min = 8192, .max = (INT32_MAX/2)}}},
+    {CONF_TCP_MAX_MBUF, "max_mbuf", {25600}, IntSetter, {.intValue = {.min = 8192, .max = (INT32_MAX/2)}}},
     {CONF_TCP_MAX_WORKER_NUM, "max_worker_num", {1}, IntSetter, {.intValue = {.min = 1, .max = 32}}},
     {CONF_TCP_MAX_ROUTE, "max_route", {1024}, IntSetter, {.intValue = {.min = 1, .max = 100000}}},
     // max_arp最小值8受限于DPDK的最小值RTE_HASH_BUCKET_ENTRIES

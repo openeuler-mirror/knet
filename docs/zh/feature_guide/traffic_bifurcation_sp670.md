@@ -73,15 +73,35 @@
 
 2. （服务端）启用网卡流量分叉功能。
 
-    ```bash
-    modprobe vfio enable_unsafe_noiommu_mode=1
-    modprobe vfio-pci
-    hinicadm3 traffic_bifur -i hinic0 -e 1
-    ```
+    1. 先查询流量分叉功能是否已开启。
 
-    有以下回显则代表启用成功。
+        ```bash
+        hinicadm3 traffic_bifur -i hinic0 -q
+        ```
 
-    ![启动成功回显](../figures/zh-cn_image_0000002477573334.png)
+        - 若回显如下，可跳过后续启用命令。
+            
+            ```text
+            Cmd success, traffic_bifur state is enablement now.
+            ```
+            
+        - 若回显如下，执行以下命令启用流量分叉功能：
+            
+            ```text
+            Cmd success, traffic_bifur state is disablement now.
+            ```
+
+    2. 启用网卡流量分叉功能。
+
+        ```bash
+        modprobe vfio enable_unsafe_noiommu_mode=1
+        modprobe vfio-pci
+        hinicadm3 traffic_bifur -i hinic0 -e 1
+        ```
+
+        有以下回显则代表启用成功。
+
+        ![启动成功回显](../figures/zh-cn_image_0000002477573334.png)
 
 3. （服务端）K-NET启用网卡流量分叉功能。
 

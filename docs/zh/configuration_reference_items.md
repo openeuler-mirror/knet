@@ -42,16 +42,16 @@
 
 |  配置项    |   说明 |缺省值 | 取值范围|
 |----------|--------|-----|-----|
-| tso          |  TCP Segmentation Offload使能标志，默认关闭。<li> 0：表示不使能<term>TSO</term>。</li><li> 1：表示使能TSO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>   | 0 |0，1|
-| lro          | Large Receive Offload使能标志，默认关闭。<li> 0：表示不使能<term>LRO</term>。</li><li> 1：表示使能LRO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>  | 0 |0，1|
-| tcp_checksum | TCP/IP硬件校验和特性开关，默认关闭。<li> 0：表示关闭。</li><li>  1：表示使能。</li>| 0 |0，1|
+| tso          |  TCP Segmentation Offload使能标志，默认开启。<li> 0：表示不使能<term>TSO</term>。</li><li> 1：表示使能TSO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>   | 1 |0，1|
+| lro          | Large Receive Offload使能标志，默认开启。<li> 0：表示不使能<term>LRO</term>。</li><li> 1：表示使能LRO，且需要确保本节配置中的tcp_checksum处于使能状态。</li>  | 1 |0，1|
+| tcp_checksum | TCP/IP硬件校验和特性开关，默认开启。<li> 0：表示关闭。</li><li>  1：表示使能。</li>| 1 |0，1|
 | bifur_enable | 流量分叉特性开关，默认关闭。<li>0：表示关闭。</li><li> 1：表示使能网卡硬件流量分叉功能。</li><li>  2：表示使能软件内核流量转发功能。</li>| 0 |0，1，2|
 
 ## 用户态TCP/IP协议栈配置项
 
 |  配置项    |   说明 |缺省值 | 取值范围|
 |----------|--------|-----|-----|
-| max_mbuf   |   MBUF初始化时规模大小，单位个。<p> **说明：**  </p><p>max_mbuf推荐配置如下公式所得值：</p> max_mbuf = tx_cache_size *max_worker_num + rx_cache_size* max_worker_num + (max_tcpcb + max_udpcb) *业务实例个数* 4 + 2048 * 客户端业务实例个数。<li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>| 20480 |8192~1073741823|
+| max_mbuf   |   MBUF初始化时规模大小，单位个。<p> **说明：**  </p><p>max_mbuf推荐配置如下公式所得值：</p> max_mbuf = tx_cache_size *max_worker_num + rx_cache_size* max_worker_num + (max_tcpcb + max_udpcb) *业务实例个数* 4 + 2048 * 客户端业务实例个数。<li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>| 25600 |8192~1073741823|
 | max_worker_num|  整个进程最大用户态TCP/IP协议栈实例数量。例如配置为2，则有效workerId为[0,1]。| 1 |1~32|
 |max_route    | 最大路由数量。在多路由表的情况下，这里指所有路由表路由数量总和。 |1024|1~100000|
 |max_arp      |最大已解析ARP表项数量。 |1024|8~8192|
@@ -72,8 +72,8 @@
 |reass_max    |系统缓存真重组节点总个数，单位个。一个节点缓存一条流的分片报文，目前缓存分片报文的最大个数为系统缓存的真重组节点个数的两倍。|1000|1~4096|
 |reass_timeout|真重组节点超时时间，单位秒。|30|1~30|
 |synack_retries|SYN-ACK重传次数。|5|1~255|
-|zcopy_sge_len|零拷贝写缓冲区最大长度，单位为字节。表示应用能申请的零拷贝iov的iov_len的最大值。|65535|0~512*1024|
-|zcopy_sge_num|零拷贝写缓冲区个数，即写缓冲区内存池中内存单元的数量。<p> **说明：**  </p> zcopy_sge_num推荐配置如下公式所得值：<p>`zcopy_sge_num = (def_sendbuf / iov_len * 3) * tcp最大链接数 + tx_cache_size * max_worker_num  + 2048`</p><li> iov_len表示应用申请的写缓冲区iov的iov_len的最大值，建议将应用中的iov_len的最大值作为配置项zcopy_sge_len的值。</li><li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>|8192|8192~1073741823|
+|zcopy_sge_len|零拷贝写缓冲区最大长度，单位为字节。表示应用能申请的零拷贝iov的iov_len的最大值。|4096|0~512*1024|
+|zcopy_sge_num|零拷贝写缓冲区个数，即写缓冲区内存池中内存单元的数量。<p> **说明：**  </p> zcopy_sge_num推荐配置如下公式所得值：<p>`zcopy_sge_num = (def_sendbuf / iov_len * 3) * tcp最大链接数 + tx_cache_size * max_worker_num  + 2048`</p><li> iov_len表示应用申请的写缓冲区iov的iov_len的最大值，建议将应用中的iov_len的最大值作为配置项zcopy_sge_len的值。</li><li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>|1048576|8192~1073741823|
 |epoll_data|epoll特有标识数据，需确保和业务使用的epoll_event.data.u64不同。用户需要保证此配置项的值与业务使用的epoll_event.data.u64不同，否则会漏掉该内核事件。|"0"|"0"~"18446744073709551615"|
 
 ## DPDK配置项
@@ -82,17 +82,11 @@
 |----------|--------|-----|-----|
 |core_list_global|数据面绑核，将数据面绑定的核号固定。<p>用数字列表设置应用程序使用的CPU核，例如：“0,1”，表示绑定0号核和1号核。</p><p>多进程模式下，绑多个核时，可以使用“-”，如“1-10”，表示绑定1号核到10号核。</p><p> **注意：**</p> <li>绑定核的个数必须等于max_worker_num，只有开启cothread_enable后，此配置项不会进行读取与校验。</li><li>ctrl_vcpu_ids指定的控制线程核号和此配置项指定的核号必须不同。</li>|"1"|0~服务器的CPU个数-1|
 |queue_num|所有worker使用的队列数。<li>单进程：总的队列个数，均分到每个worker上。</li><li>多进程：无效，每个从进程默认一个队列。</li><p> **说明：**</p> 单进程模式下：<p>- 仅单进程，可配置`queue_num>=max_worker_num`，此时worker会共享使能的队列。</p><p>  - 开共线程时，即“cothread_enable”: 1时：max_worker_num为1，queue_num可配置大于等于1；max_worker_num大于1，queue_num需要与max_worker_num一致。</p><p>- 开流分叉时，即“bifur_enable”：1时：默认queue_num最大值为8；用户可根据实际需要配置32队列，参考[流量分叉支持配置32队列](./feature_guide/traffic_bifurcation_sp670.md#流量分叉支持配置32队列)支持配置32队列，此时queue_num最大值为32。</p>|1|1~64|
-|tx_cache_size|发送缓存大小，单位个。<p> **约束：**</p> tx_cache_size \* 业务实例个数 + rx_cache_size \* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
-|rx_cache_size|接收缓存大小，单位个。<p> **约束：**</p>tx_cache_size \*业务实例个数 + rx_cache_size\* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|256|256~16384|
+|tx_cache_size|发送缓存大小，单位个。<p> **约束：**</p> tx_cache_size \* 业务实例个数 + rx_cache_size \* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|1024|256~16384|
+|rx_cache_size|接收缓存大小，单位个。<p> **约束：**</p>tx_cache_size \*业务实例个数 + rx_cache_size\* 业务实例个数 < max_mbuf。业务实例个数为实际启动的业务进程个数。|1024|256~16384|
 |socket_mem   |预分配每个socket大页内存大小，单位MB。<p>多个参数间请使用“,”分隔。例如：</p>`"socket_mem" : "--socket-mem=1024,2048"`<p>表示在0号socket上预分配1024M，在1号socket上分配2048M。</p>|--socket-mem=1024|0~服务器分配现有的可用大页内存总量|
 |socket_limit |限制每个socket上可分配的最大内存。不支持传统内存模式。单位MB。<p> **约束：**</p>socket_limit大于等于socket_mem的内存数。|--socket-limit=1024|0~服务器分配现有的可用大页内存总量|
 |external_driver|不同场景填写不同的PMD驱动。注意前面有个-d。<p>SP670/SP233</p>`"external_driver" : "-dlibrte_net_hinic3.so"`|-dlibrte_net_hinic3.so|-dlibrte_net_hinic3.so，置空|
 |telemetry    |统计信息的开关。<li>0：表示不开启。</li><li>1：表示开启。</li>|1|0，1|
 |huge_dir     |大页挂载路径。<p>例如：</p>`"huge_dir" : "--huge-dir=/home/username/hugepages"`|-|-|
 |base-virtaddr|DPDK主进程内存映射起始虚拟地址基地址。<p>例如：</p>`"base-virtaddr": "--base-virtaddr=0x100000000"`|-|-|
-
-## 修订记录
-
-|发布版本| 发布日期   | 修订说明  |
-|------|------|-------|
-|  01    | 2026-09-30  | 第一次正式发布。|
