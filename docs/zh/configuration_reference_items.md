@@ -51,7 +51,7 @@
 
 |  配置项    |   说明 |缺省值 | 取值范围|
 |----------|--------|-----|-----|
-| max_mbuf   |   MBUF初始化时规模大小，单位个。<p> **说明：**  </p><p>max_mbuf推荐配置如下公式所得值：</p> max_mbuf = tx_cache_size *max_worker_num + rx_cache_size* max_worker_num + (max_tcpcb + max_udpcb) *业务实例个数* 4 + 2048 * 客户端业务实例个数。<li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>| 25600 |8192~1073741823|
+| max_mbuf   |   MBUF初始化时规模大小，单位个。<p> **说明：**  </p><p>max_mbuf推荐配置如下公式所得值：</p> max_mbuf = tx_cache_size *max_worker_num + rx_cache_size* max_worker_num + (max_tcpcb + max_udpcb) *业务实例个数* 4 + 2048 * 客户端业务实例个数。<li> 最大值受限于[DPDK配置项](#dpdk配置项)中socket_limit。</li><li> 如果将此配置项调大，须同时将[DPDK配置项](#dpdk配置项)中socket_limit调大。</li>| 40960 |8192~1073741823|
 | max_worker_num|  整个进程最大用户态TCP/IP协议栈实例数量。例如配置为2，则有效workerId为[0,1]。| 1 |1~32|
 |max_route    | 最大路由数量。在多路由表的情况下，这里指所有路由表路由数量总和。 |1024|1~100000|
 |max_arp      |最大已解析ARP表项数量。 |1024|8~8192|

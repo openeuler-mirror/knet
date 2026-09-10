@@ -91,8 +91,8 @@ cJSON *CreateConfigJson()
     cJSON_AddItemToObject(json, "hw_offload", hw_offload);
 
     cJSON *proto_stack = cJSON_CreateObject();
-    // 25600表示max_mbuf个数
-    cJSON_AddNumberToObject(proto_stack, "max_mbuf", 25600);
+    // 40960表示max_mbuf个数
+    cJSON_AddNumberToObject(proto_stack, "max_mbuf", 40960);
     cJSON_AddNumberToObject(proto_stack, "max_worker_num", 1);
     // 1024表示max_route个数
     cJSON_AddNumberToObject(proto_stack, "max_route", 1024);
