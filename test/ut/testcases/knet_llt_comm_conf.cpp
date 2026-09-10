@@ -91,8 +91,8 @@ cJSON *CreateConfigJson()
     cJSON_AddItemToObject(json, "hw_offload", hw_offload);
 
     cJSON *proto_stack = cJSON_CreateObject();
-    // 20480表示max_mbuf个数
-    cJSON_AddNumberToObject(proto_stack, "max_mbuf", 20480);
+    // 25600表示max_mbuf个数
+    cJSON_AddNumberToObject(proto_stack, "max_mbuf", 25600);
     cJSON_AddNumberToObject(proto_stack, "max_worker_num", 1);
     // 1024表示max_route个数
     cJSON_AddNumberToObject(proto_stack, "max_route", 1024);
@@ -254,8 +254,8 @@ DTEST_CASE_F(COMM_CONF, TEST_COMM_CONF_ALT, NULL, NULL)
     ModifyConfigJson(json, "proto_stack", "max_mbuf", cJSON_CreateNumber(8191));
     ret = KNET_InitCfg(KNET_PROC_TYPE_PRIMARY);
     DT_ASSERT_EQUAL(ret, -1);
-    // 20480表示max_mbuf默认值
-    ModifyConfigJson(json, "proto_stack", "max_mbuf", cJSON_CreateNumber(20480));
+    // 25600表示max_mbuf默认值
+    ModifyConfigJson(json, "proto_stack", "max_mbuf", cJSON_CreateNumber(25600));
     // 测试queue_num值为65的场景
     ModifyConfigJson(json, "dpdk", "queue_num", cJSON_CreateNumber(65));
     ret = KNET_InitCfg(KNET_PROC_TYPE_PRIMARY);

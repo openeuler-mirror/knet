@@ -76,29 +76,18 @@ vi /etc/knet/knet_comm.conf
 > 以下配置项针对Tperf场景进行了性能优化：
 >
 >- 增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`可提升网络吞吐能力。
->- 配置`zcopy_sge_len`和`zcopy_sge_num`优化零拷贝性能。
->- 调整DPDK的`tx_cache_size`、`rx_cache_size`及内存参数以适配大流量场景。
+>- 调整DPDK的内存参数（`socket_mem`、`socket_limit`）以适配大流量场景。
 
 ```text
 {
-    "hw_offload": {
-        "tso": 1,
-        "lro": 1,
-        "tcp_checksum": 1,
-        ...
-    },
     "proto_stack": {
         "max_mbuf": 1253376,
         "def_sendbuf": 1048576,
         "def_recvbuf": 1048576,
-        "zcopy_sge_len": 4096,
-        "zcopy_sge_num": 1048576
     },
     "dpdk": {
-        "tx_cache_size": 1024,
-        "rx_cache_size": 1024,
         "socket_mem": "--socket-mem=10240",
-        "socket_limit": "--socket-limit=10240"
+        "socket_limit": "--socket-limit=10240",
     }
 }
 ```

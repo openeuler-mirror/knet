@@ -51,8 +51,10 @@ bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
 
 ## 安装DPDK
 
-参考[版本配套关系](../release_note.md#版本配套关系)确认需要安装的DPDK版本，如果已经安装对应版本的DPDK，可跳过以下DPDK的安装流程。
-可先通过pkg-config查询DPDK版本：
+参考[版本配套关系](../release_note.md#版本配套关系)确认需要安装的DPDK版本。
+
+> [!NOTE]说明
+> 无论系统是否已安装DPDK，均需按以下完整流程重新编译安装，以确保dpdk-hinic3驱动patch已打入DPDK源码后再编译，不可跳过。可先通过pkg-config查询当前DPDK版本作为参考：
 
 ```bash
 pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config未配置"
@@ -79,14 +81,53 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     > [!NOTE]说明
     > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”参数。
 
-3. 解压软件包。
+3. 解压DPDK软件包。
     
     ```bash
     tar -xf dpdk-21.11.7.tar.xz
     cd dpdk-stable-21.11.7
     ```
 
-4. 安装驱动程序。
+4. 获取dpdk-hinic3 PMD源码。
+
+    ```bash
+    cd /home/opt/
+    # 拉取dpdk仓库代码并切换到hinic3_master分支
+    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
+    ```
+
+5. 获取配套版本的tag。
+
+    配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
+
+    以下为commitid位置示例：
+
+    ![hinic3版本tag页面](../figures/hinic3p2.png)
+
+6. 切换至配套版本tag。
+
+    > [!NOTE]说明
+    > 命令中的\<commitid>请以实际获取值替换。
+
+    ```bash
+    cd dpdk-hinic3_master
+    git checkout <commitid>
+    git log --oneline -n 1
+    ```
+
+    以下为`git log --oneline -n 1`回显示例：
+
+    ```bash
+    0d6bdb7 (HEAD, tag: hinic3-26.1.rc1-0630.r1) !430 [fix] scatter rx enable default
+    ```
+
+7. 将dpdk-hinic3驱动代码打进到DPDK源码中。
+
+    ```bash
+    sh install.sh ../dpdk-stable-21.11.7 install
+    ```
+
+8. 编译并安装DPDK，包含dpdk-hinic3驱动。
 
     ```bash
     meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
@@ -102,7 +143,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![构建回显](../figures/zh-cn_image_0000002535517975.png)
+    ![构建回显](../figures/zh-cn_image_0000002503798182.png)
 
     ```bash
     ninja install -C build
@@ -112,66 +153,22 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     ![安装回显](../figures/zh-cn_image_0000002503798182.png)
 
-## 安装dpdk-hinic3驱动
-
-1. 获取dpdk-hinic3 PMD源码。
+9. 检查dpdk-hinic3驱动。
 
     ```bash
-    cd /home/opt/
-    # 拉取dpdk仓库代码并切换到hinic3_master分支
-    git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
-    ```
-
-2. 获取配套版本的tag。
-
-    配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
-
-    以下为commitid位置示例：
-    
-    ![hinic3版本tag页面](../figures/hinic3p2.png)
-
-3. 切换至配套版本tag。
-
-    > [!NOTE]说明
-    > 命令中的\<commitid>请以实际获取值替换。
-
-    ```bash
-    cd dpdk-hinic3_master
-    git checkout <commitid>
-    git log --oneline -n 1
-    ```
-   
-    以下为`git log --oneline -n 1`回显示例：
-   
-    ```bash
-    0d6bdb7 (HEAD, tag: hinic3-26.1.rc1-0630.r1) !430 [fix] scatter rx enable default
-    ```
-
-4. 编译。
-    
-    ```bash
-    sh install.sh ../dpdk-stable-21.11.7 install
-    sh install.sh ../dpdk-stable-21.11.7 build
-    ```
-
-5. 安装。
-
-    ```bash
-    cp -d ./../dpdk-stable-21.11.7/build/drivers/librte_net_hinic3.so{,.22,.22.0} /usr/lib64/
     ls -l /usr/lib64/librte_net_hinic3.so*
-    ldconfig  # 通过ls确认cp成功后更新库的链接和缓存
     ```
 
     以下为`ls -l /usr/lib64/librte_net_hinic3.so*`回显示例：
-    
+
     ```bash
-    -rw-r--r--. 1 root root       23 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so -> librte_net_hinic3.so.22
-    -rw-r--r--. 1 root root       25 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22 -> librte_net_hinic3.so.22.0
-    -rw-r--r--. 1 root root   371976 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22.0
+    -rw-r--r--. 1 root root       23 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so -> dpdk/pmds-22.0/librte_net_hinic3.so.22
+    -rw-r--r--. 1 root root       25 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22 -> dpdk/pmds-22.0/librte_net_hinic3.so.22
+    -rw-r--r--. 1 root root   371976 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22.0 -> dpdk/pmds-22.0/librte_net_hinic3.so.22.0
     ```
-    
+
     > [!NOTE]说明
-    > {,.22,.22.0}根据实际DPDK版本替换，以DPDK 21.11.7版本为例，此处DPDK的so版本为21 + 1，即为22。
+    > 以DPDK 21.11.7版本为例，此处DPDK的so版本为21 + 1，即为22。
 
 ## （可选）安装抓包工具
 
