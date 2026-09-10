@@ -182,3 +182,65 @@ DTEST_CASE_F(CONFIG_RPC, TEST_CONFIG_GetEnvQueueId, NULL, NULL)
 
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(CONFIG_RPC, TEST_REG_TELEMETRY_NOTIFY_FUNC, NULL, NULL)
+{
+    int ret = KNET_RpcRegTelemetryNotifyFunc(NULL);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    struct KnetRpcReqNotifyTelemetry notifyFunc = {0};
+    notifyFunc.addNewProcess = (KnetRpcRequestHandle)0x1;
+    notifyFunc.delOldProcess = (KnetRpcRequestHandle)0x1;
+    ret = KNET_RpcRegTelemetryNotifyFunc(&notifyFunc);
+    DT_ASSERT_EQUAL(ret, 0);
+
+    struct KnetRpcReqNotifyTelemetry zeroFunc = {0};
+    KNET_RpcRegTelemetryNotifyFunc(&zeroFunc);
+}
+
+DTEST_CASE_F(CONFIG_RPC, TEST_REG_CONFIG_RPC_HANDLER_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_RpcRegServer, TEST_GetFuncRetNegative(1));
+
+    int ret = KnetRegConfigRpcHandler(KNET_PROC_TYPE_PRIMARY);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    Mock->Delete(KNET_RpcRegServer);
+    DeleteMock(Mock);
+}
+
+char *MockGetEnvInvalid(char *string)
+{
+    (void)string;
+    return "abc";
+}
+
+DTEST_CASE_F(CONFIG_RPC, TEST_CONFIG_GetEnvQueueId_Invalid, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(getenv, MockGetEnvInvalid);
+    int ret = GetEnvQueueId();
+    DT_ASSERT_EQUAL(ret, KNET_QUEUE_ID_INVALID);
+    Mock->Delete(getenv);
+
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CONFIG_RPC, TEST_CONFIG_GetEnvQueueId_SscanFail, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(getenv, MockGetEnvNotNull);
+    Mock->Create(sscanf_s, TEST_GetFuncRetNegative(1));
+    int ret = GetEnvQueueId();
+    DT_ASSERT_EQUAL(ret, KNET_QUEUE_ID_INVALID);
+    Mock->Delete(sscanf_s);
+    Mock->Delete(getenv);
+
+    DeleteMock(Mock);
+}

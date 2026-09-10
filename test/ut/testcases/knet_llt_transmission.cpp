@@ -1269,6 +1269,15 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_QUEUEID_FAIL, NULL, N
     DeleteMock(Mock);
 }
 
+/* FirstConnectHandler测试用：捕获malloc分配的Entry指针以便测试后释放，避免ASAN内存泄漏 */
+static struct Entry *g_firstConnEntry = NULL;
+
+static int32_t MockFdirHashTblAddCapture(struct Entry *newEntry)
+{
+    g_firstConnEntry = newEntry;
+    return 0;
+}
+
 /**
  * @brief FirstConnectHandler: GenerateFlow fail + KnetFdirHashTblDel success
  */
@@ -1284,7 +1293,7 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_GENFLOW_FAIL_DEL_OK, 
     KTestMock *Mock = CreateMock();
     DT_ASSERT_NOT_EQUAL(Mock, NULL);
     Mock->Create(memset_s, TEST_GetFuncRetPositive(0));
-    Mock->Create(KnetFdirHashTblAdd, TEST_GetFuncRetPositive(0));
+    Mock->Create(KnetFdirHashTblAdd, MockFdirHashTblAddCapture);
     Mock->Create(GenerateFlow, TEST_GetFuncRetNegative(1));
     Mock->Create(KnetFdirHashTblDel, TEST_GetFuncRetPositive(0));
 
@@ -1296,6 +1305,10 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_GENFLOW_FAIL_DEL_OK, 
     Mock->Delete(GenerateFlow);
     Mock->Delete(KnetFdirHashTblDel);
     DeleteMock(Mock);
+    if (g_firstConnEntry != NULL) {
+        free(g_firstConnEntry);
+        g_firstConnEntry = NULL;
+    }
 }
 
 /**
@@ -1313,7 +1326,7 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_GENFLOW_FAIL_DEL_FAIL
     KTestMock *Mock = CreateMock();
     DT_ASSERT_NOT_EQUAL(Mock, NULL);
     Mock->Create(memset_s, TEST_GetFuncRetPositive(0));
-    Mock->Create(KnetFdirHashTblAdd, TEST_GetFuncRetPositive(0));
+    Mock->Create(KnetFdirHashTblAdd, MockFdirHashTblAddCapture);
     Mock->Create(GenerateFlow, TEST_GetFuncRetNegative(1));
     Mock->Create(KnetFdirHashTblDel, TEST_GetFuncRetNegative(1));
 
@@ -1325,6 +1338,10 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_GENFLOW_FAIL_DEL_FAIL
     Mock->Delete(GenerateFlow);
     Mock->Delete(KnetFdirHashTblDel);
     DeleteMock(Mock);
+    if (g_firstConnEntry != NULL) {
+        free(g_firstConnEntry);
+        g_firstConnEntry = NULL;
+    }
 }
 
 /**
@@ -1342,7 +1359,7 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_SUCCESS, NULL, NULL)
     KTestMock *Mock = CreateMock();
     DT_ASSERT_NOT_EQUAL(Mock, NULL);
     Mock->Create(memset_s, TEST_GetFuncRetPositive(0));
-    Mock->Create(KnetFdirHashTblAdd, TEST_GetFuncRetPositive(0));
+    Mock->Create(KnetFdirHashTblAdd, MockFdirHashTblAddCapture);
     Mock->Create(GenerateFlow, TEST_GetFuncRetPositive(0));
     Mock->Create(memcpy_s, TEST_GetFuncRetPositive(0));
 
@@ -1354,6 +1371,10 @@ DTEST_CASE_F(TRANSMISSION, TEST_TRANSMISSION_FIRST_CONNECT_SUCCESS, NULL, NULL)
     Mock->Delete(GenerateFlow);
     Mock->Delete(memcpy_s);
     DeleteMock(Mock);
+    if (g_firstConnEntry != NULL) {
+        free(g_firstConnEntry);
+        g_firstConnEntry = NULL;
+    }
 }
 
 /**

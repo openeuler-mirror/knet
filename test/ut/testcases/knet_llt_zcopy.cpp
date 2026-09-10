@@ -193,3 +193,37 @@ DTEST_CASE_F(ZCOPY, TEST_ZREADV_NOT_HIJACK, NULL, NULL)
     Mock->Delete(KNET_IsFdHijack);
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(ZCOPY, TEST_IOV_ALLOC_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+
+    Mock->Create(DP_ZcopyAlloc, TEST_GetFuncRetPositive(0));
+    g_tcpInited = true;
+    void *ebuf = knet_mp_alloc(1);
+    DT_ASSERT_EQUAL(ebuf, NULL);
+
+    g_tcpInited = false;
+    Mock->Delete(DP_ZcopyAlloc);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(ZCOPY, TEST_ZWRITEV_NULL_IOV, NULL, NULL)
+{
+    g_tcpInited = true;
+    uint32_t ret = (uint32_t)knet_zwritev(0, NULL, 1);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, KNET_ERROR);
+}
+
+DTEST_CASE_F(ZCOPY, TEST_ZWRITEV_INVALID_IOVCNT, NULL, NULL)
+{
+    struct knet_iovec iov = {0};
+    g_tcpInited = true;
+    uint32_t ret = (uint32_t)knet_zwritev(0, &iov, -1);
+    uint32_t ret2 = (uint32_t)knet_zwritev(0, &iov, 2000);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, KNET_ERROR);
+    DT_ASSERT_EQUAL(ret2, KNET_ERROR);
+}

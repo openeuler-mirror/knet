@@ -185,3 +185,13 @@ DTEST_CASE_F(BASE, TEST_CPU_DETECTED, NULL, NULL)
 
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(BASE, TEST_GET_SELF_THREAD_NAME_INVALID, NULL, NULL)
+{
+    const char *ret = KNET_GetSelfThreadName(NULL, KNET_THREAD_NAME_LEN);
+    DT_ASSERT_EQUAL(strcmp(ret, "invalid parameter"), 0);
+
+    char buf[100];
+    ret = KNET_GetSelfThreadName(buf, sizeof(buf));
+    DT_ASSERT_EQUAL(strcmp(ret, "invalid parameter"), 0);
+}

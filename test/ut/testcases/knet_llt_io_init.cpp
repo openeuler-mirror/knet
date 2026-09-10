@@ -247,6 +247,16 @@ DTEST_CASE_F(CORE_DPDK, TEST_KNET_KNET_SET_LRO_NULL, NULL, NULL)
     DT_ASSERT_EQUAL(ret, -1);
 }
 
+DTEST_CASE_F(CORE_DPDK, TEST_KNET_KNET_SET_LRO_BOND, NULL, NULL)
+{
+    struct rte_eth_dev_info devInfo = {0};
+    struct rte_eth_conf localPortConf = {0};
+    devInfo.rx_offload_capa |= RTE_ETH_RX_OFFLOAD_TCP_LRO;
+
+    int32_t ret = KNET_SetLRO(&devInfo, &localPortConf, DPDK_PORT_BOND);
+    DT_ASSERT_EQUAL(ret, 0);
+}
+
 DTEST_CASE_F(CORE_DPDK, TEST_KNET_KNET_SET_TSO_NORMAL, NULL, NULL)
 {
     uint16_t portId = 0;
