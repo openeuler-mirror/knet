@@ -1270,7 +1270,8 @@ DTEST_CASE_F(TELE_PERSIST, TEST_TELEPERSIST_INIT_DP_JSON, NULL, NULL)
     int ret = TelemetryPersistInitDpJson();
     DT_ASSERT_EQUAL(ret, 0);
 
-    /* 再次初始化 */
+    /* 再次初始化前先清理，避免覆盖前一次的JSON指针导致内存泄漏 */
+    TelemetryPersistUninitDpJson();
     ret = TelemetryPersistInitDpJson();
     DT_ASSERT_EQUAL(ret, 0);
 

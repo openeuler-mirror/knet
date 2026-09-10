@@ -14,6 +14,10 @@
 #ifndef __KNET_COTHREAD_INNER_H__
 #define __KNET_COTHREAD_INNER_H__
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief 判断是否走内核流量
  *
@@ -21,5 +25,9 @@
  * @return false: 没开共线程，或者在worker线程中，便走用户态流量
  */
 bool KNET_IsCothreadGoKernel(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

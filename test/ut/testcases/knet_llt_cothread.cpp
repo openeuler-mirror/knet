@@ -157,3 +157,15 @@ DTEST_CASE_F(COTHREAD, TEST_COTHREAD_KNET_IS_WORKER_THREAD, NULL, NULL)
     Mock->Delete(KNET_GetCfg);
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(COTHREAD, TEST_COTHREAD_IS_GO_KERNEL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    g_currentWorkerId = INVALID_WORKER_ID;
+    bool ret = KNET_IsCothreadGoKernel();
+    DT_ASSERT_EQUAL(ret, true);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
