@@ -85,13 +85,11 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     
     ```bash
     tar -xf dpdk-21.11.7.tar.xz
-    cd dpdk-stable-21.11.7
     ```
 
 4. 获取dpdk-hinic3 PMD源码。
 
     ```bash
-    cd /home/opt/
     # 拉取dpdk仓库代码并切换到hinic3_master分支
     git clone https://atomgit.com/openeuler/dpdk.git -b hinic3_master dpdk-hinic3_master
     ```
@@ -130,6 +128,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 8. 编译并安装DPDK，包含dpdk-hinic3驱动。
 
     ```bash
+    cd ../dpdk-stable-21.11.7
     meson -Ddisable_drivers=net/cnxk -Dibverbs_link=dlopen -Dplatform=generic -Denable_kmods=false -Dprefix=/usr build
     ```
 
