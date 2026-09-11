@@ -450,3 +450,136 @@ DTEST_CASE_F(RPC, TEST_RPC_MSG_SEND_RECV_DISCONNECT, NULL, NULL)
     Mock->Delete(recv);
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_SOCKET_INIT_BIND_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetPositive(0));
+    Mock->Create(bind, TEST_GetFuncRetNegative(1));
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(bind);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_SOCKET_INIT_CHMOD_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetPositive(0));
+    Mock->Create(bind, TEST_GetFuncRetPositive(0));
+    Mock->Create(chmod, TEST_GetFuncRetNegative(1));
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(chmod);
+    Mock->Delete(bind);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_SOCKET_INIT_LISTEN_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetPositive(0));
+    Mock->Create(bind, TEST_GetFuncRetPositive(0));
+    Mock->Create(chmod, TEST_GetFuncRetPositive(0));
+    Mock->Create(listen, TEST_GetFuncRetNegative(1));
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(listen);
+    Mock->Delete(chmod);
+    Mock->Delete(bind);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_EPOLL_CREATE_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetPositive(0));
+    Mock->Create(bind, TEST_GetFuncRetPositive(0));
+    Mock->Create(chmod, TEST_GetFuncRetPositive(0));
+    Mock->Create(listen, TEST_GetFuncRetPositive(0));
+    Mock->Create(epoll_create, TEST_GetFuncRetNegative(1));
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(epoll_create);
+    Mock->Delete(listen);
+    Mock->Delete(chmod);
+    Mock->Delete(bind);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_EPOLL_CTL_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetPositive(0));
+    Mock->Create(bind, TEST_GetFuncRetPositive(0));
+    Mock->Create(chmod, TEST_GetFuncRetPositive(0));
+    Mock->Create(listen, TEST_GetFuncRetPositive(0));
+    Mock->Create(epoll_create, TEST_GetFuncRetPositive(0));
+    Mock->Create(epoll_ctl, TEST_GetFuncRetNegative(1));
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(epoll_ctl);
+    Mock->Delete(epoll_create);
+    Mock->Delete(listen);
+    Mock->Delete(chmod);
+    Mock->Delete(bind);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(RPC, TEST_KNET_RPC_SOCKET_INIT_UNLINK_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(socket, TEST_GetFuncRetPositive(0));
+    Mock->Create(strncpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(unlink, TEST_GetFuncRetNegative(1));
+    errno = EINVAL;
+    Mock->Create(close, TEST_GetFuncRetPositive(0));
+    int ret = KNET_RpcRun();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(unlink);
+    Mock->Delete(strncpy_s);
+    Mock->Delete(socket);
+    Mock->Delete(close);
+    DeleteMock(Mock);
+}

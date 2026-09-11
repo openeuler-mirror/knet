@@ -227,3 +227,67 @@ DTEST_CASE_F(ZCOPY, TEST_ZWRITEV_INVALID_IOVCNT, NULL, NULL)
     DT_ASSERT_EQUAL(ret, KNET_ERROR);
     DT_ASSERT_EQUAL(ret2, KNET_ERROR);
 }
+
+DTEST_CASE_F(ZCOPY, TEST_ZWRITEV_DP_WRITEV_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    struct knet_iovec iov = {0};
+    Mock->Create(KNET_IsFdHijack, KNET_IsFdHijackMock);
+    Mock->Create(KNET_OsFdToDpFd, TEST_GetFuncRetPositive(0));
+    Mock->Create(DP_ZWritev, TEST_GetFuncRetNegative(1));
+    g_tcpInited = true;
+    errno = 0;
+    uint32_t ret = (uint32_t)knet_zwritev(1, &iov, 1);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, (uint32_t)-1);
+    Mock->Delete(DP_ZWritev);
+    Mock->Delete(KNET_OsFdToDpFd);
+    Mock->Delete(KNET_IsFdHijack);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(ZCOPY, TEST_ZREADV_DP_READV_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    struct knet_iovec iov = {0};
+    Mock->Create(KNET_IsFdHijack, KNET_IsFdHijackMock);
+    Mock->Create(KNET_OsFdToDpFd, TEST_GetFuncRetPositive(0));
+    Mock->Create(DP_ZReadv, TEST_GetFuncRetNegative(1));
+    g_tcpInited = true;
+    errno = 0;
+    uint32_t ret = (uint32_t)knet_zreadv(1, &iov, 1);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, (uint32_t)-1);
+    Mock->Delete(DP_ZReadv);
+    Mock->Delete(KNET_OsFdToDpFd);
+    Mock->Delete(KNET_IsFdHijack);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(ZCOPY, TEST_ZREADV_NOT_HIJACK_INVALID_IOVCNT, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_IsFdHijack, KNET_IsFdHijackMockNegative);
+    g_tcpInited = true;
+    uint32_t ret = (uint32_t)knet_zreadv(1, NULL, -1);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, (uint32_t)-1);
+    Mock->Delete(KNET_IsFdHijack);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(ZCOPY, TEST_ZREADV_NOT_HIJACK_NULL_IOV, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_IsFdHijack, KNET_IsFdHijackMockNegative);
+    g_tcpInited = true;
+    uint32_t ret = (uint32_t)knet_zreadv(1, NULL, 1);
+    g_tcpInited = false;
+    DT_ASSERT_EQUAL(ret, (uint32_t)-1);
+    Mock->Delete(KNET_IsFdHijack);
+    DeleteMock(Mock);
+}

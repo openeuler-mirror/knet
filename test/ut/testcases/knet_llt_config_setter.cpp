@@ -444,3 +444,30 @@ DTEST_CASE_F(SETTER, TEST_STRING_SETTER_OK, NULL, NULL)
 
     DT_ASSERT_EQUAL(StringSetter(&json, &val, &param), 0);
 }
+
+DTEST_CASE_F(SETTER, TEST_UINT64_SETTER_OVERFLOW, NULL, NULL)
+{
+    union KNET_CfgValue val = {0};
+    union KnetCfgValidateParam param = {0};
+    cJSON json = {0};
+    json.type = cJSON_String;
+    json.valuestring = (char *)"999999999999999999999999999999";
+
+    DT_ASSERT_EQUAL(Uint64Setter(&json, &val, &param), -1);
+}
+
+DTEST_CASE_F(SETTER, TEST_CTRLVCPURING_SETTER_NULL_PARAM, NULL, NULL)
+{
+    union KNET_CfgValue val = {0};
+    union KnetCfgValidateParam param = {0};
+
+    DT_ASSERT_EQUAL(CtrVcpuRingSetter(NULL, &val, &param), -1);
+}
+
+DTEST_CASE_F(SETTER, TEST_CTRLVCPUARRAY_SETTER_NULL_PARAM, NULL, NULL)
+{
+    union KNET_CfgValue val = {0};
+    union KnetCfgValidateParam param = {0};
+
+    DT_ASSERT_EQUAL(CtrlVcpuArraySetter(NULL, &val, &param), -1);
+}
