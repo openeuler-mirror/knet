@@ -998,3 +998,31 @@ DTEST_CASE_F(HASH, TEST_HASH_ENTRY_NOT_INIT_TABLE, NULL, NULL)
     Mock->Delete(KNET_SpinlockUnlock);
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(HASH, TEST_HASH_GETVALID_NOT_INIT, NULL, NULL)
+{
+    KNET_HashTblDeinit();
+
+    uint8_t key = 1;
+    uint8_t data = 1;
+    int ret = KNET_HashTblAddEntry(0, &key, &data);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    ret = KNET_HashTblLookupEntry(0, &key, &data);
+    DT_ASSERT_EQUAL(ret, -1);
+
+    KNET_HashTblDeinit();
+}
+
+/**
+ * @brief KnetCreateHashTblMultiple, strcpy_s 失败路径
+ */
+DTEST_CASE_F(HASH, TEST_HASH_CREATE_MULTI_STRCPY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    Mock->Create(strcpy_s, TEST_GetFuncRetNegative(1));
+    struct rte_hash *ret = KnetCreateHashTblMultiple(16, 4, (char *)"test", 5);
+    DT_ASSERT_EQUAL(ret, NULL);
+    Mock->Delete(strcpy_s);
+    DeleteMock(Mock);
+}

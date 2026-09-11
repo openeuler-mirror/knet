@@ -167,6 +167,10 @@ DTEST_CASE_F(CORE_DPDK, TEST_CORE_INIT_UNINIT_DPDK_NORMAL, NULL, NULL)
     Mock->Create(rte_eth_dev_get_mtu, TEST_GetFuncRetPositive(0));
     Mock->Create(rte_eth_tx_queue_setup, TEST_GetFuncRetPositive(0));
     Mock->Create(KNET_BondCreate, TEST_GetFuncRetPositive(0));
+    /* 配置文件中 tso/lro 默认为1, 但 mock_rte_eth_dev_info_get 清零了 offload 能力,
+       会导致 KNET_SetTSO/KNET_SetLRO 返回 -1, 这里 mock 为成功避免误报 */
+    Mock->Create(KNET_SetTSO, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_SetLRO, TEST_GetFuncRetPositive(0));
     /* KnetPktGetPoolCtrl返回的是指针，这里用1表示非空，需保证业务不会访问指针中的内容 */
     Mock->Create(KnetPktGetPoolCtrl, mock_KnetPktGetPoolCtrl);
     Mock->Create(rte_eth_rx_queue_setup, TEST_GetFuncRetPositive(0));
@@ -217,6 +221,8 @@ DTEST_CASE_F(CORE_DPDK, TEST_CORE_INIT_UNINIT_DPDK_NORMAL, NULL, NULL)
     Mock->Delete(rte_eth_dev_get_mtu);
     Mock->Delete(rte_eth_dev_set_mtu);
     Mock->Delete(KNET_BondCreate);
+    Mock->Delete(KNET_SetTSO);
+    Mock->Delete(KNET_SetLRO);
     Mock->Delete(rte_eth_tx_queue_setup);
     Mock->Delete(KnetPktGetPoolCtrl);
     Mock->Delete(rte_eth_rx_queue_setup);
@@ -1623,5 +1629,87 @@ DTEST_CASE_F(CORE_DPDK, TEST_KNET_DpdkHwChecksumSetup, NULL, NULL)
     DT_ASSERT_EQUAL(ret, 0);
     Mock->Delete(KNET_GetCfg);
 
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CORE_DPDK, TEST_KNET_GenerateArpFlow_SUCCESS, NULL, NULL)
+{
+    uint16_t portId = 0;
+    uint32_t queueId = 0;
+    struct rte_flow *flow = NULL;
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(rte_flow_validate, TEST_GetFuncRetPositive(0));
+    Mock->Create(rte_flow_create, TEST_GetFuncRetPositive(1));
+    int32_t ret = KNET_GenerateArpFlow(portId, queueId, &flow);
+    DT_ASSERT_EQUAL(ret, 0);
+    Mock->Delete(rte_flow_validate);
+    Mock->Delete(rte_flow_create);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CORE_DPDK, TEST_KNET_DELETEFLOWRULE_DESTROY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(rte_flow_destroy, TEST_GetFuncRetNegative(1));
+    struct rte_flow *flowDummy = (struct rte_flow *)0x1;
+    int32_t ret = KNET_DeleteFlowRule(0, flowDummy);
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(rte_flow_destroy);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CORE_DPDK, TEST_KNET_GENE_IPV4_FLOW_RSS_MULTI_MODE, NULL, NULL)
+{
+    struct KNET_FlowCfg flowCfg = {0};
+    flowCfg.srcIp = RTE_IPV4(192U, 168U, 1, 1);
+    flowCfg.dstIp = RTE_IPV4(192U, 168U, 1, 2);
+    flowCfg.srcIpMask = RTE_IPV4(255U, 255U, 255U, 255U);
+    flowCfg.dstIpMask = RTE_IPV4(255U, 255U, 255U, 255U);
+    flowCfg.srcPort = 12345;
+    flowCfg.dstPort = 80;
+    flowCfg.srcPortMask = 0xFFFF;
+    flowCfg.dstPortMask = 0xFFFF;
+    flowCfg.rxQueueIdSize = 2;
+    flowCfg.rxQueueId[0] = 0;
+    flowCfg.rxQueueId[1] = 1;
+    flowCfg.proto = IPPROTO_TCP;
+    struct rte_flow *flow = NULL;
+    struct KNET_FlowTeleInfo teleInfo = {0};
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockKnetGetCfg);
+    int32_t ret = KNET_GenerateIpv4Flow(0, &flowCfg, &flow, &teleInfo);
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CORE_DPDK, TEST_KNET_GENE_IPV4_FLOW_RSS_CONF_FAIL, NULL, NULL)
+{
+    struct KNET_FlowCfg flowCfg = {0};
+    flowCfg.srcIp = RTE_IPV4(192U, 168U, 1, 1);
+    flowCfg.dstIp = RTE_IPV4(192U, 168U, 1, 2);
+    flowCfg.srcIpMask = RTE_IPV4(255U, 255U, 255U, 255U);
+    flowCfg.dstIpMask = RTE_IPV4(255U, 255U, 255U, 255U);
+    flowCfg.srcPort = 80;
+    flowCfg.dstPort = 80;
+    flowCfg.srcPortMask = 0xFFFF;
+    flowCfg.dstPortMask = 0xFFFF;
+    flowCfg.rxQueueIdSize = 2;
+    flowCfg.rxQueueId[0] = 0;
+    flowCfg.rxQueueId[1] = 1;
+    flowCfg.proto = IPPROTO_TCP;
+    struct rte_flow *flow = NULL;
+    struct KNET_FlowTeleInfo teleInfo = {0};
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(rte_eth_dev_rss_hash_conf_get, TEST_GetFuncRetNegative(1));
+    int32_t ret = KNET_GenerateIpv4Flow(0, &flowCfg, &flow, &teleInfo);
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(rte_eth_dev_rss_hash_conf_get);
     DeleteMock(Mock);
 }

@@ -148,3 +148,29 @@ DTEST_CASE_F(THREAD, TEST_THREAD_KNET_ThreadId_NORMAL, NULL, NULL)
     Mock->Delete(pthread_self);
     DeleteMock(Mock);
 }
+
+DTEST_CASE_F(THREAD, TEST_THREAD_SET_INVALID_CPU, NULL, NULL)
+{
+    uint64_t threadId = 0;
+    uint16_t cpus[1];
+    cpus[0] = CPU_SETSIZE; /* 超出范围, 触发 invalid cpu 错误路径 */
+    uint32_t len = 1;
+
+    int32_t ret = KNET_SetThreadAffinity(threadId, cpus, len);
+    DT_ASSERT_EQUAL(ret, -1);
+}
+
+DTEST_CASE_F(THREAD, TEST_THREAD_GET_AFFINITY_FAIL, NULL, NULL)
+{
+    uint64_t threadId = 0;
+    uint16_t cpus[1] = {0};
+    uint32_t len = 1;
+
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(pthread_getaffinity_np, TEST_GetFuncRetNegative(1));
+    int32_t ret = KNET_GetThreadAffinity(threadId, cpus, &len);
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(pthread_getaffinity_np);
+    DeleteMock(Mock);
+}

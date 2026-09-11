@@ -244,3 +244,37 @@ DTEST_CASE_F(CONFIG_RPC, TEST_CONFIG_GetEnvQueueId_SscanFail, NULL, NULL)
 
     DeleteMock(Mock);
 }
+
+static union KNET_CfgValue g_rpcCfgVal = {0};
+static union KNET_CfgValue *MockRpcGetCfg(enum KNET_ConfKey key)
+{
+    (void)key;
+    (void)memset_s(&g_rpcCfgVal, sizeof(g_rpcCfgVal), 0, sizeof(g_rpcCfgVal));
+    return &g_rpcCfgVal;
+}
+
+DTEST_CASE_F(CONFIG_RPC, TEST_GET_QUEUE_ID_RPC_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(KNET_GetCfg, MockRpcGetCfg);
+    Mock->Create(memcpy_s, TEST_GetFuncRetPositive(0));
+    Mock->Create(KNET_RpcCall, TEST_GetFuncRetNegative(1));
+    int ret = KnetGetQueueIdFromPrimary();
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(KNET_RpcCall);
+    Mock->Delete(memcpy_s);
+    Mock->Delete(KNET_GetCfg);
+    DeleteMock(Mock);
+}
+
+DTEST_CASE_F(CONFIG_RPC, TEST_FREE_QUEUE_ID_MEMCPY_FAIL, NULL, NULL)
+{
+    KTestMock *Mock = CreateMock();
+    DT_ASSERT_NOT_EQUAL(Mock, NULL);
+    Mock->Create(memcpy_s, TEST_GetFuncRetNegative(1));
+    int ret = KnetFreeQueueIdFromPrimary(0);
+    DT_ASSERT_EQUAL(ret, -1);
+    Mock->Delete(memcpy_s);
+    DeleteMock(Mock);
+}
