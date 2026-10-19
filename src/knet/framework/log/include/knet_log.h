@@ -15,6 +15,7 @@
 #define __KNET_LOG_H__
 
 #include <syslog.h>
+#include <stdarg.h>
 #include "knet_types.h"
 
 // 定义输出日志的模块名字，使得在输出日志中统一
@@ -40,6 +41,17 @@ typedef enum {
  * @param format 日志信息
  */
 void KNET_Log(const char *function, int line, int level, const char *format, ...);
+
+/**
+ * @brief 日志输出函数（va_list版本，供变参封装层转发，避免变参丢失导致UB）
+ *
+ * @param function 调用处函数名
+ * @param line 调用处行数
+ * @param level 日志级别
+ * @param format 日志信息
+ * @param va 变参列表
+ */
+void KNET_LogVa(const char *function, int line, int level, const char *format, va_list va);
 
 /**
  * @brief 输出INFO级别日志，不做日志级别判断

@@ -14,48 +14,36 @@
 #define __KNET_DTOE_FD_H__
 
 #include <stdbool.h>
+#include <sys/queue.h>
+#include <sys/epoll.h>
+
 #include "flexda_dtoe_interface.h"
 #include "knet_dtoe_events.h"
 #include "knet_dtoe_api.h"
 #include "knet_lock.h"
+#include "knet_dtoe_tcp.h"
+#include "knet_dtoe_epoll.h"
 
 #define KNET_INVALID_FD (-1)
 #define KNET_INVALID_EVENT_INDEX (-1)
 
-enum KNET_OFFLOAD_STATUS {
-    KNET_OFFLOAD_INVALID, // 未卸载
-    KNET_OFFLOAD_STARTED,
-    KNET_OFFLOAD_ASYNC_DONE,
-    KNET_OFFLOAD_PREPARE_CLOSING,
-    KNET_OFFLOAD_PREPARE_CLOSED_DONE,
-    KNET_OFFLOAD_CLOSING,
-    KNET_OFFLOAD_CLOSED_DONE,
+enum KNET_FD_TYPE {
+    KNET_FD_TYPE_INVALID,
+    KNET_FD_TYPE_TCP,
+    KNET_FD_TYPE_EPOLL,
+    KNET_FD_TYPE_INTERNAL, // 内交换
 };
 
-/* 涉及多线程，成员变更考虑伪共享 */
 struct KNET_Fd {
-    void *dtoe_conn;
-    int sockfd;
-    struct KnetSendChannel *send_channel;
-    struct {
-        uint16_t last_sn; // 上一个已完成的req的send_sn
-        uint16_t comp_sn; // send_complete对应的finish_msn
-        struct KnetReqListHead unack_req;
-        struct KnetReqListHead free_req;
-    } send;
-    KNET_SpinLock send_lock;
-
-    struct KnetRecvChannel *recv_channel;
-    int recvEventIndex; // 一次knet_poll_recv_channel调用中，该sockfd第一次事件触发对应结果数组的下标
-
-    int32_t leakSize;
-    TAILQ_ENTRY(KNET_Fd) sock;
-    void *leakBuf;
-
-    void *user_data;
-    uint32_t recv_sn;
-    uint8_t olStatus; // offload status. see enum KNET_OFFLOAD_STATUS
+    uint8_t type;
+    union {
+        struct KnetTcp tcp;
+        struct KnetEpoll ep;
+    };
 };
+
+extern struct KNET_Fd *g_knetDtoeFdMap;
+extern int g_dtoeFdMax;
 
 /**
  * @brief 初始化K-NET管理DTOE的FD资源
@@ -73,61 +61,39 @@ void KNET_FdDeinit(void);
  * @param osFd [IN] 连接的fd
  * @retval true success, false failed
  */
-bool KNET_IsOsFdValid(int osFd);
+static inline bool KNET_IsOsFdValid(int osFd)
+{
+    return (osFd >= 0) && (osFd < g_dtoeFdMax);
+}
 
-/**
- * @brief 设置fd属性
- * @param sockfd [IN] 连接的fd
- * @param in [IN] 连接卸载需要的连接信息
- * @param out [IN] 连接卸载后DTOE返回的连接信息
- * @retval null
- */
-void KNET_SetFdState(int sockfd, struct knet_offload_in *in, flexda_dtoe_offload_out_s *out);
+static inline bool KNET_IsOsFdTcp(int osFd)
+{
+    return KNET_IsOsFdValid(osFd) && (g_knetDtoeFdMap[osFd].type == KNET_FD_TYPE_TCP);
+}
 
-/**
- * @brief 初始化freereq链表
- * @param sockfd [IN] 连接的fd
- * @retval 0成功，-1失败
- */
-int KNET_InitFreeReq(int sockfd);
+static inline bool KNET_IsOsFdEpoll(int osFd)
+{
+    return KNET_IsOsFdValid(osFd) && (g_knetDtoeFdMap[osFd].type == KNET_FD_TYPE_EPOLL);
+}
 
-/**
- * @brief 去初始化freereq链表
- * @param sockfd [IN] 连接的fd
- * @retval void
- */
-void KNET_UninitFreeReq(int sockfd);
+static inline void KNET_FdTypeSet(int osFd, uint8_t type)
+{
+    g_knetDtoeFdMap[osFd].type = type;
+}
 
-/**
- * @brief 获取fd的userdata属性
- * @param sockfd [IN] 连接的fd
- * @retval knet user_data地址, 即fd map中的地址
- */
-struct KNET_Fd *KNET_GetFdConnUserData(int sockfd);
+static inline uint8_t KNET_FdTypeGet(int osFd)
+{
+    return g_knetDtoeFdMap[osFd].type;
+}
 
-/**
- * @brief 获取fd的conn
- * @param osFd [IN] 连接的fd
- * @retval void *连接卸载后DTOE返回的连接信息
- */
-void *KNET_GetConnBySock(int sockfd);
+static inline struct KnetTcp *KnetGetTcpFd(int sockfd)
+{
+    return &g_knetDtoeFdMap[sockfd].tcp;
+}
 
-/**
- * @brief 初始化sock漏包相关资源
- * @param sock [IN]
- */
-int KNET_SockLeakResInit(struct KNET_Fd *sock);
+static inline struct KnetEpoll *KnetGetEpollFd(int epfd)
+{
+    return &g_knetDtoeFdMap[epfd].ep;
+}
 
-/**
- * @brief 销毁sock漏包相关资源
- * @param sock [IN]
- */
-void KNET_SockLeakedResUninit(struct KNET_Fd *sock);
-
-/**
- * @brief 重置文件描述符的状态
- *
- * @param sockfd [IN] int。osFd 操作系统文件描述符
- */
-void KNET_ResetFdState(int sockfd);
 #endif

@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <sched.h>
+#include <sys/epoll.h>
 
 struct knet_thrd_cpu_cfg {
     uint32_t enable; // 是否开启亲和性设置：1-开启，0-关闭
@@ -183,7 +184,7 @@ int knet_start_chimney_general(int sockfd, struct knet_offload_in *in);
  * @param iov [IN] 待归还的iov列表
  * @param iov_cnt [IN] iov个数
  */
-void knet_recv_mem_loopback(struct knet_iovec *iov, int iov_cnt);
+void knet_recv_mem_loopback(int sockfd, struct knet_iovec *iov, int iov_cnt);
 
 /**
  * @brief 启动预断链
@@ -229,20 +230,11 @@ int knet_poll_send_channel(struct knet_send_channel* send_channel, uint32_t maxe
 int knet_send(int sockfd, struct knet_tx_req* tx_req);
 
 /**
- * @brief 检查 rx channel 完成事件，执行对应处理
- * @param receive_channel [IN/OUT] knet 对外rx channel
- * @param events [IN/OUT] 关注事件
- * @param maxevents [IN] 最大事件数
- * @return 完成事件数
- */
-int knet_poll_recv_channel(struct knet_recv_channel* receive_channel, struct knet_recv_events* events, uint32_t maxevents, int* ceq_events);
-
-/**
  * @brief knet接收接口
  * @param sockfd [IN] 标准socket的fd句柄
  * @param iov [IN] 接收buf信息
  * @param iov_cnt [IN] iov个数
- * @return 非负数-成功接收的长度，负数-接收失败
+ * @return 正数-成功接收的长度，负数-接收失败，0-对端已关闭
  * @attention 建议iov_cnt赋值为struct knet_recv_event的iovcnt
  */
 int knet_recv(int sockfd, struct knet_iovec *iov, int iov_cnt);
@@ -265,6 +257,45 @@ int32_t knet_get_leaked_packet_size(int sockfd);
 int32_t knet_recv_leaked_packet(int sockfd, void *buffer, int32_t recv_len);
 
 /**
+ * @brief 将tx/rx channel绑定到epoll实例，供knet_epoll_wait收发事件唤醒使用
+ * @param epfd [IN] knet_epoll_create返回的epoll fd
+ * @param send_channel [IN] tx channel句柄，支持EPOLL/POLL两种调度模式：EPOLL模式send完成事件经事件fd触发收割，
+ *                           POLL模式由knet_epoll_wait每轮主动轮询收割
+ * @param recv_channel [IN] rx channel句柄，支持EPOLL/POLL两种调度模式：EPOLL模式经事件fd唤醒阻塞等待，
+ *                           POLL模式无唤醒源，knet_epoll_wait阻塞等待退化为毫秒级轮询（收包上报延迟和CPU开销略高）；
+ *                           send/recv channel调度模式必须一致（驱动约束）
+ * @retval 0-success, others-failed
+ */
+int knet_channel_bind_epoll(int epfd, struct knet_send_channel *send_channel, struct knet_recv_channel *recv_channel);
+
+/**
+ * @brief 创建knet epoll实例，用于管理DTOE卸载连接的事件
+ * @retval 非负-epoll fd，负数-失败
+ */
+int knet_epoll_create(void);
+
+/**
+ * @brief 对卸载连接fd注册/修改/删除epoll事件监听，语义对齐系统epoll_ctl
+ * @param epfd [IN] knet_epoll_create返回的epoll fd
+ * @param op [IN] 操作类型，支持EPOLL_CTL_ADD/EPOLL_CTL_MOD/EPOLL_CTL_DEL
+ * @param fd [IN] 已卸载的tcp连接fd，其channel须与epfd绑定的channel一致
+ * @param event [IN] 监听事件，支持EPOLLIN/EPOLLOUT/EPOLLRDHUP/EPOLLERR/EPOLLHUP，EPOLL_CTL_DEL时可为NULL；
+ *                   对端半关闭（RDHUP）事件仅在订阅了EPOLLRDHUP时上报，订阅EPOLLIN只上报可读事件
+ * @retval 0-success, others-failed
+ */
+int knet_epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
+
+/**
+ * @brief 等待就绪事件，须先调用knet_channel_bind_epoll绑定channel
+ * @param epfd [IN] knet_epoll_create返回的epoll fd
+ * @param events [OUT] 返回的就绪事件数组
+ * @param maxevents [IN] events数组的最大长度
+ * @param timeout [IN] 超时时间（毫秒），-1-无限等待，0-立即返回；recv channel为POLL调度模式时不支持-1（无唤醒源，返回失败）
+ * @return 正数-就绪事件数，0-超时无事件，负数-失败
+ */
+int knet_epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
+
+/**
  * @brief 日志输出函数
  * @param function 调用处函数名
  * @param line 调用处行数
@@ -282,7 +313,7 @@ int32_t knet_flexda_dtoe_channel_qpc_destroy(struct knet_send_channel *send_chan
 /**
  * @brief 动态使能或去使能通道的接收能力
  * @param recv_channel [IN] rx channel句柄，具体详见结构体定义
- * @param rx_invalid_enable [IN] 是否能epoll，1为不使能  0为使能
+ * @param rx_invalid_enable [IN] 是否关闭通道能力。1:关闭 0:打开
  * @retval 0-success, others-failed
  */
 int32_t knet_flexda_dtoe_channel_qpc_rx_invalid_set(struct knet_recv_channel *recv_channel, uint32_t rx_invalid_enable);

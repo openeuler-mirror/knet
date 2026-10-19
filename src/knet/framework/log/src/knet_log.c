@@ -224,18 +224,23 @@ void KNET_LogFixLenOutputHook(const char* format, ...)
     }
 }
 
-void KNET_Log(const char *function, int line, int level, const char *format, ...)
+void KNET_LogVa(const char *function, int line, int level, const char *format, va_list va)
 {
     if (likely(g_logLevel < level)) {
         return;
     }
 
-    va_list va;
     int oriErrno = errno;
-    va_start(va, format);
     (void)LogMessage(function, line, level, format, va);
-    va_end(va);
     errno = oriErrno;
+}
+
+void KNET_Log(const char *function, int line, int level, const char *format, ...)
+{
+    va_list va;
+    va_start(va, format);
+    KNET_LogVa(function, line, level, format, va);
+    va_end(va);
 }
 
 void KNET_LogNormal(const char *format, ...)

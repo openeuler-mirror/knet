@@ -26,14 +26,14 @@ static int JsonChecker(cJSON *jsonValue, union KNET_CfgValue *value, union KnetC
         return -1;
     }
     if (jsonValue->type != type) {
-        KNET_ERR("Json get failed, invalid type, expect %d , actually %d", type, jsonValue->type);
+        KNET_ERR("Json get failed, invalid type, expect %d, actual %d", type, jsonValue->type);
         return -1;
     }
 
     switch (type) {
         case cJSON_String: {
             if (jsonValue->valuestring == NULL) {
-                KNET_ERR("Json get failed, nullptr string");
+                KNET_ERR("Json get failed, null string");
                 return -1;
             }
             break;
@@ -52,19 +52,18 @@ int IntSetter(cJSON *jsonValue, union KNET_CfgValue *value, union KnetCfgValidat
 
     // 直接采用int或者long long强制类型转换时，面对特别大的整数会出现数据截断，因此需要先进行范围判断
     if (jsonValue->valuedouble > INT32_MAX || jsonValue->valuedouble < INT32_MIN) {
-        KNET_ERR("The value is out of the int32 range");
+        KNET_ERR("The value %f is out of the int32 range", jsonValue->valuedouble);
         return -1;
     }
 
     if (jsonValue->valuedouble != (int)jsonValue->valuedouble) { // 判断是否为整数
-        KNET_ERR("The num is not an integer");
+        KNET_ERR("The num %f is not an integer", jsonValue->valuedouble);
         return -1;
     }
 
     if (jsonValue->valueint < param->intValue.min || jsonValue->valueint > param->intValue.max) {
-        KNET_ERR("Json int get failed, invalid value and out of [%lld, %lld]",
-            param->intValue.min,
-            param->intValue.max);
+        KNET_ERR("Json int get failed, value %d out of range [%lld, %lld]", jsonValue->valueint, param->intValue.min,
+                 param->intValue.max);
         return -1;
     }
     value->intValue = jsonValue->valueint;

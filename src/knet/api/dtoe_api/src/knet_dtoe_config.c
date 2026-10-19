@@ -51,7 +51,7 @@ KNET_STATIC char *GetKnetCfgContent(const char *fileName)
     char *cfgContent = NULL;
     FILE *file = fopen(fileName, "r");
     if (file == NULL) {
-        KNET_ERR("Open K-NET conf file failed, errno %d", errno);
+        KNET_ERR("Open K-NET conf file %s failed, errno %d", fileName, errno);
         return cfgContent;
     }
     cfgContent = (char *)malloc(MAX_CFG_SIZE);
@@ -64,7 +64,7 @@ KNET_STATIC char *GetKnetCfgContent(const char *fileName)
     if (readSize >= MAX_CFG_SIZE) {
         free(cfgContent);
         cfgContent = NULL;
-        KNET_ERR("Fread failed, read larger than %d, errno %d", MAX_CFG_SIZE, errno);
+        KNET_ERR("Conf file too large, read size %zu >= max %d", readSize, MAX_CFG_SIZE);
         goto END;
     }
 
@@ -103,7 +103,7 @@ static int GetCfgValue(enum KNET_ConfModule module, cJSON *json)
 
     cJSON *subJson = cJSON_GetObjectItem(json, g_moduleName[module]);
     if (subJson == NULL) {
-        KNET_ERR("cJSON get sub json %s failed", g_moduleName[module]);
+        KNET_ERR("Get sub json %s failed", g_moduleName[module]);
         return -1;
     }
 
@@ -119,7 +119,7 @@ static int GetCfgValue(enum KNET_ConfModule module, cJSON *json)
         cJSON *jsonValue = cJSON_GetObjectItem(subJson, confItem->name);
         ret = confItem->setter(jsonValue, &confItem->value, &confItem->validateParam);
         if (ret != 0) {
-            KNET_ERR("cJSON get value %s:%s failed, err:%d", g_moduleName[module], confItem->name, ret);
+            KNET_ERR("Get value %s:%s failed, err %d", g_moduleName[module], confItem->name, ret);
             break;
         }
     }
@@ -150,7 +150,7 @@ static int LoadCfgFromFile(void)
     for (int i = 0; i < CONF_MAX; ++i) {
         ret = GetCfgValue(i, json);
         if (ret != 0) {
-            KNET_ERR("Get cfg value failed");
+            KNET_ERR("Get cfg value failed, module %d", i);
             goto END;
         }
     }
