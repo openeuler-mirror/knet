@@ -1,12 +1,14 @@
 # 绑核与网卡所在NUMA一致
 
+介绍K-NET业务绑核与网卡所在NUMA保持一致的调优方法，涵盖网卡所在NUMA及其CPU编号的确认、物理机与虚拟机场景下的绑核配置修改，以及业务启动时的绑核要求。阅读本指南后，您将能避免跨NUMA绑核，充分发挥网卡性能。
+
 1. 确定物理机网卡所在NUMA。<a id="numa-li1"></a>
 
     ```bash
     cat /sys/class/net/enp135s0f0/device/numa_node  # 网卡名根据用户具体使用的网卡进行修改
     ```
 
-    ![](../../figures/zh-cn_image_0000002478296258.png)
+    ![物理机网卡所在NUMA节点查询命令回显，展示网卡归属的NUMA节点信息用于绑核配置](../../figures/zh-cn_image_0000002478296258.png)
 
 2. 确定物理机网卡所在NUMA的CPU编号。<a id="numa-li2"></a>
 
@@ -14,14 +16,14 @@
     lscpu
     ```
 
-    ![](../../figures/zh-cn_image_0000002510416201.png)
+    ![物理机网卡所在NUMA的CPU编号查询回显，展示该NUMA下可用CPU编号范围用于绑核配置](../../figures/zh-cn_image_0000002510416201.png)
 
 3. 修改绑核配置，使用网卡所在NUMA的CPU。
 
     > [!NOTE]说明
-    >以[步骤2](#numa-li2)中查询到使用网卡所在NUMA的CPU编号为64\~95为例，后续绑核的CPU编号要在该区间内。
+    > 以[步骤2](#numa-li2)中查询到使用网卡所在NUMA的CPU编号为64\~95为例，后续绑核的CPU编号要在该区间内。
     >
-    >**重要**：绑定的CPU核号必须独占使用，不得与其他业务（如系统进程、其他应用进程、其他虚拟机vCPU等）共用，否则会导致CPU资源竞争，引起上下文切换开销增加、缓存命中率下降，严重影响knet的数据处理性能和时延。请确保`ctrl_vcpu_ids`、`core_list_global`以及taskset绑定的核号均未被其他业务占用。
+    > **重要**：绑定的CPU核号必须独占使用，不得与其他业务（如系统进程、其他应用进程、其他虚拟机vCPU等）共用，否则会导致CPU资源竞争，引起上下文切换开销增加、缓存命中率下降，严重影响knet的数据处理性能和时延。请确保`ctrl_vcpu_ids`、`core_list_global`以及taskset绑定的核号均未被其他业务占用。
 
     - 服务端为虚拟机场景
 
@@ -31,11 +33,11 @@
         virsh start vm_name       # 开启虚拟机
         ```
 
-        ![](../../figures/zh-cn_image_0000002478456236.png)
+        ![虚拟机场景下K-NET配置文件中内存后端NUMA字段查看界面，展示确认内存后端与网卡同NUMA的配置项](../../figures/zh-cn_image_0000002478456236.png)
 
         查看如下字段，保证内存后端使用网卡同[步骤1](#numa-li1)的NUMA。
 
-        ![](../../figures/zh-cn_image_0000002510576171.png)
+        ![虚拟机场景K-NET配置文件中内存后端NUMA相关字段查看界面，展示需确认与网卡NUMA一致的配置项内容](../../figures/zh-cn_image_0000002510576171.png)
 
     - 服务端为物理机场景
 
@@ -70,5 +72,5 @@
     taskset -c 64-95 env LD_PRELOAD=/usr/lib64/libknet_frame.so redis-server /path/to/redis/redis.conf --port 6380 --bind 192.168.*.*
     ```
 
-    > [!NOTE]说明  
-    >taskset -c 64-95：绑核设置参考前面步骤，应避免跨NUMA，避免使用其他业务占用的CPU核。
+    > [!NOTE]说明
+    > taskset -c 64-95：绑核设置参考前面步骤，应避免跨NUMA，避免使用其他业务占用的CPU核。

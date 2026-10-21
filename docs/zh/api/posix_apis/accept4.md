@@ -1,8 +1,10 @@
 # accept4
 
+介绍K-NET的accept4接口，面向应用开发工程师。涵盖接口功能、参数说明、返回值及错误码，适用于服务端在侦听套接字上接收新连接的开发场景。
+
 ## 接口名称
 
-**accept4(int sockfd, struct sockaddr \*addr, socklen\_t \*addrlen, int flags\)**
+**accept4(int sockfd, struct sockaddr \*addr, socklen_t \*addrlen, int flags)**
 
 ## 接口描述
 

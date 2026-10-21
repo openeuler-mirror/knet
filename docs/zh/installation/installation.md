@@ -1,6 +1,6 @@
 # 安装
 
-文档中安装步骤适用于所有需要部署运行K-NET的物理机或虚拟机。
+本文档介绍K-NET安装部署。涵盖安全检查、DPDK（Data Plane Development Kit，数据平面开发套件）编译、dpdk-hinic3驱动、K-NET RPM安装流程（安装步骤适用于所有需要部署运行K-NET的物理机或虚拟机）。
 
 ## 安全检查
 
@@ -14,13 +14,13 @@ Glibc 2.10及以上版本会开启堆栈保护，若查询出来的版本低于2
 
 ### 检查ASLR是否开启
 
-ASLR是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度。
+ASLR（Address Space Layout Randomization，地址空间布局随机化）是一种针对缓冲区溢出的安全保护技术，通过地址布局的随机化，增加攻击者预测目的地址的难度。
 
 ```bash
 cat /proc/sys/kernel/randomize_va_space
 ```
 
-若结果不为2，请执行以下命令开启ASLR。
+若结果不等于2，请执行以下命令开启ASLR。
 
 ```bash
 bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
@@ -87,7 +87,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     tar -xf dpdk-21.11.7.tar.xz
     ```
 
-4. 获取dpdk-hinic3 PMD源码。
+4. 获取dpdk-hinic3 PMD（Poll Mode Driver，轮询模式驱动）源码。
 
     ```bash
     # 拉取dpdk仓库代码并切换到hinic3_master分支
@@ -96,7 +96,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
 5. 获取配套版本的tag。
 
-    配套的dpdk-hinic3版本请见[版本配套表](../release_note.md)，跳转查看对应的commitid。
+    配套的dpdk-hinic3版本请参见[版本配套表](../release_note.md)，跳转查看对应的commitid。
 
     以下为commitid位置示例：
 
@@ -134,7 +134,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![编译回显](../figures/zh-cn_image_0000002503958012.png)
+    ![DPDK meson配置build命令回显截图：展示DPDK源码编译配置成功的关键日志字段](../figures/zh-cn_image_0000002503958012.png)
 
     ```bash
     ninja -C build
@@ -142,7 +142,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![构建回显](../figures/zh-cn_image_0000002503798182.png)
+    ![DPDK ninja build编译回显截图：展示编译完成后的产物路径](../figures/zh-cn_image_0000002535517975.png)
 
     ```bash
     ninja install -C build
@@ -150,7 +150,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     回显示例：
 
-    ![安装回显](../figures/zh-cn_image_0000002503798182.png)
+    ![DPDK ninja install安装回显截图：展示DPDK编译产物安装至/usr/local的安装完成日志](../figures/zh-cn_image_0000002503798182.png)
 
 9. 检查dpdk-hinic3驱动。
 
@@ -160,7 +160,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     以下为`ls -l /usr/lib64/librte_net_hinic3.so*`回显示例：
 
-    ```bash
+    ```output
     -rw-r--r--. 1 root root       23 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so -> dpdk/pmds-22.0/librte_net_hinic3.so.22
     -rw-r--r--. 1 root root       25 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22 -> dpdk/pmds-22.0/librte_net_hinic3.so.22
     -rw-r--r--. 1 root root   371976 Sep 1 10:30 /usr/lib64/librte_net_hinic3.so.22.0 -> dpdk/pmds-22.0/librte_net_hinic3.so.22.0
@@ -183,7 +183,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     ```
 
 2. 确保“dpdk-stable-21.11.7/app/dumpcap”目录下只有DPDK示例程序main.c和meson.build。若该目录下有其他文件，建议用户迁移至其他路径。
-3. 请参见[Gitee](https://gitee.com/openeuler/dpdk/blob/575def3e5f5be8da8662d442c6ecd46e9ec82acf/patch/dpdk-21.11.7-dumpcap.patch)获取dpdk-21.11.7-dumpcap.patch并上传至“dpdk-stable-21.11.7/app”目录。
+3. 请参见[dumpcap.patch的Gitee](https://gitee.com/openeuler/dpdk/blob/575def3e5f5be8da8662d442c6ecd46e9ec82acf/patch/dpdk-21.11.7-dumpcap.patch)获取dpdk-21.11.7-dumpcap.patch并上传至“dpdk-stable-21.11.7/app”目录。
 4. 进入“dpdk-stable-21.11.7/app”目录，应用patch。
 
     ```bash
@@ -192,18 +192,23 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
 5. 进入dumpcap目录，执行make得到适配K-NET的dumpcap。
 
+    > [!NOTE]说明
+    > 如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
+
     ```bash
     cd dumpcap
     make
     ```
 
-    > [!NOTE]说明
-    > 如果编译失败，是由于缺少头文件或动态库，请检查Makefile中DPDK头文件路径INCLUDEDIR、DPDK动态库路径LDDIR、libpcap动态库路径LIBPCAPDIR下是否存在相应库或头文件，若不存在，安装后修改路径确保该路径下有对应文件。
-
 6. 授予驱动和编译抓包程序执行权限。
 
     > [!NOTE]说明
-    > 若为root用户可跳过此步骤。
+    >
+    >- 若为root用户可跳过此步骤。
+    >- CAP_SYS_RAWIO：允许进程直接访问硬件端口和内存，DPDK初始化时访问/dev/vfio/noiommu-0所需，VFIO（Virtual Function I/O，虚拟功能输入输出）的No-IOMMU模式所需。
+    >- CAP_DAC_READ_SEARCH：忽略文件读权限检查，忽略目录搜索权限，用于绕过文件访问控制权限，访问/proc/self/pagemaps。
+    >- CAP_SYS_ADMIN：允许执行系统管理任务，加载或卸载文件系统，设置磁盘等，用于DPDK初始化时读取/proc/self/pagemaps。
+    >- +ep：添加的权限，e表示Effective（执行时生效），p表示Permitted（允许权限）。
 
     ```bash
     chmod a+s /usr/lib64/librte_net_hinic3.so
@@ -244,7 +249,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
         回显示例：
 
-        ```ColdFusion
+        ```output
         main.c meson.build
         ```
 
@@ -296,7 +301,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
     
     成功回显如下：
         
-    ```coldfusion
+    ```output
     Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
@@ -318,7 +323,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
     成功回显如下：
 
-    ```coldfusion
+    ```output
     Verifying...          ###################################[100%]
     Preparing...          ###################################[100%]
     Updating/installing...
@@ -329,7 +334,7 @@ pkg-config --modversion libdpdk 2>/dev/null || echo "未找到DPDK或pkg-config�
 
 ### Computing ToolKit批量安装
 
-对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/common_operations/batch_om.md)，将安装命令替换为如下，以ARM环境初次安装K-NET为例：
+对于Computing ToolKit方式的安装部署方法，请参见[批量运维](../reference/common_operations/batch_om.md)，将安装命令替换为如下，以鲲鹏环境初次安装K-NET为例：
 
 ```bash
 cd /path; rpm -ivh knet-1.4.0.aarch64.rpm

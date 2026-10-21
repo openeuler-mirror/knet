@@ -1,5 +1,7 @@
 # close
 
+介绍K-NET的close接口，面向应用开发工程师。接口用于关闭文件描述符并释放对应资源，涵盖参数说明、返回值及错误码。适用于业务开发中关闭socket或Epoll描述符的场景。
+
 ## 接口名称
 
 **close(int fd)**
@@ -28,4 +30,4 @@
 |EIO|读取或写入文件系统时发生I/O错误。|
 |EINTR|被信号中断。|
 |ELIBBAD|系统符号加载失败。|
-|EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
+|EINVAL|共线程部署模式时，fd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|

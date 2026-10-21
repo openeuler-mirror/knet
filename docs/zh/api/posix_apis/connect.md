@@ -1,5 +1,7 @@
 # connect
 
+介绍K-NET的connect接口，面向应用开发工程师。涵盖接口功能、参数说明、返回值及错误码，适用于基于套接字发起网络连接的开发场景。
+
 ## 接口名称
 
 **connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)**
@@ -8,7 +10,7 @@
 
 发起socket连接。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >允许Bind已存在连接的地址，如果Bind到已存在的本地连接地址，在Connect到同一个对端时会返回失败。
 
 ## 参数说明

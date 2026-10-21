@@ -1,14 +1,16 @@
 # sendmsg
 
+介绍K-NET的sendmsg接口，用于发送数据。涵盖参数说明、返回值与错误码，并说明数据发送端的TCP协议优雅断链机制。适用于使用K-NET用户态TCP/IP协议栈进行数据发送的应用开发场景。
+
 ## 接口名称
 
-**sendmsg(int sockfd, const struct msghdr \*msg, int flags\)**
+**sendmsg(int sockfd, const struct msghdr \*msg, int flags)**
 
 ## 接口描述
 
 发送数据。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >K-NET用户态TCP/IP协议栈数据发送端支持TCP协议优雅断链，当对端异常关闭时，发送端需要借用TCP重传超时机制/保活机制断链。
 
 ## 参数说明
@@ -17,11 +19,11 @@
 |--|--|--|
 |sockfd|通信节点描述符|传入socket描述符。|
 |*msg|指定发送数据消息指针|会忽略struct msghdr中的msg_flags参数。忽略msg_control，msg_controllen参数。msg_iovlen范围(0, 1024]。待发送数据总长度可设置范围为(0, SSIZE_MAX]。|
-|flags|指定发送方式|flags参数支持MSG_DONTWAIT、MSG_NOSIGNAL（默认支持该flag，且不可修改）、MSG_MORE，其它类型不支持。如果携带有其他flags，直接返回失败。MSG_DONTWAIT：启用非阻塞操作。MSG_NOSIGNAL：防止在发送数据到已关闭连接的socket时触发SIGPIPE信号。MSG_MORE：延迟发送数据。|
+|flags|指定发送方式|UDP套接字仅支持MSG_DONTWAIT标志；TCP套接字支持MSG_DONTWAIT、MSG_NOSIGNAL（默认支持该flag，且不可修改）和MSG_MORE。其它类型不支持，如果携带有其他flags，直接返回失败。MSG_DONTWAIT：启用非阻塞操作。MSG_NOSIGNAL：防止在发送数据到已关闭连接的socket时触发SIGPIPE信号。MSG_MORE：延迟发送数据。|
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 非负数：实际发送的数据长度，表示成功
 
@@ -40,7 +42,7 @@
 |ENOMEM|内存申请失败。|
 |ENOTCONN|套接字未连接。|
 |EPIPE|套接字关闭写入，或者套接字为连接模式，不再连接。|
-|EOPNOTSUPP|flags参数中的某些位不适合套接字类型，当前只支持MSG_DONTWAIT。|
+|EOPNOTSUPP|flags参数中的某些位不适合套接字类型。UDP套接字仅支持MSG_DONTWAIT；TCP套接字支持MSG_DONTWAIT、MSG_NOSIGNAL和MSG_MORE。|
 |ENETUNREACH|网络上暂无可用路由。|
 |EAFNOSUPPORT|所指定的地址对于所指定套接字的地址族而言，不是一个有效的地址。|
 |EINVAL|入参msg->msg_iov.iov_len大于SSIZE_MAX，或者入参msg中每个msg_iov的iov_len之和大于SSIZE_MAX。|

@@ -1,20 +1,22 @@
 # sigaction
 
+介绍K-NET的sigaction接口，面向应用开发工程师。接口用于设置信号处理方式，涵盖参数说明、返回值及错误码。适用于业务开发中自定义信号处理行为的场景。
+
 ## 接口名称
 
-**sigaction(int signum, const struct sigaction \*act, struct sigaction \*oldact\)**
+**sigaction(int signum, const struct sigaction \*act, struct sigaction \*oldact)**
 
 ## 接口描述
 
  设置信号处理方式。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >
->- K-NET首先会注册SIGINT、SIGTERM、SIGQUIT三种信号，行为为exit\(0\)，以达到在destructor中断连的目的。如果constructor之后用户有注册相应信号且行为不是SIG\_DFL，则让用户注册覆盖掉。
->- 目前只支持SIGINT、SIGQUIT、SIGTERM三种信号触发时发送RST报文。
->- 调用\_exit等不会执行用户态析构函数的进程退出函数，SIGINT、SIGQUIT、SIGTERM三种信号无法发送RST报文。
+>- K-NET首先会注册SIGINT、SIGTERM、SIGQUIT三种信号，行为为exit(0)，以达到在destructor中断连的目的。如果constructor之后用户有注册相应信号且行为不是SIG_DFL，则让用户注册覆盖掉。
+>- 目前只支持SIGINT、SIGQUIT、SIGTERM三种信号触发时发送Reset报文。
+>- 调用_exit等不会执行用户态析构函数的进程退出函数，SIGINT、SIGQUIT、SIGTERM三种信号无法发送Reset报文。
 >- SIGINT、SIGQUIT、SIGTERM三种信号的处理函数目前不支持重入，只会调用一次。
->- 带SA\_SIGINFO标记的信号处理在处理完后会强制退出程序。
+>- 带SA_SIGINFO标记的信号处理在处理完后会强制退出程序。
 
 ## 参数说明
 

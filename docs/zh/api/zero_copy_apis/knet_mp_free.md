@@ -1,8 +1,10 @@
-# knet\_mp\_free
+# knet_mp_free
+
+介绍K-NET的knet_mp_free接口，用于释放写缓冲区。涵盖参数说明、返回值与错误码，并说明待释放缓冲区须由配套的申请接口分配。适用于基于K-NET零拷贝特性进行写缓冲区管理的应用开发场景。
 
 ## 接口名称
 
-**knet\_mp\_free(void \*addr, void \*opaque\)**
+**knet_mp_free(void \*addr, void \*opaque)**
 
 ## 接口描述
 

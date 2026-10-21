@@ -21,3 +21,5 @@ sections:
     href: ./om_tools_introduction.md
   - label: 修订记录
     href: ./change_history.md
+  - label: 缩略语
+    href: ./abbreviations.md

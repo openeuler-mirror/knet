@@ -1,8 +1,10 @@
 # getpeername
 
+介绍K-NET的getpeername接口，面向应用开发工程师。涵盖获取socket连接对端地址信息的功能、参数说明、返回值及错误码。适用于查询通信对端地址的场景。
+
 ## 接口名称
 
-**getpeername(int sockfd, struct sockaddr \*addr, socklen\_t \*addrlen\)**
+**getpeername(int sockfd, struct sockaddr \*addr, socklen_t \*addrlen)**
 
 ## 接口描述
 

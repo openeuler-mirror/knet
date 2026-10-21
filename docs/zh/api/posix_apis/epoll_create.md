@@ -1,8 +1,10 @@
-# epoll\_create
+# epoll_create
+
+介绍K-NET的epoll_create接口，面向应用开发工程师。涵盖创建epoll文件描述符的功能、参数说明、返回值及错误码，适用于应用开发中创建epoll实例的场景。
 
 ## 接口名称
 
-**epoll\_create(int size)**
+**epoll_create(int size)**
 
 ## 接口描述
 

@@ -4,4 +4,5 @@
 - [方案架构](./solution_architecture.md)
 - [典型应用场景](./typical_application_scenarios.md)
 - [特性和功能](./features_and_functions.md)
+- [缩略语](./abbreviations.md)
 - [修订记录](./change_history.md)

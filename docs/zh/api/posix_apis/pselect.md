@@ -1,8 +1,10 @@
 # pselect
 
+介绍K-NET的pselect接口，用于在指定时间内侦听文件描述符的可读、可写和异常事件，并支持调用期间的信号屏蔽。涵盖参数说明、返回值与错误码。适用于基于K-NET进行文件描述符事件监测的应用开发场景。
+
 ## 接口名称
 
-**pselect(int nfds, fd\_set \*readfds, fd\_set \*writefds, fd\_set \*exceptfds, const struct timespec \*timeout, const sigset\_t \*sigmask\)**
+**pselect(int nfds, fd_set \*readfds, fd_set \*writefds, fd_set \*exceptfds, const struct timespec \*timeout, const sigset_t \*sigmask)**
 
 ## 接口描述
 

@@ -1,8 +1,10 @@
 # recvfrom
 
+介绍K-NET的recvfrom接口，用于接收数据。涵盖参数说明、返回值与错误码。适用于使用K-NET用户态TCP/IP协议栈进行数据接收的应用开发场景。
+
 ## 接口名称
 
-**recvfrom(int sockfd, void \*buf, size\_t len, int flags, struct sockaddr \*src\_addr, socklen\_t \*addrlen\)**
+**recvfrom(int sockfd, void \*buf, size_t len, int flags, struct sockaddr \*src_addr, socklen_t \*addrlen)**
 
 ## 接口描述
 
@@ -21,7 +23,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 正数：实际接收的数据长度，表示成功
 - -1：表示失败，并设置errno以指示错误类型

@@ -1,8 +1,10 @@
 # ppoll
 
+介绍K-NET的ppoll接口，面向应用开发工程师。接口用于等待异步描述符上的事件触发，涵盖参数说明、返回值及错误码。适用于业务开发中轮询监听文件描述符事件的场景。
+
 ## 接口名称
 
-**ppoll(struct pollfd \*fds, nfds\_t nfds, const struct timespec \*timeout\_ts, const sigset\_t \*sigmask\)**
+**ppoll(struct pollfd \*fds, nfds_t nfds, const struct timespec \*timeout_ts, const sigset_t \*sigmask)**
 
 ## 接口描述
 

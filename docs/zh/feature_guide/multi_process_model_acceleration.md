@@ -1,5 +1,7 @@
 # 多进程加速功能
 
+本文档介绍多进程加速功能。多进程模式允许多个业务进程共享同一加速框架，适用于需要横向扩展的多实例业务场景。
+
 ## 功能描述
 
 提供多个业务进程并发运行的网络处理能力，支持针对多进程业务场景进行网络加速。
@@ -10,11 +12,11 @@
 
 > [!NOTE]说明
 >
->- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行使用前配置。
->- 服务端为物理机场景时组网参考[物理机组网规划](../installation/installation_planning.md#组网规划)，服务端为虚拟机场景时组网参考[虚拟机组网规划](../installation/installation_planning.md#组网规划)。
->- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[启动业务进程失败提示“error allocating core states array”](../troubleshooting/multi_process_model.md)和[启动业务进程长时间阻塞且knet_comm.log无错误日志输出](../troubleshooting/multi_process_model.md)。
+>- 该模式支持服务端为配置VF（Virtual Function）直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK（Data Plane Development Kit，数据平面开发套件）接管网卡PF（Physical Function）运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行使用前配置。
+>- 服务端组网请参见[组网规划]，请根据实际情况参考物理机组网图或虚拟机组网图。
+>- 当前多进程基于共享内存实现，如果应用异常退出（如kill、内部段错误等）会造成部分资源无法回收（包括大页内存、锁），可能导致后续应用无法成功启动，恢复手段及规避方案见[多进程故障](../troubleshooting/multi_process_model.md)中的“启动业务进程失败提示“error allocating core states array””和“启动业务进程长时间阻塞且knet_comm.log无错误日志输出”。
 >- 若任务运行失败，请参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
->- 在SP233网卡上，流表规格为单Function最大1024条，ARP流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
+>- 在SP233网卡上，流表规格为单Function最大1024条，ARP（Address Resolution Protocol，地址解析协议）流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
 
 1. 修改服务端/etc/knet/knet_comm.conf文件。
 
@@ -79,7 +81,7 @@
         >- 关闭knet_mp_daemon后需要同步关闭所有Redis业务实例从进程。
         >- 禁止启动单进程后修改为多进程启动。
 
-    2. 另起一个终端运行第一个业务。
+    2. 在新起一个终端运行第一个业务。
 
         > [!NOTE]说明
         >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[使用前配置](./environment_configuration.md)进行设置。
@@ -96,7 +98,7 @@
         
         观察到如下输出，表示启动成功：
 
-        ```text
+        ```output
         * Ready to accept connections
         ```
 
@@ -123,13 +125,13 @@
 
         观察到如下输出，表示启动成功：
 
-        ```text
+        ```output
         * Ready to accept connections
         ```
 
     4. 确认第一个运行daemon进程的终端多了以下两行回显，表示上述两个业务进程启动成功。
         
-        ```text
+        ```output
         hinic3: Add fdir tcam rule, function_id: 0x1, tcam_block_id: 0, local_index: 0, global_index: 0, queue: 0, tcam_rule_nums: 1 succeed
         hinic3: Add fdir tcam rule, function_id: 0x1, tcam_block_id: 0, local_index: 1, global_index: 1, queue: 1, tcam_rule_nums: 2 succeed
         ```
@@ -145,7 +147,7 @@
 
         结果形如以下示例输出：
 
-        ```text
+        ```output
         ====== GET ======
         1000000 requests completed in 64.25 seconds  
         1000 parallel clients  
@@ -154,7 +156,7 @@
         host configuration "save": 900 1 300 10 60 10000  
         host configuration "appendonly": no  
         multi-thread: yes  
-        threads: 1  
+        threads: 1
 
         0.00% <= 0.6 milliseconds  
         0.00% <= 0.7 milliseconds  
@@ -173,13 +175,13 @@
 
         ```bash
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -c 1000 -n 1000000 -r 100000 -t set --threads 15
-        redis-cli -h 192.168.*.* -p 6380 flushall   #客户端清理set数据，提升性能
+        redis-cli -h 192.168.1.6 -p 6380 flushall   #客户端清理set数据，提升性能
         taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.1.6 -p 6380 -c 1000 -n 1000000 -r 100000 -t get --threads 15
         ```
 
         结果形如以下示例输出：
 
-        ```text
+        ```output
         ====== GET ======
         1000000 requests completed in 64.25 seconds  
         1000 parallel clients  
@@ -188,7 +190,7 @@
         host configuration "save": 900 1 300 10 60 10000  
         host configuration "appendonly": no  
         multi-thread: yes  
-        threads: 1  
+        threads: 15  
 
         0.00% <= 0.6 milliseconds  
         0.00% <= 0.7 milliseconds  
@@ -225,7 +227,7 @@
 
     观察到如下输出，表示启动成功：
 
-    ```text
+    ```output
      * Ready to accept connections
     ```
 

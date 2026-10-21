@@ -14,4 +14,5 @@
   - [本地流量环回功能](./local_loopback.md)
 - [使用示例](./usage_example.md)
   - [使用共线程、零拷贝功能进行Tperf加速](../../../demo/tperf/tperf.md)
+- [缩略语](./abbreviations.md)
 - [修订记录](./change_history.md)

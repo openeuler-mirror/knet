@@ -1,8 +1,10 @@
 # accept
 
+介绍K-NET的accept接口，面向应用开发工程师。接口用于在侦听socket上接收新的连接，涵盖参数说明、返回值及错误码。适用于服务端接受客户端连接的开发场景。
+
 ## 接口名称
 
-**accept(int sockfd, struct sockaddr \*addr, socklen\_t \*addrlen\)**
+**accept(int sockfd, struct sockaddr \*addr, socklen_t \*addrlen)**
 
 ## 接口描述
 

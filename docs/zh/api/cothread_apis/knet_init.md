@@ -1,16 +1,18 @@
-# knet\_init
+# knet_init
+
+介绍K-NET的knet_init接口，面向应用开发工程师。涵盖共线程资源初始化的功能说明、使用约束及返回值说明。适用于使用共线程功能前进行资源初始化的场景。
 
 ## 接口名称
 
-**knet\_init(void\)**
+**knet_init(void)**
 
 ## 接口描述
 
 <term>K-NET</term>共线程资源初始化。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
->- 需要打开cothread\_enable配置项。
+>- 需要打开cothread_enable配置项。
 >- 每个进程只需要执行一次。
 
 ## 参数说明

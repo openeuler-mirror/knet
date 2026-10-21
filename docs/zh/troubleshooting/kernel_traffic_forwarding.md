@@ -14,7 +14,7 @@
     netstat -ntap
     ```
 
-    ![](../figures/zh-cn_image_0000002503868586.png)
+    ![查看内核协议栈应用端口状态的示意图](../figures/zh-cn_image_0000002503868586.png)
 
 2. 查看K-NET使用端口范围：
 

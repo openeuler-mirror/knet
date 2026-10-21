@@ -1,5 +1,7 @@
 # 特性和功能
 
+介绍K-NET的通信协议加速与运维管理两大特性，包括用户态TCP/IP协议栈、标准POSIX（Portable Operating System Interface，可移植操作系统接口）透明替换、零拷贝及多种硬件卸载能力，以及统计信息查询、抓包等运维功能。适用于用户了解产品特性构成及其在性能与运维方面的价值。
+
 ## 通信协议加速
 
 ### 用户价值
@@ -25,8 +27,8 @@ Redis数据库。
 - 支持零拷贝功能
 - 支持共线程功能
 - 支持用户态网卡bond
-- 支持TSO卸载
-- 支持<term>LRO</term>卸载
+- 支持TSO（TCP Segment Offload，TCP分段卸载）卸载
+- 支持LRO（Large Receive Offload，大量接收负载转移）卸载
 - 支持Checksum卸载（TCP）
 - 支持网卡流量分叉功能
 - 支持内核流量转发功能
@@ -38,7 +40,7 @@ Redis数据库。
 
 ### 用户价值
 
-K-NET通信协议加速用户态TCP/IP协议栈特性提供和标准DPDK生态对接：
+K-NET通信协议加速用户态TCP/IP协议栈特性提供和标准DPDK（Data Plane Development Kit，数据平面开发套件）生态对接：
 
 - 提供统计信息获取，用于用户进行运维管理。
 - 提供抓包工具，用于用户侧问题快速分析定位。

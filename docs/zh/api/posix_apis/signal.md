@@ -1,5 +1,7 @@
 # signal
 
+介绍K-NET的signal接口，面向应用开发工程师。涵盖设置信号处理方式的功能、参数说明、返回值及错误码，适用于为进程注册信号处理函数的开发场景。
+
 ## 接口名称
 
 **signal(int signum, sighandler_t handler)**

@@ -1,18 +1,20 @@
 # 网卡流量分叉功能（SP670网卡）
 
+本文档介绍SP670网卡流量分叉功能。流量分叉支持K-NET与内核态协同接收同一网卡流量，适用于需要在加速部分业务的同时保留其他流量走内核态的场景。
+
 ## 功能描述
 
 提供流量分叉能力开关，通过流表进程流量分发，支持内核态与<term>K-NET</term>应用的同时使能。
 
 > [!NOTE]说明
 >
-> - SP670网卡流量分叉功能支持在CTyunos-2.0.1系统上使用。
-> - 流量分叉功能仅支持在物理机环境下SP670网卡的ROCE_2X100G_UN_ADAP模板中使用。
-> - 默认支持8队列，队列规格受网卡约束，可通过网卡hinicadm3工具将规格扩展至32队列。
-> - 开启流量分叉时，支持使用SP670 Bond卸载功能。
-> - 业务IP配置约束：非Bond卸载场景下，业务IP地址（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond卸载场景下，业务IP地址需配置在Bond口。若业务IP地址配置在非K-NET网口，系统虽可正常拉起业务，但会造成打流异常等问题。建议通过 `ip addr` 命令确认业务IP地址与K-NET网卡的绑定关系。
+>- SP670网卡流量分叉功能支持在CTyunos-2.0.1系统上使用。
+>- 流量分叉功能仅支持在物理机环境下SP670网卡的ROCE_2X100G_UN_ADAP模板中使用。
+>- 默认支持8队列，队列规格受网卡约束，可通过网卡hinicadm3工具将规格扩展至32队列。
+>- 开启流量分叉时，支持使用SP670 Bond卸载功能。
+>- 业务IP配置约束：非Bond卸载场景下，业务IP地址（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond卸载场景下，业务IP地址需配置在Bond口。若业务IP地址配置在非K-NET网口，系统虽可正常拉起业务，但会造成打流异常等问题。建议通过 `ip addr` 命令确认业务IP地址与K-NET网卡的绑定关系。
 
-流量分叉能使DPDK无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
+流量分叉能使DPDK（Data Plane Development Kit，数据平面开发套件）无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
 
 ## 前提条件
 
@@ -38,7 +40,7 @@
 
     回显中“Card”字段显示的即为网卡名称，示例如下：
 
-    ```text
+    ```output
     Card num:1
     Device Information:
         Card        PCIe Function
@@ -81,13 +83,13 @@
 
         - 若回显如下，可跳过后续启用命令。
             
-            ```text
+            ```output
             Cmd success, traffic_bifur state is enablement now.
             ```
             
         - 若回显如下，执行以下命令启用流量分叉功能：
             
-            ```text
+            ```output
             Cmd success, traffic_bifur state is disablement now.
             ```
 
@@ -101,7 +103,7 @@
 
         有以下回显则代表启用成功。
 
-        ![启动成功回显](../figures/zh-cn_image_0000002477573334.png)
+        ![流量分叉功能启动成功回显图](../figures/zh-cn_image_0000002477573334.png)
 
 3. （服务端）K-NET启用网卡流量分叉功能。
 
@@ -128,7 +130,7 @@
     > [!NOTE]说明
     > bind的地址为服务端配置文件中配置的业务IP地址。
 
-    ![启动成功回显](../figures/zh-cn_image_0000002477733316.png)
+    ![K-NET iPerf3启动成功回显图](../figures/zh-cn_image_0000002477733316.png)
 
 5. （服务端）启动内核态iPerf3（另开一个终端）。
 
@@ -151,7 +153,7 @@
 
     K-NET和内核态iPerf3均会收到流量。
 
-    ![流量回显](../figures/zh-cn_image_0000002509653267.png)
+    ![K-NET和iPerf3打流回显对比图](../figures/zh-cn_image_0000002509653267.png)
 
 7. 测试完成后，在服务端使用`Ctrl+C`退出所有iPerf3进程。
 
@@ -176,7 +178,7 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     hinicadm3 cfg_data -i hinic0
     ```
 
-    ![配置成功回显](../figures/zh-cn_image_0000002509613299.png)
+    ![流量分叉支持配置32队列示意图](../figures/zh-cn_image_0000002509613299.png)
 
     > [!NOTICE]须知
     >
@@ -238,13 +240,13 @@ SP670网卡支持队列调整，可修改网卡队列数，使流量分叉能够
     iperf3 -c 192.168.1.10 -t 10 -p 10001 -b 0 -l 64 -P 1
     ```
 
-    ![测试回显](../figures/zh-cn_image_0000002477573338.png)
+    ![iperf3打流测试回显](../figures/zh-cn_image_0000002477573338.png)
 
 6. 测试完成后，在服务端使用`Ctrl+C`退出iPerf3进程。
 
 ### 流量分叉支持Bond卸载
 
-流量分叉场景支持网卡Bond卸载功能。仅支持LACP动态协商聚合（IEEE 802.3ad Dynamic link aggregation）和Bond mode 4。
+流量分叉场景支持网卡Bond卸载功能。仅支持LACP（Link Aggregation Control Protocol，链路聚合控制协议）动态协商聚合（IEEE 802.3ad Dynamic Link Aggregation）和Bond mode 4。
 
 （服务端和客户端）配置Bond：
 
@@ -334,6 +336,6 @@ commit #保存配置
     iperf3 -c 192.168.1.10 -t 10 -p 10001 -b 0 -l 64 -P 1
     ```
 
-    ![打流测试回显](../figures/zh-cn_image_0000002477573338.png)
+    ![iperf3打流测试回显](../figures/zh-cn_image_0000002477573338.png)
 
 5. 测试完成后，在服务端使用`Ctrl+C`退出iPerf3进程。

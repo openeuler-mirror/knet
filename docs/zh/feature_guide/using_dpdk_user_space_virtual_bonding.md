@@ -1,5 +1,7 @@
 # 用户态网卡Bond功能
 
+本文档介绍用户态网卡Bond功能。Bond功能通过将多个物理网卡聚合成一个逻辑接口提升可靠性与带宽，适用于需要多网卡冗余与负载分担的业务。
+
 ## 功能描述
 
 提供基于用户态的网卡聚合能力开关，支持将两个物理网口在用户态进行逻辑绑定，实现带宽叠加，可靠性增强。
@@ -8,8 +10,8 @@
 >Bond场景参考组网[物理机组网规划](../installation/installation_planning.md#组网规划)，Bond功能具有如下约束：
 >
 >- 仅支持物理机场景。
->- Switch（交换机）支持LACP动态协商聚合（IEEE 802.3ad Dynamic link aggregation）。
->- 仅支持DPDK Bond mode 4模式。
+>- Switch（交换机）支持LACP（Link Aggregation Control Protocol，链路聚合控制协议）动态协商聚合（IEEE 802.3ad Dynamic link aggregation）。
+>- 仅支持DPDK（Data Plane Development Kit，数据平面开发套件）Bond mode 4模式。
 >- 仅支持K-NET单进程模式。
 
 ## 使用示例
@@ -49,7 +51,7 @@
 
     3. 如果回显包含如下，Eth-Trunk口和网口状态为up，并且下面包含前面配置加入trunk的网口，即为配置成功：<a id="dpdk-li2"></a>
 
-        ```ColdFusion
+        ```output
         Eth-Trunk0                up       up           0%     0%          0          0
           25GE1/0/1               up       up           0%  0.01%          0           0
           25GE1/0/2               up       up           0%  0.01%          0           0
@@ -125,7 +127,7 @@
 
         回显如下，可以看到两个网口成功处于up状态：
 
-        ![网卡状态](../figures/zh-cn_image_0000002478211054.png)
+        ![网卡状态up状态示意图](../figures/zh-cn_image_0000002478211054.png)
 
     2. 客户端主机中运行iPerf3进行打流测试。
 
@@ -143,4 +145,4 @@
 
         回显如下：
 
-        ![测试回显](../figures/zh-cn_image_0000002510211007.png)
+        ![iPerf3打流测试示意图](../figures/zh-cn_image_0000002510211007.png)

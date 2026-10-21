@@ -1,9 +1,11 @@
 # 遥测工具dpdk-telemetry
 
+介绍K-NET遥测工具dpdk-telemetry的使用方法，涵盖网卡收发包与错包统计、协议栈统计信息查看、流表与队列分配查询、带宽包率测量及持久化统计信息查看等运维事项。阅读本指南后，您将能通过遥测命令获取K-NET运行状态统计信息，辅助定位网络异常。
+
 ## 命令功能
 
 提供网卡收发报文统计指标，包括但不限于收发报文，错包等统计指标。
-获取网卡统计信息的工具借助了DPDK提供的统计工具“dpdk-stable-21.11.7/usertools/dpdk-telemetry.py”（DPDK遥测工具）。对于统计信息所列出的所有功能，网卡可能并没有全部适配。目前该工具的使用场景主要用于获取网卡队列统计信息，报文统计信息。目前常用场景如下：
+获取网卡统计信息的工具借助了DPDK（Data Plane Development Kit，数据平面开发套件）提供的统计工具“dpdk-stable-21.11.7/usertools/dpdk-telemetry.py”（DPDK遥测工具）。对于统计信息所列出的所有功能，网卡可能并没有全部适配。目前该工具的使用场景主要用于获取网卡队列统计信息，报文统计信息。目前常用场景如下：
 
 - 验证流量是否正确到达配置的网卡队列。
 - 检查收发包、错包统计数量。
@@ -13,7 +15,7 @@
 
 > [!NOTE]说明
 >
->- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide/environment_configuration.md)进行设置。
+>- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide/environment_configuration.md)进行设置。
 >- 服务端环境关闭或重启后需要重新执行步骤。
 >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
 >- 退出普通用户再重新切换到该用户需要重新配置。
@@ -50,7 +52,7 @@ dpdk-telemetry.py -f knet -i 1
 |`/knet/flow/list,<start_flow_index> <flow_cnt>`|所有参数必填|/knet/flow/list,0 1|获取从索引start_flow_index开始的最多flow_cnt条流表信息。|
 |`/knet/ethdev/queue`|否|-|获取队列被分配使用的进程、线程号。|
 |`/knet/stack/epoll_stat,<pid> <start_epoll_fd> <epoll_fd_cnt> <start_socket_fd> <socket_fd_cnt>`|所有参数必填|/knet/stack/epoll_stat,12345 0 1 0 1|获取从start_epoll_fd开始的epoll_fd_cnt个epoll实例的详细信息，每个epoll实例中包含从start_socket_fd开始、最多socket_fd_cnt个有效的socket描述符信息。pid取值必须为有效的进程ID。|
-|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s” 和“1-2s”的内容。|
+|`/knet/ethdev/usage,<port> <time>`|是|/knet/ethdev/usage,0 1|port 为网口号，time表示统计带宽、包率的时间段，time为1表示统计接下来1秒内的带宽包率，回显输出一条“0-1s”的内容。若time 为2，将会输出两条，即“0-1s”和“1-2s”的内容。|
 
 > [!NOTE]说明
 >SP670网卡当前获取ethdev端口的扩展统计信息使用 /ethdev/xstats，<port\>。当没有客户端产生通信时/knet/stack/tcp_stat和/knet/stack/abn_stat命令查询到的信息回显为空。
@@ -59,13 +61,13 @@ dpdk-telemetry.py -f knet -i 1
 
 dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
-1. 将配置文件knet\_comm.conf中的“telemetry”参数设置为1后，启动业务进程。
+1. 将配置文件knet_comm.conf中的“telemetry”参数设置为1后，启动业务进程。
 
     ```bash
     vim /etc/knet/knet_comm.conf
     ```
 
-    按“i“进入编辑模式：
+    按“i”进入编辑模式：
 
     ```json
     {
@@ -84,7 +86,7 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 3. 服务端运行脚本。
 
     > [!NOTE]说明
-    >- 普通用户进入工具使用界面前需设置“XDG\_RUNTIME\_DIR”环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide//environment_configuration.md#相关业务配置)进行设置。
+    >- 普通用户进入工具使用界面前需设置`XDG_RUNTIME_DIR`环境变量，如果新开终端，需要在新起的终端中导入。环境变量路径涉及的权限及安全需要用户保证。参考[相关业务配置](../feature_guide//environment_configuration.md#相关业务配置)进行设置。
     >- 服务端环境关闭或重启后需要重新执行步骤。
     >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
     >- 退出普通用户再重新切换到该用户需要重新配置。
@@ -97,14 +99,14 @@ dpdk-telemetry会在DPDK安装后自动安装到系统可执行目录。
 
     显示示例如下，表示存在。
 
-    ```ColdFusion
+    ```output
     dpdk-telemetry.py: /usr/bin/dpdk-telemetry.py /usr/local/bin/dpdk-telemetry.py
     ```
 
-    - 回显存在后，可直接使用：
+    - 回显存在后，可执行以下命令直接启动telemetry：
 
-        ```ColdFusion
-        dpdk-telemetry.py -f knet -i 1 # 启动telemetry
+        ```bash
+        dpdk-telemetry.py -f knet -i 1
         ```
 
     - 若脚本未安装到系统目录中，则从脚本实际位置使用：
@@ -131,8 +133,20 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
     ```
 
     > [!NOTE]说明
-    >- port\_id为网口BDF号的port\_id，不是Redis侦听端口。
-    >- 执行/ethdev/list命令可查看DPDK接管网口BDF号的port\_id。
+    >- port_id为网口BDF（Bus/Device/Function，总线/设备/功能）号的port_id，不是Redis侦听端口。
+    >- 执行/ethdev/list命令可查看DPDK接管网口BDF号的port_id。
+
+    查看网卡BDF号的port_id为0的信息，输入`/ethdev/stats,0`。
+
+    ```bash
+    /ethdev/stats,0
+    ```
+
+    返回信息如下：
+
+    ```json
+    {"/ethdev/stats": {"ipackets": 937835, "opackets": 934833, "ibytes": 95559003, "obytes": 66376175, "imissed": 0, "ierrors": 0, "oerrors": 0, "rx_nombuf": 0, "q_ipackets": [937835, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_opackets": [934835, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_ibytes": [95559003, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_obytes": [66376317, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_errors": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}}
+    ```
 
 - 查看K-NET的TCP相关统计：TCP连接状态统计、各类报文统计、异常打点统计、内存使用统计。
 
@@ -146,10 +160,13 @@ dpdk-telemetry适配后除了查看网口收发包、错包、丢包之外，还
 
     主要查看imissed, ierrors, oerrors等丢包、错包数据，示例如下，正常情况应为0。
 
+    ```bash
+    /knet/stack/tcp_stat
+    ```
+
+    回显示例：
+
     ```json
-    --> /ethdev/stats,0
-    {"/ethdev/stats": {"ipackets": 937835, "opackets": 934833, "ibytes": 95559003, "obytes": 66376175, "imissed": 0, "ierrors": 0, "oerrors": 0, "rx_nombuf": 0, "q_ipackets": [937835, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_opackets": [934835, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_ibytes": [95559003, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_obytes": [66376317, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "q_errors": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}}
-    --> /knet/stack/tcp_stat
     {"/knet/stack/tcp_stat": {"Accepts": 1001, "Closed": 1, "Connects": 1001, "DelayedAck": 5717013, "RcvAckBytes": 28580120, "RcvAckPkts": 5719020, "RcvBytes": 205812653, "RcvBytesPassive": 205812653, "RcvTotal": 5720023, "RcvPkts": 5717017, "RcvFIN": 1, "RTTUpdated": 5717020, "SndBytes": 28581869, "SndBytesPassive": 28581869, "SndCtl": 1003, "SndPkts": 5716366, "SndAcks": 1003, "SndTotal": 5717369, "SndFIN": 1, "TcpUserAccept": 1001, "TcpRcvOutBytes": 205796561}}
     ...
     
@@ -169,7 +186,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 /knet/stack/pkt_stat,[pid]     # 协议栈各类报文统计
 /knet/stack/abn_stat,[pid]     # 协议栈异常打点统计
 /knet/stack/mem_stat,[pid]     # 协议栈内存使用统计
-/knet/stack/pbuf_stat,[pid]    # 协议栈内存使用统计
+/knet/stack/pbuf_stat,[pid]    # 协议栈pbuf使用统计
 ```
 
 > [!NOTE]说明
@@ -177,35 +194,77 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 运行样例：
 
-```json
---> /knet/stack/tcp_stat
-{"/knet/stack/tcp_stat": {"Accepts": 38, "Closed": 36, "Connects": 38, "DelayedAck": 147512040, "RcvAckBytes": 2895, "RcvAckPkts": 306764079, "RcvNoTcpHash": 163, "RstByRcvErrAckFlags": 755, "RcvBytes": 6579120164411, "RcvBytesPassive": 6585309755644, "RcvDupBytes": 19257, "RcvDupPkts": 23, "RcvAfterWndPkts": 26, "RcvAfterWndBytes": 53048, "RcvPartDupBytes": 4048, "RcvPartDupPkts": 16, "RcvOutOrderPkts": 344404, "RcvOutOrderBytes": 5883122608, "RcvTotal": 306764892, "RcvPkts": 306366193, "RcvWndUpdate": 1, "RcvFIN": 8, "RTTUpdated": 59, "SndBytes": 2889, "SndBytesPassive": 2889, "SndCtl": 159278679, "SndPkts": 24, "SndAcks": 159277761, "SndTotal": 159278703, "SndWndUpdate": 25698, "DropCtlPkts": 755, "DropDataPkts": 8, "SndRST": 948, "SndFIN": 6, "RespChallAcks": 12, "RstTimeWaitTimerDrops": 1, "TcpUserAccept": 38, "RstRcvNonRstPkt": 163, "RstRcvBufNotClean": 30, "TcpReassSucBytes": 6175640088, "TcpRcvOutBytes": 6556257641765, "TcpCloseNoRcvDataLen": 7824846}}
-```
+- 查看TCP统计信息。
 
-```json
---> /knet/stack/conn_stat
-{"/knet/stack/conn_stat": {"Listen": 1, "SynSent": 0, "SynRcvd": 0, "PAEstablished": 1000, "ACEstablished": 0, "PACloseWait": 0, "ACCloseWait": 0, "PAFinWait1": 0, "ACFinWait1": 0, "PAClosing": 0, "ACClosing": 0, "PALastAck": 0, "ACLastAck": 0, "PAFinWait2": 0, "ACFinWait2": 0, "PATimeWait": 0, "ACTimeWait": 0, "Abort": 0}}
-```
+    ```bash
+    /knet/stack/tcp_stat
+    ```
 
-```json
---> /knet/stack/pkt_stat
-{"/knet/stack/pkt_stat": {"LinkInPkts": 0, "EthInPkts": 306765055, "NetInPkts": 306765055, "IcmpOutPkts": 0, "ArpDeliverPkts": 0, "IpBroadcastDeliverPkts": 0, "NonFragDelverPkts": 306765055, "UptoCtrlPlanePkts": 0, "ReassInFragPkts": 0, "ReassOutReassPkts": 0, "NetOutPkts": 159278703, "EthOutPkts": 159278703, "FragInPkts": 0, "FragOutPkts": 0, "ArpMissResvPkts": 0, "ArpSearchInPkts": 0, "ArpHaveNormalPkts": 0, "RcvIcmpPkts": 0, "NetBadVersionPkts": 0, "NetBadHdrLenPkts": 0, "NetBadLenPkts": 0, "NetTooShortPkts": 0, "NetBadChecksumPkts": 0, "NetNoProtoPkts": 0, "NetNoRoutePkts": 0, "TcpReassPkts": 397814, "UdpInPkts": 0, "UdpOutPkts": 0, "TcpInPkts": 306765218, "SndBufInPkts": 49, "SndBufOutPkts": 24, "SndBufFreePkts": 1, "RcvBufInPkts": 306764000, "RcvBufOutPkts": 305385285, "RcvBufFreePkts": 0, "Ip6InPkts": 0, "Ip6TooShortPkts": 0, "Ip6BadVerPkts": 0, "Ip6BadHeadLenPkts": 0, "Ip6BadLenPkts": 0, "Ip6MutiCastDeliverPkts": 0, "Ip6ExtHdrCntErrPkts": 0, "Ip6ExtHdrOverflowPkts": 0, "Ip6HbhHdrErrPkts": 0, "Ip6NoUpperProtoPkts": 0, "Ip6ReassInFragPkts": 0, "Ip6FragHdrErrPkts": 0, "Ip6OutPkts": 0, "Ip6FragOutPkts": 0, "KernelFdirCacheMiss": 0, "IpDevTypeNoMatch": 0, "IpCheckAddrFail": 0, "IpLenOverLimit": 0, "IpReassOverTblLimit": 0, "IpReassMallocFail": 0, "IpReassNodeOverLimit": 0, "IpIcmpAddrNotMatch": 0, "IpIcmpPktLenShort": 0, "IpIcmpPktBadSum": 0, "IpIcmpNotPortUnreach": 0, "IpIcmpUnreachTooShort": 0, "IpIcmpUnreachTypeErr": 0, "Ip6DevTypeErr": 0, "Ip6CheckAddrFail": 0, "Ip6ReassOverTblLimit": 0, "Ip6ReassMallocFail": 0, "Ip6ReassNodeOverLimit": 0, "Ip6ProtoErr": 0, "Ip6IcmpTooShort": 0, "Ip6IcmpBadSum": 0, "Ip6IcmpNoPayload": 0, "Ip6CodeNomatch": 0, "Icmpv6TooBigShort": 0, "Icmpv6TooBigSmall": 0, "Icmpv6TooBigExthdrErr": 0, "Icmpv6TooBigNotTcp": 0, "IpBadOffset": 0, "NfPreRoutingDrop": 0, "NfLocaInDrop": 0, "NfForwardDrop": 0, "NfLocalOutDrop": 0, "NfPostRoutingDrop": 0, "UdpIcmpUnReachShort": 0, "Ip6IcmpUnReachTooShort": 0, "Icmp6UnReachExthdrErr": 0, "Icmp6UnReachNotUdp": 0, "UdpIcmp6UnReachShort": 0, "UdpBadLenPkts": 0, "UdpBadPbufLenPkts": 0}}
-```
+    回显如下：
 
-```json
---> /knet/stack/abn_stat
-{"/knet/stack/abn_stat": {"FdGetClosed": 12, "SockReadBufchainShort": 32913714, "CpdSyncTableRecvErr": 23432272}}
-```
+    ```json
+    {"/knet/stack/tcp_stat": {"Accepts": 38, "Closed": 36, "Connects": 38, "DelayedAck": 147512040, "RcvAckBytes": 2895, "RcvAckPkts": 306764079, "RcvNoTcpHash": 163, "RstByRcvErrAckFlags": 755, "RcvBytes": 6579120164411, "RcvBytesPassive": 6585309755644, "RcvDupBytes": 19257, "RcvDupPkts": 23, "RcvAfterWndPkts": 26, "RcvAfterWndBytes": 53048, "RcvPartDupBytes": 4048, "RcvPartDupPkts": 16, "RcvOutOrderPkts": 344404, "RcvOutOrderBytes": 5883122608, "RcvTotal": 306764892, "RcvPkts": 306366193, "RcvWndUpdate": 1, "RcvFIN": 8, "RTTUpdated": 59, "SndBytes": 2889, "SndBytesPassive": 2889, "SndCtl": 159278679, "SndPkts": 24, "SndAcks": 159277761, "SndTotal": 159278703, "SndWndUpdate": 25698, "DropCtlPkts": 755, "DropDataPkts": 8, "SndRST": 948, "SndFIN": 6, "RespChallAcks": 12, "RstTimeWaitTimerDrops": 1, "TcpUserAccept": 38, "RstRcvNonRstPkt": 163, "RstRcvBufNotClean": 30, "TcpReassSucBytes": 6175640088, "TcpRcvOutBytes": 6556257641765, "TcpCloseNoRcvDataLen": 7824846}}
+    ```
 
-```json
---> /knet/stack/mem_stat
-{"/knet/stack/mem_stat": {"InitInitMem": 0, "InitFreeMem": 0, "CpdInitMem": 0, "CpdFreeMem": 0, "DebugInitMem": 9360, "DebugFreeMem": 16400, "NetdevInitMem": 664, "NetdevFreeMem": 527264, "NamespaceInitMem": 5760, "NamespaceFreeMem": 0, "PbufInitMem": 0, "PbufFreeMem": 0, "PmgrInitMem": 0, "PmgrFreeMem": 0, "ShmInitMem": 0, "ShmFreeMem": 0, "TbmInitMem": 176, "TbmFreeMem": 33192, "UtilsInitMem": 0, "UtilsFreeMem": 0, "WorkerInitMem": 1584, "WorkerFreeMem": 0, "FdInitMem": 528448, "FdFreeMem": 192, "EpollInitMem": 0, "EpollFreeMem": 0, "PollInitMem": 0, "PollFreeMem": 0, "SelectInitMem": 0, "SelectFreeMem": 0, "SocketInitMem": 0, "SocketFreeMem": 0, "NetlinkInitMem": 0, "NetlinkFreeMem": 0, "PacketInitMem": 0, "PacketFreeMem": 0, "EthInitMem": 0, "EthFreeMem": 0, "IprawInitMem": 0, "IprawFreeMem": 0, "IpInitMem": 432, "IpFreeMem": 0, "Ip6InitMem": 0, "Ip6FreeMem": 0, "TcpInitMem": 1573904, "TcpFreeMem": 525432, "UdpInitMem": 0, "UdpFreeMem": 168}}
-```
+- 查看TCP连接状态信息。
 
-```json
---> /knet/stack/pbuf_stat
-{"/knet/stack/pbuf_stat": {"ipFragPktNum": 0, "tcpReassPktNum": 397814, "sendBufPktNum": 24, "recvBufPktNum": 1378715}}
-```
+    ```bash
+    /knet/stack/conn_stat
+    ```
+
+    回显如下：
+
+    ```json
+    {"/knet/stack/conn_stat": {"Listen": 1, "SynSent": 0, "SynRcvd": 0, "PAEstablished": 1000, "ACEstablished": 0, "PACloseWait": 0, "ACCloseWait": 0, "PAFinWait1": 0, "ACFinWait1": 0, "PAClosing": 0, "ACClosing": 0, "PALastAck": 0, "ACLastAck": 0, "PAFinWait2": 0, "ACFinWait2": 0, "PATimeWait": 0, "ACTimeWait": 0, "Abort": 0}}
+    ```
+
+- 查看协议栈各类报文统计信息。
+
+    ```bash
+    /knet/stack/pkt_stat
+    ```
+
+    回显如下：
+
+    ```json
+    {"/knet/stack/pkt_stat": {"LinkInPkts": 0, "EthInPkts": 306765055, "NetInPkts": 306765055, "IcmpOutPkts": 0, "ArpDeliverPkts": 0, "IpBroadcastDeliverPkts": 0, "NonFragDelverPkts": 306765055, "UptoCtrlPlanePkts": 0, "ReassInFragPkts": 0, "ReassOutReassPkts": 0, "NetOutPkts": 159278703, "EthOutPkts": 159278703, "FragInPkts": 0, "FragOutPkts": 0, "ArpMissResvPkts": 0, "ArpSearchInPkts": 0, "ArpHaveNormalPkts": 0, "RcvIcmpPkts": 0, "NetBadVersionPkts": 0, "NetBadHdrLenPkts": 0, "NetBadLenPkts": 0, "NetTooShortPkts": 0, "NetBadChecksumPkts": 0, "NetNoProtoPkts": 0, "NetNoRoutePkts": 0, "TcpReassPkts": 397814, "UdpInPkts": 0, "UdpOutPkts": 0, "TcpInPkts": 306765218, "SndBufInPkts": 49, "SndBufOutPkts": 24, "SndBufFreePkts": 1, "RcvBufInPkts": 306764000, "RcvBufOutPkts": 305385285, "RcvBufFreePkts": 0, "Ip6InPkts": 0, "Ip6TooShortPkts": 0, "Ip6BadVerPkts": 0, "Ip6BadHeadLenPkts": 0, "Ip6BadLenPkts": 0, "Ip6MutiCastDeliverPkts": 0, "Ip6ExtHdrCntErrPkts": 0, "Ip6ExtHdrOverflowPkts": 0, "Ip6HbhHdrErrPkts": 0, "Ip6NoUpperProtoPkts": 0, "Ip6ReassInFragPkts": 0, "Ip6FragHdrErrPkts": 0, "Ip6OutPkts": 0, "Ip6FragOutPkts": 0, "KernelFdirCacheMiss": 0, "IpDevTypeNoMatch": 0, "IpCheckAddrFail": 0, "IpLenOverLimit": 0, "IpReassOverTblLimit": 0, "IpReassMallocFail": 0, "IpReassNodeOverLimit": 0, "IpIcmpAddrNotMatch": 0, "IpIcmpPktLenShort": 0, "IpIcmpPktBadSum": 0, "IpIcmpNotPortUnreach": 0, "IpIcmpUnreachTooShort": 0, "IpIcmpUnreachTypeErr": 0, "Ip6DevTypeErr": 0, "Ip6CheckAddrFail": 0, "Ip6ReassOverTblLimit": 0, "Ip6ReassMallocFail": 0, "Ip6ReassNodeOverLimit": 0, "Ip6ProtoErr": 0, "Ip6IcmpTooShort": 0, "Ip6IcmpBadSum": 0, "Ip6IcmpNoPayload": 0, "Ip6CodeNomatch": 0, "Icmpv6TooBigShort": 0, "Icmpv6TooBigSmall": 0, "Icmpv6TooBigExthdrErr": 0, "Icmpv6TooBigNotTcp": 0, "IpBadOffset": 0, "NfPreRoutingDrop": 0, "NfLocaInDrop": 0, "NfForwardDrop": 0, "NfLocalOutDrop": 0, "NfPostRoutingDrop": 0, "UdpIcmpUnReachShort": 0, "Ip6IcmpUnReachTooShort": 0, "Icmp6UnReachExthdrErr": 0, "Icmp6UnReachNotUdp": 0, "UdpIcmp6UnReachShort": 0, "UdpBadLenPkts": 0, "UdpBadPbufLenPkts": 0}}
+    ```
+
+- 查看协议栈异常打点统计信息。
+
+    ```bash
+    /knet/stack/abn_stat
+    ```
+
+    回显如下：
+
+    ```json
+    {"/knet/stack/abn_stat": {"FdGetClosed": 12, "SockReadBufchainShort": 32913714, "CpdSyncTableRecvErr": 23432272}}
+    ```
+
+- 查看协议栈内存使用统计信息。
+
+    ```bash
+    /knet/stack/mem_stat
+    ```
+
+    回显如下：
+
+    ```json
+    {"/knet/stack/mem_stat": {"InitInitMem": 0, "InitFreeMem": 0, "CpdInitMem": 0, "CpdFreeMem": 0, "DebugInitMem": 9360, "DebugFreeMem": 16400, "NetdevInitMem": 664, "NetdevFreeMem": 527264, "NamespaceInitMem": 5760, "NamespaceFreeMem": 0, "PbufInitMem": 0, "PbufFreeMem": 0, "PmgrInitMem": 0, "PmgrFreeMem": 0, "ShmInitMem": 0, "ShmFreeMem": 0, "TbmInitMem": 176, "TbmFreeMem": 33192, "UtilsInitMem": 0, "UtilsFreeMem": 0, "WorkerInitMem": 1584, "WorkerFreeMem": 0, "FdInitMem": 528448, "FdFreeMem": 192, "EpollInitMem": 0, "EpollFreeMem": 0, "PollInitMem": 0, "PollFreeMem": 0, "SelectInitMem": 0, "SelectFreeMem": 0, "SocketInitMem": 0, "SocketFreeMem": 0, "NetlinkInitMem": 0, "NetlinkFreeMem": 0, "PacketInitMem": 0, "PacketFreeMem": 0, "EthInitMem": 0, "EthFreeMem": 0, "IprawInitMem": 0, "IprawFreeMem": 0, "IpInitMem": 432, "IpFreeMem": 0, "Ip6InitMem": 0, "Ip6FreeMem": 0, "TcpInitMem": 1573904, "TcpFreeMem": 525432, "UdpInitMem": 0, "UdpFreeMem": 168}}
+    ```
+
+- 查看协议栈pbuf使用统计信息。
+
+    ```bash
+    /knet/stack/pbuf_stat
+    ```
+
+    回显如下：
+
+    ```json
+    {"/knet/stack/pbuf_stat": {"ipFragPktNum": 0, "tcpReassPktNum": 397814, "sendBufPktNum": 24, "recvBufPktNum": 1378715}}
+    ```
 
 ### 查看流表信息
 
@@ -219,8 +278,13 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 可查看K-NET应用下的索引号从`start_flow_index`开始`flow_cnt`条流表信息。受到DPDK限制，`flow_cnt`参数值最大为256。当`flow_cnt`为0时，会在dpdk输出长度限制内返回最多的流表信息。运行时参数都需要指定。
 
+```bash
+/knet/flow/list,0 1
+```
+
+回显如下：
+
 ```json
--->/knet/flow/list,0 1
 {"/knet/flow/list": {"flow0": {"dip": "192.168.1.98", "dipMask": "0xffffffff","dport": "6380", "dportMask": "0xffff", "sip": "0.0.0.0", "sipMask": "0x0", "sport": "0", "sportMask": "0","protocol":"ETH IPV4 TCP","action":"RSS-0,1,2,3"}}}
 ```
 
@@ -230,7 +294,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态，quit可退出。
 
-查看流表命令：
+查看网卡队列分配命令：
 
 ```bash
 /knet/ethdev/queue
@@ -238,12 +302,17 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 可查看K-NET应用下的所有队列使用信息。
 
+```bash
+/knet/ethdev/queue
+```
+
+回显如下：
+
 ```json
--->/knet/ethdev/queue
 {"/knet/ethdev/queue": {"queue0": {"pid": 5837, "tid": 5840, "lcoreId": 18}, "queue1": {"pid": 5837, "tid": 5841, "lcoreId": 38}, "queue2": {"pid": 5837, "tid": 5842, "lcoreId": 68}, "queue3": {"pid": 5837, "tid": 5843, "lcoreId": 98}}}
 ```
 
-`queue0`表示队列号从0开始的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用, `lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
+`queue0`表示队列号从0开始的分配队列，`pid`表示队列0分配给了进程5837使用，`tid`表示队列0分配给了线程5840使用，`lcoreId`表示队列0分配给了dpdk的18号逻辑核使用。
 
 ### 获取TCP/UDP/epoll句柄个数
 
@@ -257,8 +326,13 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 单进程模式下pid参数可忽略，多进程模式下需要指定pid参数，type支持TCP、UDP和epoll三种类型。
 
+```bash
+/knet/stack/fd_count,2351 tcp
+```
+
+回显如下：
+
 ```json
--->/knet/stack/fd_count,2351 tcp
 {"/knet/stack/fd_count": "3"}
 ```
 
@@ -276,8 +350,13 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 `pid`为进程id，`start_fd`为获取连接信息的起始fd，`fd_cnt`为从`start_fd`开始获取连接信息的最多fd个数。由于dpdk输出限制，`fd_cnt`最大为256，当`fd_cnt`参数为0时，会在dpdk输出长度限制内输出最多的连接信息。运行时参数都需要指定。
 
+```bash
+/knet/stack/net_stat,2351 56 10
+```
+
+回显如下：
+
 ```json
--->/knet/stack/net_stat,2351 56 10
 {"/knet/stack/net_stat": {"osFd56": {"pf": "AF_INET", "proto": "TCP", "lAddr": "192.168.1.98", "lPort": 4890, "rAddr": "0.0.0.0", "rPort": 0, "state": "LISTEN", **"worker_tid": 0, "innerFd": 20}, "osFd59": {"pf": "AF_INET", "proto": "TCP", "lAddr": "192.168.1.98", "lPort": 4890, "rAddr": "192.168.1.166", "rPort": 51440, "state": "ESTABLISHED", "worker_tid": "44885", "innerFd": 21}, "osFd60": {"pf": "AF_INET", "proto": "UDP", "lAddr": "192.168.1.98", "lPort": 4890, "rAddr": "192.168.1.166", "rPort": 55658, "state": "INVALID", "worker_tid": 0, "innerFd": 22}}}
 ```
 
@@ -295,6 +374,11 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 
 ```bash
 -->/knet/stack/socket_info,2351 56
+```
+
+回显如下：
+
+```json
 {"/knet/stack/socket_info": {"SockInfo": {"protocol": "TCP", "isLingerOnoff": 0, "isNonblock": 1, "isReuseAddr": 1, "isReusePort": 0, "isBroadcast": 0, "isKeepAlive": 0, "isBindDev": 0, "isDontRoute": 0, "options": 6, "error": 0, "pf": "AF_INET", "linger": 0, "flags": 80, "state": 0, "rdSemCnt": 0, "wrSemCnt": 0, "rcvTimeout": -1, "sndTimeout": -1, "sndDataLen": 0, "rcvDataLen": 0, "sndLowat": 1, "sndHiwat": 1048576, "rcvLowat": 1, "rcvHiwat": 1048576, "bandWidth": 0, "priority": 0, "associateFd": 0, "notifyType": 1, "wid": -1}, "InetSkInfo": {"ttl": 0, "tos": 0, "mtu": 0, "isIncHdr": 0, "isTos": 0, "isTtl": 0, "isMtu": 0, "isPktInfo": 0, "isRcvTos": 0, "isRcvTtl": 0}, "TcpBaseInfo": {"state": "Listen", "connType": "Passive", "noVerifyCksum": 0, "ackNow": 0, "delayAckEnable": 1, "nodelay": 0, "rttRecord": 0, "cork": 0, "deferAccept": 0, "flags": 0, "wid": -1, "txQueid": -1, "childCnt": 0, "backlog": 511, "accDataCnt": 0, "accDataMax": 2, "dupAckCnt": 0, "caAlgId": 0, "caState": 0, "cwnd": 0, "ssthresh": 0, "seqRecover": 0, "reorderCnt": 3, "rttStartSeq": 0, "srtt": 0, "rttval": 0, "tsVal": 0, "tsEcho": 0, "lastChallengeAckTime": 0, "fastMode": 0, "sndQueSize": 0, "rcvQueSize": 0, "rexmitQueSize": 0, "reassQueSize": 0}, "TcpTransInfo": {"lport": 0, "pport": 0, "synOpt": 15, "negOpt": 0, "rcvWs": 0, "sndWs": 0, "rcvMss": 0, "mss": 1460, "iss": 0, "irs": 0, "sndUna": 0, "sndNxt": 0, "sndMax": 0, "sndWnd": 0, "sndUp": 0, "sndWl1": 0, "sndSml": 0, "rcvNxt": 0, "rcvWnd": 0, "rcvMax": 0, "rcvWup": 0, "idleStart": 0, "keepIdle": 14400, "keepIntvl": 150, "keepProbes": 9, "keepProbeCnt": 0, "keepIdleLimit": 0, "keepIdleCnt": 0, "backoff": 0, "maxRexmit": 0, "rexmitCnt": 0, "userTimeout": 0, "userTimeStartFast": 0, "userTimeStartSlow": 0, "fastTimeoutTick": 32768, "slowTimeoutTick": 32768, "delayAckTimeoutTick": 32768, "synRetries": 0}}}
 ```
 
@@ -318,8 +402,13 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 >- 可通过减小epoll_fd_cnt和socket_fd_cnt参数值，降低单次查询的输出长度，确保响应完整返回。
 >- 当连接数过多时，推荐设置socket_fd_cnt参数范围为1-100。
 
+```bash
+/knet/stack/epoll_stat,26058 0 1 0 1
+```
+
+回显如下：
+
 ```json
--->/knet/stack/epoll_stat,26058 0 1 0 1
 {"/knet/stack/epoll_stat": {"epoll_73": {"pid": "26058", "tid": "-", "osFd": "73", "inner_fd": "0", "details": {"socket_2": {"fd": "2", "expectEvents": "0x1", "readyEvents": "0", "notifiedEvents": "0", "shoted": "0"}}}}}
 ```
 
@@ -346,10 +435,9 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
     /ethdev/list
     ```
 
-    回显：
+    回显如下：
 
     ```json
-    -->/ethdev/list
     {"ethdev_list": [0]}
     ```
 
@@ -361,10 +449,9 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
     /knet/ethdev/usage,0 1
     ```
 
-    回显：
+    回显如下：
 
     ```json
-    --> /knet/ethdev/usage,0 1
     {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18453 p/s", "rx": "640.22 Mbit/s, 50450 p/s"}}}
 
     ```
@@ -375,10 +462,9 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
     /knet/ethdev/usage,0 5
     ```
 
-    回显：
+    回显如下：
 
     ```json
-    --> /knet/ethdev/usage,0 5
     {"/knet/ethdev/usage": {"0_1": {"tx": "9.74 Mbit/s, 18455 p/s", "rx": "643.83 Mbit/s, 50792 p/s"}, "1-2s": {"tx": "9.73 Mbit/s, 18434 p/s", "rx": "648.21 Mbit/s, 51287 p/s"}, "2-3s": {"tx": "9.76 Mbit/s, 18477 p/s", "rx": "649.77 Mbit/s, 51331 p/s"}, "3-4s": {"tx": "9.75 Mbit/s, 18464 p/s", "rx": "645.81 Mbit/s, 50949 p/s"}, "4-5s": {"tx": "9.75 Mbit/s, 18460 p/s", "rx": "643.58 Mbit/s, 50752 p/s"}}}
     ```
 
@@ -392,7 +478,7 @@ K-NET应用启动后，运行`dpdk-telemetry.py -f knet -i 1`进入命令状态�
 jq . /etc/knet/run/stats/knet-persist.json
 ```
 
-回显：
+回显如下：
 
 ```json
 {
@@ -431,7 +517,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | q_obytes   | 各个队列发送的字节数（一个数组，表示不同队列的发送字节量）。   |
 | q_errors   | 各个队列的错误数量（一个数组，表示不同队列的错误次数）。       |
 
-**表 3**  /knet/stack/tcp\_stat查询字段说明
+**表 3**  /knet/stack/tcp_stat查询字段说明
 
 | 字段名                    | 说明                                                     |
 | :------------------------ | :------------------------------------------------------- |
@@ -440,7 +526,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | ConnAttempt               | 试图建立连接的次数（调用connect）。                      |
 | ConnDrops                 | 在连接建立阶段失败的连接次数（SYN收到之前）。            |
 | Connects                  | 建链成功的次数。                                         |
-| DelayedAck                | 延迟发送的ACK数。                                        |
+| DelayedAck                | 延迟发送的ACK（Acknowledgement，TCP协议中的确认应答）数。                                        |
 | Drops                     | 意外丢失的连接数（收到SYN之后）。                        |
 | RstKeepDrops              | 在保活阶段丢失的连接数（已建立或正等待SYN）。            |
 | KeepProbe                 | 保活探测报文发送次数。                                   |
@@ -480,12 +566,12 @@ jq . /etc/knet/run/stats/knet-persist.json
 | RcvPkts                   | 顺序接收的报文数。                                       |
 | RcvWndProbe               | 收到的窗口探测报文数。                                   |
 | RcvWndUpdate              | 收到的窗口更新报文数。                                   |
-| RcvInvalidRST             | 收到的无效的RST报文。                                    |
+| RcvInvalidRST             | 收到的无效的RST（Reset，重置标志位）报文。                                    |
 | RcvSynEstab               | 建链完成后收到序号合法的SYN报文。                        |
-| RcvFIN                    | 收到第一个FIN报文个数。                                  |
+| RcvFIN                    | 收到第一个FIN（Finish，结束标志位）报文个数。                                  |
 | RcvRxmtFIN                | 收到重传FIN报文个数。                                    |
 | RexmtTMO                  | 重传超时次数。                                           |
-| RTTUpdated                | RTT估算值更新次数。                                      |
+| RTTUpdated                | RTT（Round-Trip Time，往返时延）估算值更新次数。                                      |
 | SndBytes                  | 发送的字节数。                                           |
 | SndBytesPassive           | 流量统计：被动建链发送的总字节数。                       |
 | SndBytesActive            | 流量统计：主动建链发送的总字节数。                       |
@@ -507,7 +593,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | RespChallAcks             | 回复挑战ACK个数。                                        |
 | OnceDrivePassiveTsqCnt    | 单次被动调度tsq循环次数。                                |
 | AgeDrops                  | 由于老化而丢弃的连接数。                                 |
-| BbrSampleCnt              | BBR拥塞控制算法采样次数。                                |
+| BbrSampleCnt              | BBR（Bottleneck Bandwidth and Round-trip propagation time，瓶颈带宽和往返延迟）拥塞控制算法采样次数。                                |
 | BbrSlowBWCnt              | BBR拥塞控制算法触发慢速带宽次数。                        |
 | FrtoSpurios               | 前向重传超时判断假超时次数。                             |
 | FrtoReal                  | 前向重传超时判断真超时次数。                             |
@@ -527,12 +613,12 @@ jq . /etc/knet/run/stats/knet-persist.json
 | RstTimeWaitTimerDrops     | 2msl超时断链的连接数量。                                 |
 | XmitGetNullDev            | 发送报文获取dev为空的次数。                              |
 | TcpUserAccept             | 被用户accept拿走的socket数。                             |
-| TcpRcvErrSackopt          | 收到的带异常SACK选项的报文数量。                         |
+| TcpRcvErrSackopt          | 收到的带异常SACK（Selective Acknowledgment，选择性确认）选项的报文数量。                         |
 | TcpRcvDataAfterFin        | 收到的FIN之后收到的数据报文数量。                        |
 | TcpRcvAfterClosed         | TCP状态为CLOSED之后收到数据报文数量。                    |
 | TcpCheckDefferAcceptDrops | TCP校验DefferAccept失败拒绝连接的数量。                  |
 | TcpOverBackLogDrops       | 因达到Server的backlog限制丢弃的连接数量。                |
-| RstPassiveEstOverMaxCb    | Server端因最大TCPCB数量限制丢弃的连接数量。              |
+| RstPassiveEstOverMaxCb    | Server端因最大TCPCB（TCP Control Block，TCP控制块）数量限制丢弃的连接数量。              |
 | TcpSndSyn                 | 发送的SYN报文数。                                        |
 | TcpSndLimitedByCork       | 因Cork限制未发送的报文数。                               |
 | TcpSndLimitedByMsgMore    | 因MsgMore限制未发送的报文数。                            |
@@ -544,7 +630,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpDropReassByte          | 丢弃的重组报文字节数。                                   |
 | TcpRexmitSackPkt          | SACK重传的报文数。                                       |
 | TcpFastRexmitPkt          | 快速重传的报文数。                                       |
-| RstPersistUserDrops       | 坚持定时器超过用户配置时间丢弃的链接数。                 |
+| RstPersistUserDrops       | 持续定时器超过用户配置时间丢弃的链接数。                 |
 | RstSynSentRcvErrAck       | SYNSENT状态下接收到报文ACK异常发送RST。                  |
 | RstCookieAfterClosed      | 已经被关闭的socket处理cookie异常发送RST。                |
 | RstParentClosed           | 父socket被关闭异常发送RST。                              |
@@ -559,7 +645,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpRcvPktNoSyn            | SYNSENT状态下接收到报文不带SYN标志。                     |
 | TcpReassSucBytes          | TCP重组完成的报文字节数。                                |
 | TcpRcvOutBytes            | TCP用户接收走的字节数。                                  |
-| TcpIcmpTooBigShort        | TCP层处理ICMP TOO BIG时报文长度不足。                    |
+| TcpIcmpTooBigShort        | TCP层处理ICMP（Internet Control Message Protocol，互联网控制报文协议）TOO BIG时报文长度不足。                    |
 | TcpIcmpTooBigNoTcp        | TCP层处理ICMP TOO BIG时找不到对应TCP。                   |
 | TcpIcmpTooBigErrSeq       | TCP层处理ICMP TOO BIG时不符合TCP序号。                   |
 | TcpIcmpTooBigLargeMss     | TCP层处理ICMP TOO BIG时传入mtu计算的mss比当前大。        |
@@ -573,7 +659,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpRcvRstInRfc1337        | TIME WAIT状态下，使能RFC1337配置项收到的RST报文。        |
 | TcpDeferAcceptDrop        | 因重传超过DeferAccept设置的重传次数丢弃的报文。         |
 
-**表 4**  /knet/stack/conn\_stat连接状态统计查询字段说明
+**表 4**  /knet/stack/conn_stat连接状态统计查询字段说明
 
 | 字段名        | 说明                                |
 | ------------- | ----------------------------------- |
@@ -596,7 +682,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | ACTimeWait    | 主动建链TIME_WAIT状态计数。         |
 | Abort         | 被动建链接收到RST报文断链状态计数。 |
 
-**表 5**  /knet/stack/pkt\_stat协议栈各类报文统计查询字段说明
+**表 5**  /knet/stack/pkt_stat协议栈各类报文统计查询字段说明
 
 | 字段名                 | 说明                                                             |
 | :--------------------- | :--------------------------------------------------------------- |
@@ -604,9 +690,9 @@ jq . /etc/knet/run/stats/knet-persist.json
 | EthInPkts              | Eth接收入口统计。                                                |
 | NetInPkts              | Net接收入口统计。                                                |
 | IcmpOutPkts            | 数据面产生的icmp差错报文统计。                                   |
-| ArpDeliverPkts         | ARP上送处理统计。                                                |
+| ArpDeliverPkts         | ARP（Address Resolution Protocol，地址解析协议）上送处理统计。                                                |
 | IpBroadcastDeliverPkts | 广播报文上送统计。                                               |
-| NonFragDelverPkts      | 本地接收的非分片非OSPF报文上交FWD分发统计。                      |
+| NonFragDelverPkts      | 本地接收的非分片非（Open Shortest Path First，开放式最短路径优先）报文上交FWD分发统计。                      |
 | UptoCtrlPlanePkts      | 上送控制面的报文统计。                                           |
 | ReassInFragPkts        | 进行真重组的分片报文个数。                                       |
 | ReassOutReassPkts      | 真重组成功返回的完整报文个数。                                   |
@@ -690,7 +776,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | UdpBadLenPkts          | UDP首部和UDP数据长度不一致的报文统计。                            |
 | UdpBadPbufLenPkts      | UDP Pbuf数据长度超过报文头中数据长度报文统计。                             |
 
-**表 6**  /knet/stack/abn\_stat协议栈异常打点统计查询字段说明
+**表 6**  /knet/stack/abn_stat协议栈异常打点统计查询字段说明
 
 | 字段名                        | 说明                                               |
 | :---------------------------- | :------------------------------------------------- |
@@ -836,7 +922,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | TcpPushSndPbufFailed          | TCP写sndbuf失败。                                  |
 | UdpSndLong                    | UDP发送长度超过限制。                              |
 | UdpCheckDstAddrErr            | UDP检查发送地址失败。                              |
-| UdpCheckDstAddr6Err           | UDP6检查发送地址失败。                             |
+| UdpCheckDstAddr6Err           | UDP6（User Datagram Protocol for IPv6，IPv6环境下的用户数据报文协议）检查发送地址失败。                             |
 | UdpSndAddrInval               | UDP目的地址与连接地址不一致。                      |
 | UdpSndNoDst                   | UDP发送无对端信息。                                |
 | UdpFlowBroadcast              | UDP的flow为广播类型但不支持。                      |
@@ -887,7 +973,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | UtilsTimerErr                 | 基础时钟返回值异常。                               |
 | PbufWidErr                    | PBUF wid与worker id不一致。                        |
 
-**表 7**  /knet/stack/mem\_stat协议栈内存使用统计查询字段说明
+**表 7**  /knet/stack/mem_stat协议栈内存使用统计查询字段说明
 
 | 字段名           | 说明                                   |
 | ---------------- | -------------------------------------- |
@@ -936,7 +1022,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | UdpInitMem       | UDP层相关的内存分配量。                |
 | UdpFreeMem       | UDP层释放的内存量。                    |
 
-**表 8**  /knet/stack/pbuf\_stat协议栈PBUF使用统计查询字段说明
+**表 8**  /knet/stack/pbuf_stat协议栈PBUF使用统计查询字段说明
 
 | 字段名         | 说明                                                   |
 | -------------- | ------------------------------------------------------ |
@@ -945,7 +1031,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | sendBufPktNum  | 发送缓冲区中数据包的数量。                             |
 | recvBufPktNum  | 接收缓冲区中数据包的数量。                             |
 
-**表 9**  /knet/stack/net\_stat,\<pid\> \<start_fd\> \<fd_cnt\>所有连接信息查询字段说明
+**表 9**  /knet/stack/net_stat,\<pid\> \<start_fd\> \<fd_cnt\>所有连接信息查询字段说明
 
 | 字段名    | 说明                                         |
 | --------- | -------------------------------------------- |
@@ -960,7 +1046,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | tid       | 套接字绑定的线程ID。                         |
 | innerFd   | 内部文件描述符。                             |
 
-**表 10**  /knet/stack/socket\_info,[pid] <fd\>对应套接字详细连接信息查询字段说明
+**表 10**  /knet/stack/socket_info,[pid] <fd\>对应套接字详细连接信息查询字段说明
 
 表10.1 SockInfo - 套接字基础信息
 
@@ -1061,7 +1147,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | negOpt             | 已协商的选项。                             |
 | rcvWs              | 接收窗口缩放因子。                         |
 | sndWs              | 发送窗口缩放因子。                         |
-| rcvMss             | 从对端通告的MSS。                          |
+| rcvMss             | 从对端通告的MSS（Maximum Segment Size，最大报文段长度）。                          |
 | mss                | 本端的最大段大小。                         |
 | iss                | 初始发送序列号。                           |
 | irs                | 初始接收序列号。                           |
@@ -1094,7 +1180,7 @@ jq . /etc/knet/run/stats/knet-persist.json
 | delayAckTimeoutTick | 延迟ack定时器超时时间。                    |
 | synRetries         | TCP_SYNCNT选项，TCP连接建立过程中SYN重传的次数。   |
 
-**表 11**  /knet/stack/epoll\_stat,\<pid> \<start_epoll_fd> \<epoll_fd_cnt> \<start_socket_fd> \<socket_fd_cnt>  Epoll连接详细信息查询字段说明
+**表 11**  /knet/stack/epoll_stat,\<pid> \<start_epoll_fd> \<epoll_fd_cnt> \<start_socket_fd> \<socket_fd_cnt>  Epoll连接详细信息查询字段说明
 
 |字段名|说明|
 |--|--|

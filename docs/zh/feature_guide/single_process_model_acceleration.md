@@ -1,5 +1,7 @@
 # 单进程加速功能
 
+本文档介绍单进程加速功能。单进程模式为单个业务进程独占数据面的加速模式，适用于中小规模业务或初次使用K-NET的用户。
+
 ## 功能描述
 
 提供高性能用户态协议栈处理能力，支持针对单进程业务场景进行网络加速。
@@ -10,7 +12,7 @@
 
 > [!NOTE]说明
 >
->- 该模式支持服务端为配置VF直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF运行K-NET，按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>- 该模式支持服务端为配置VF直通的虚拟机以及物理机两种场景，服务端为物理机场景下使用DPDK接管网卡PF运行K-NET，按照使用前配置中的[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 >- 首先确认/etc/knet/knet_comm.conf配置文件中配置运行模式为单进程，如果“mode”不为0，则应修改为0。
 >- 若任务运行失败，可参见[日志工具knet_comm.log](../om/knet_comm_log.md)查看日志排查原因。
 
@@ -29,7 +31,7 @@ vi /etc/knet/knet_comm.conf
 ### 单实例加速
 
 > [!NOTE]说明
->服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，已按照[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>服务端组网参考[物理机组网规划或虚拟机组网规划](../installation/installation_planning.md)，已按照使用前配置中的[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
 
 1. 服务端中运行Redis服务端。
 
@@ -45,7 +47,7 @@ vi /etc/knet/knet_comm.conf
     taskset -c 33-62 LD_PRELOAD=libknet_frame.so /path/redis-6.0.20/src/redis-server /path/redis-6.0.20/redis.conf --port 6380 --bind 192.168.*.*
     ```
 
-    ![服务端回显](../figures/zh-cn_image_0000002503866790.png)
+    ![单实例加速示意图](../figures/zh-cn_image_0000002503866790.png)
 
     > [!NOTE]说明
     >- taskset -c 33-62：将进程绑定到编号33到62的CPU核上运行（可选项，CPU范围选择参考[性能调优](../reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)）。
@@ -76,7 +78,7 @@ vi /etc/knet/knet_comm.conf
 
     结果形如以下示例输出：
 
-    ```text
+    ```output
     ====== SET ======
     10000000 requests completed in 25.75 seconds
     1000 parallel clients
@@ -108,14 +110,14 @@ vi /etc/knet/knet_comm.conf
 4. 客户端主机中运行redis-benchmark进行get测试。<a id="客户端get"></a>
 
     ```bash
-    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 10000000 -t get --threads 15
+    taskset -c 33-62 /path/redis-6.0.20/src/redis-benchmark -h 192.168.*.* -p 6380 -c 1000 -n 10000000 -r 1000000 -t get --threads 15
     ```
 
     结果形如以下示例输出：
 
-    ```text
+    ```output
     ====== GET ======
-    1000000 requests completed in 64.26 seconds  
+    10000000 requests completed in 64.26 seconds  
     1000 parallel clients  
     3 bytes payload  
     keep alive: 1  
@@ -156,7 +158,7 @@ vi /etc/knet/knet_comm.conf
 
         观察到如下输出，表示启动成功：
 
-        ```text
+        ```output
          * Ready to accept connections
         ```
 
@@ -174,12 +176,13 @@ vi /etc/knet/knet_comm.conf
 ### 虚拟机VF硬直通对Redis业务主从场景加速
 
 > [!NOTE]说明
->一主一从场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
->以主服务端使用的网卡IP地址为192.168.0.1，从服务端使用的网卡IP地址为192.168.0.2为例。
+>
+>- 一主一从场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>- 以主服务端使用的网卡IP地址为192.168.0.1，从服务端使用的网卡IP地址为192.168.0.2为例。
 
 组网参考：
 
-![组网参考](../figures/运维管理架构-智能网卡.png)
+![虚拟机VF硬直通对Redis业务主从场景加速架构图](../figures/运维管理架构-智能网卡.png)
 
 1. 服务端虚拟机（主）运行Redis服务端。
 
@@ -214,7 +217,7 @@ vi /etc/knet/knet_comm.conf
 
     回显如下说明成功使能主从：
 
-    ![主从使能](../figures/zh-cn_image_0000002504026594.png)
+    ![虚拟机VF硬直通对Redis业务主从场景加速示意图](../figures/zh-cn_image_0000002504026594.png)
 
 3. 客户端主机中运行redis-benchmark对主服务端进行测试。
 
@@ -247,12 +250,13 @@ vi /etc/knet/knet_comm.conf
 ### 虚拟机VF硬直通对Redis业务集群场景加速
 
 > [!NOTE]说明
->三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
->以6个服务端虚拟机使用的网卡IP地址分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
+>
+>- 三主三从集群场景，虚拟机均按[配置大页内存](./environment_configuration.md#配置大页内存)进行环境配置。
+>- 以6个服务端虚拟机使用的网卡IP地址分别为192.168.0.1、192.168.0.2、192.168.0.3、192.168.0.4、192.168.0.5、192.168.0.6为例。
 
 组网参考：
 
-![组网参考](../figures/运维管理架构-智能网卡-0.png)
+![虚拟机VF硬直通对Redis业务集群场景加速架构图](../figures/运维管理架构-智能网卡-0.png)
 
 1. 六台服务端虚拟机分别运行Redis服务端。
 
@@ -314,7 +318,7 @@ vi /etc/knet/knet_comm.conf
 
     回显如下，说明成功创建集群：
 
-    ![创建集群](../figures/zh-cn_image_0000002503979954.png)
+    ![虚拟机VF硬直通对Redis业务集群场景回显图](../figures/zh-cn_image_0000002503979954.png)
 
     > [!NOTE]说明
     >- --cluster create：创建集群。

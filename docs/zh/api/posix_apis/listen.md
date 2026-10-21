@@ -1,5 +1,7 @@
 # listen
 
+介绍K-NET的listen接口，面向应用开发工程师。涵盖接口功能、参数说明、返回值及错误码，适用于服务端侦听通信连接的开发场景。
+
 ## 接口名称
 
 **listen(int sockfd, int backlog)**

@@ -10,7 +10,7 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 - **安装要求**：
   - 无感劫持tperf_os：在本章示例中仅需在服务端单端完成[安装](../../docs/zh/installation/installation.md)与[使用前配置](../../docs/zh/feature_guide/environment_configuration.md)；
   - 共线程/零拷贝/共线程+零拷贝：在本章示例中需在服务端和客户端双端完成[安装](../../docs/zh/installation/installation.md)与[使用前配置](../../docs/zh/feature_guide/environment_configuration.md)。
- 	 
+
 - **大页内存配置**：Tperf零拷贝场景需要在大页中进行pbuf的读写，因此在零拷贝/共线程+零拷贝场景下，服务端与客户端均需增加大页内存。以20GB为例（网卡在node0）：
 
     ```bash
@@ -51,7 +51,7 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
     - tperf_knetzcopy：使用K-NET零拷贝特性的tperf demo；
     - tperf_knetcozcopy：使用K-NET共线程+零拷贝特性的tperf demo。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >若需要恢复到原生tperf版本，可执行以下命令撤销patch。
 >
 >```bash
@@ -61,7 +61,7 @@ libtpa源码链接为：[https://github.com/bytedance/libtpa/tree/3c9f05df7b7c8e
 
 ### 修改配置文件参数进行性能调优
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 > 无感劫持tperf_os需要在服务端单端完成配置。
 > 共线程/零拷贝/共线程+零拷贝场景下，服务端与客户端均需完成配置。
@@ -72,13 +72,13 @@ vi /etc/knet/knet_comm.conf
 
 按“i”进入编辑模式。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 > 以下配置项针对Tperf场景进行了性能优化：
 >
 >- 增大`max_mbuf`、`def_sendbuf`、`def_recvbuf`可提升网络吞吐能力。
 >- 调整DPDK的内存参数（`socket_mem`、`socket_limit`）以适配大流量场景。
 
-```text
+```output
 {
     "proto_stack": {
         "max_mbuf": 1253376,
@@ -118,7 +118,7 @@ vi /etc/knet/knet_comm.conf
 
     按“i”进入编辑模式，修改配置项，示例如下：
 
-    ```text
+    ```output
     "common": {
         "mode": 0, #1. 运行模式，0表示单进程模式
         ...
@@ -177,7 +177,7 @@ vi /etc/knet/knet_comm.conf
 
         回显部分示例如下，表示DPDK接管网卡成功：
 
-        ```text
+        ```output
         Network devices using DPDK-compatible driver
         ============================================
         0000:04:00.0 'Device 0222' drv=vfio-pci unused=hisdk3
@@ -207,7 +207,7 @@ vi /etc/knet/knet_comm.conf
 
         示例回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -235,14 +235,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 46, cli_addr=192.168.1.7, cli_port=1454
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  18.424 write Gbits/sec
@@ -262,23 +262,24 @@ vi /etc/knet/knet_comm.conf
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
 
 4. 进行并发数为2（即服务端指定两个线程进行侦听），K-NET无感加速的Tperf。
-   1. （服务端）启动Tperf。
+
+    1. （服务端）启动Tperf。
 
         ```bash
         taskset -c 16-31 env LD_PRELOAD=/usr/lib64/libknet_frame.so ./tperf_os -s -l 192.168.1.6 -p 11111 -n 2 -S 16
         ```
+
         > [!NOTE]说明
         >
         >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内。
         >- -l 192.168.1.6：指定本地侦听的IP地址。
         >- -s：运行模式为服务端。 
-
         >- -p 11111 -n 2：指定在11111端口和11112端口进行分别有一个线程侦听。
         >- -S 16：指定CPU绑核的起始值。
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -292,7 +293,7 @@ vi /etc/knet/knet_comm.conf
         nr_sock :2
         ```
 
-   2. （客户端）进行测试性能。
+    2. （客户端）进行测试性能。
 
         ```bash
         taskset -c 16-31 ./tperf_os -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31
@@ -311,14 +312,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 46, cli_addr=192.168.1.7, cli_port=1454
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection in progress...server port 11111, sockfd 6, cli_port random
         Connection established with sockfd 6
@@ -338,6 +339,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为35Gbits/sec左右，实际数据以运行为准。
 
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -367,9 +369,10 @@ vi /etc/knet/knet_comm.conf
 
     按“i”进入编辑模式，修改以下配置项：
 
-    ```text
+    ```output
     "cothread_enable": 1
     ```
+
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
 3. 分别在服务端和客户端修改内核协议栈端口范围。
@@ -399,7 +402,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -424,14 +427,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 42, cli_addr=192.168.1.7, cli_port=49182
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -454,6 +457,7 @@ vi /etc/knet/knet_comm.conf
         ---
         0 nr_conn=1 nr_zero_io_conn=0
         ```
+
         测试值为25Gbits/sec，实际数据以运行为准。
     
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -468,7 +472,7 @@ vi /etc/knet/knet_comm.conf
 
         按“i”进入编辑模式，将`max_worker_num`和`queue_num`的值修为2。
 
-        ```text
+        ```output
         "proto_stack":{
             "max_worker_num": 2,
             ...
@@ -489,7 +493,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -512,7 +516,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 47, cli_addr=192.168.1.7, cli_port=49618
         nr_sock :1
         Accepted connection: fd = 48, cli_addr=192.168.1.7, cli_port=49300
@@ -521,7 +525,7 @@ vi /etc/knet/knet_comm.conf
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -547,6 +551,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为43Gbits/sec,实际数据以运行为准。
 
     4. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -566,6 +571,7 @@ vi /etc/knet/knet_comm.conf
 ### K-NET零拷贝特性加速tperf_knetzcopy
 
 使用K-NET零拷贝特性的Tperf demo。
+
 1. 在服务端和客户端已完成K-NET配置文件修改和DPDK网卡接管，可参见[修改K-NET配置文件](#step1)和[DPDK接管网卡](#step2)。
 
 2. 分别在服务端和客户端修改配置文件。
@@ -576,9 +582,10 @@ vi /etc/knet/knet_comm.conf
 
     按“i”进入编辑模式，修改配置项：
 
-    ```text
+    ```output
     "zcopy_enable": 1,
     ```
+
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
 3. 运行并发连接数为1，使用K-NET零拷贝特性的Tperf。
@@ -600,7 +607,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -626,14 +633,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 65, cli_addr=192.168.1.7, cli_port=58532
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -652,6 +659,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为54Gbits/sec左右，实际数据以运行为准。
     
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -666,7 +674,7 @@ vi /etc/knet/knet_comm.conf
 
         按“i”进入编辑模式，修改以下配置项：
 
-        ```
+        ```output
         "max_worker_num": 2,
         "core_list_global": "16-17",
         "queue_num": 2,
@@ -682,7 +690,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -705,7 +713,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 74, cli_addr=192.168.1.7, cli_port=49452
         nr_sock :1
         Accepted connection: fd = 75, cli_addr=192.168.1.7, cli_port=51507
@@ -714,7 +722,7 @@ vi /etc/knet/knet_comm.conf
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -742,6 +750,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为106Gbits/sec左右，实际数据以运行为准。
 
     4. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -772,10 +781,11 @@ vi /etc/knet/knet_comm.conf
 
     按“i”进入编辑模式，修改以下配置项：
 
-    ```text
+    ```output
     "zcopy_enable": 1,
     "cothread_enable": 1
     ```
+
    按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
 3. 在服务端和客户端修改内核协议栈端口范围。
@@ -805,7 +815,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -831,14 +841,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 60, cli_addr=192.168.1.7, cli_port=49631
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -857,6 +867,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为76Gbits/sec，实际数据以运行为准。
 
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -871,10 +882,11 @@ vi /etc/knet/knet_comm.conf
 
         按“i”进入编辑模式，修改配置项：
 
-        ```text
+        ```output
         "max_worker_num": 2,
         "queue_num": 2,
         ```
+
         按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
     2. （服务端）启动Tperf。
@@ -885,7 +897,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -899,7 +911,7 @@ vi /etc/knet/knet_comm.conf
         Listening on 192.168.1.6:11111
         ```
 
-    2. （客户端）进行性能测试。
+    3. （客户端）进行性能测试。
 
         ```bash
         taskset -c 16-31 ./tperf_knetcozcopy -l 192.168.1.7 -c 192.168.1.6 -p 11111 -m 4096 -n 2 -N 2 -S 16 -t write -d 31 -P 49154,49162
@@ -907,7 +919,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 66, cli_addr=192.168.1.7, cli_port=49162
         Accepted connection: fd = 65, cli_addr=192.168.1.7, cli_port=49154
         nr_sock :1
@@ -916,7 +928,7 @@ vi /etc/knet/knet_comm.conf
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         EAL: Detected CPU lcores: 128
         EAL: Detected NUMA nodes: 4
         EAL: Detected shared linkage of DPDK
@@ -940,10 +952,11 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
-        测试值为94Gbits/sec，实际数据以运行为准。
-    通过对比可以看到，使用K-NET进行网络加速后，并发数为1的测试从21Gbits/sec提升到76Gbits/sec，并发数为2的测试值从42Gbits/sec提升到94Gbits/sec。
 
-    3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
+        测试值为94Gbits/sec，实际数据以运行为准。
+        通过对比可以看到，使用K-NET进行网络加速后，并发数为1的测试从21Gbits/sec提升到76Gbits/sec，并发数为2的测试值从42Gbits/sec提升到94Gbits/sec。
+
+    4. 测试完成后在服务端按Ctrl+C结束Tperf进程。
 
 6. （可选）测试完成后，若需要恢复到内核态，请在服务端取消DPDK接管网卡。
     
@@ -967,6 +980,7 @@ vi /etc/knet/knet_comm.conf
         ```bash
         taskset -c 16-31 ./tperf_os -s -l 192.168.1.6 -p 11111 -n 1 -S 16
         ```
+
         > [!NOTE]说明
         >
         >- taskset -c 16-31：绑定CPU到编号16-31的CPU核上运行，可查询NUMA node所用CPU核的范围，需要保证绑核在此范围内，具体可参见[绑核与网卡所在NUMA一致](../../docs/zh/reference/performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md)。
@@ -978,7 +992,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         Listening on 192.168.1.6:11111
         ```
 
@@ -1000,14 +1014,14 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 6, cli_addr=192.168.1.6, cli_port=11111
         nr_sock :1
         ```
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         Connection in progress...server port 11111, sockfd 4, cli_port random
         Connection established with sockfd 4
             0 w       0.000 read Gbits/sec  20.819 write Gbits/sec
@@ -1021,6 +1035,7 @@ vi /etc/knet/knet_comm.conf
         ---
         0 nr_conn=1 nr_zero_io_conn=0
         ```
+
         测试值为21Gbits/sec，实际数据以运行为准。
 
     3. 测试完成后在服务端按Ctrl+C结束Tperf进程。
@@ -1040,7 +1055,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显:
 
-        ```coldfusion
+        ```output
         Listening on 192.168.1.6:11111
         Listening on 192.168.1.6:11112
         ```
@@ -1053,7 +1068,7 @@ vi /etc/knet/knet_comm.conf
 
         服务端回显：
 
-        ```coldfusion
+        ```output
         Accepted connection: fd = 9, cli_addr=192.168.1.7, cli_port=11111
         Accepted connection: fd = 10, cli_addr=192.168.1.7, cli_port=11112
         nr_sock :2
@@ -1061,7 +1076,7 @@ vi /etc/knet/knet_comm.conf
 
         客户端回显：
 
-        ```coldfusion
+        ```output
         Connection in progress...server port 11111, sockfd 6, cli_port random
         Connection in progress...server port 11112, sockfd 5, cli_port random
         Connection established with sockfd 5
@@ -1081,6 +1096,7 @@ vi /etc/knet/knet_comm.conf
         ...
         ...
         ```
+
         测试值为42Gbits/sec，实际数据以运行为准。
 
 3. 测试完成后在服务端按Ctrl+C结束Tperf进程。

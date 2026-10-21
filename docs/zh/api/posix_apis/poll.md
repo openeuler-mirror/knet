@@ -1,8 +1,10 @@
 # poll
 
+介绍K-NET的poll接口，面向应用开发工程师。涵盖等待文件描述符事件触发的功能说明、参数说明、返回值及错误码。适用于需要阻塞等待多个描述符事件就绪的应用开发场景。
+
 ## 接口名称
 
-**poll(struct pollfd \*fds, nfds\_t nfds, int timeout\)**
+**poll(struct pollfd \*fds, nfds_t nfds, int timeout)**
 
 ## 接口描述
 
@@ -14,7 +16,7 @@
 |--|--|--|
 |*fds|侦听的文件描述符指针|-|
 |nfds|文件描述符个数|-|
-|timeout|阻塞等待文件描述符的超时时间间隔|-|
+|timeout|阻塞等待文件描述符的超时时间间隔，单位毫秒|-|
 
 ## 返回值
 

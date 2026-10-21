@@ -1,8 +1,10 @@
-# knet\_zreadv
+# knet_zreadv
+
+介绍K-NET的knet_zreadv接口，面向应用开发工程师。涵盖零拷贝读功能、参数说明、返回值及错误码，适用于TCP套接字接收数据的开发场景。
 
 ## 接口名称
 
-**knet\_zreadv(int sockfd, struct knet\_iovec \*iov, int iovcnt\)**
+**knet_zreadv(int sockfd, struct knet_iovec \*iov, int iovcnt)**
 
 ## 接口描述
 
@@ -18,7 +20,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 非负数：实际读取的数据长度，表示成功
 - -1：表示失败，并设置errno以指示错误类型

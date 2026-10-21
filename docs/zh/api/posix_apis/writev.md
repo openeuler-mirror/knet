@@ -1,14 +1,16 @@
 # writev
 
+介绍K-NET的writev接口，面向应用开发工程师。涵盖向指定文件描述符写入数据的功能说明、参数说明、返回值及错误码，并提示TCP优雅断链相关注意事项。适用于向socket写入数据的应用开发场景。
+
 ## 接口名称
 
-**writev(int fd, const struct iovec \*iov, int iovcnt\)**
+**writev(int fd, const struct iovec \*iov, int iovcnt)**
 
 ## 接口描述
 
 写入数据到指定文件描述符。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >K-NET用户态TCP/IP协议栈数据发送端支持TCP协议优雅断链，当对端异常关闭时，发送端需要借用TCP重传超时机制/保活机制断链。
 
 ## 参数说明
@@ -21,7 +23,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 非负数：实际写入的数据长度，表示成功
 

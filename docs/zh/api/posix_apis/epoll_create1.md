@@ -1,8 +1,10 @@
-# epoll\_create1
+# epoll_create1
+
+介绍K-NET的epoll_create1接口，用于创建epoll文件描述符并设置其标志位。涵盖参数说明、返回值与错误码。适用于基于K-NET使用epoll机制的应用开发场景。
 
 ## 接口名称
 
-**epoll\_create1(int flags)**
+**epoll_create1(int flags)**
 
 ## 接口描述
 
@@ -29,7 +31,7 @@
 |EINVAL|存在除EPOLL_CLOEXEC以外的标志位。|
 |EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
 |ENOMEM|系统内存申请失败。|
-|ENOMEM|mbuf内存申请失败。|
+|ENOMEM|mbuf（Message Buffer，消息缓冲区）内存申请失败。|
 |EMFILE|进程的file数量超过max_tcpcb。|
 |ENFILE|系统的file数量超过上限。|
 |ENOSPC|尝试在主机上注册（EPOLL_CTL_ADD）新文件描述符时遇到/proc/sys/fs/epoll/max_user_watches限制。|

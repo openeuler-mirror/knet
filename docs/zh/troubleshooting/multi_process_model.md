@@ -6,11 +6,11 @@
 
 多进程模式启动，knet_mp_daemon进程被意外挂起。导致客户端打流失败，且knet_comm.log报错。
 
-![](../figures/zh-cn_image_0000002504028414.png)
+![多进程故障中knet_mp_daemon进程被挂起导致knet_comm.log报错的日志截图，展示进程异常挂起特征](../figures/zh-cn_image_0000002504028414.png)
 
 客户端运行Redis-benchmark命令时回显为0或者无回显，几分钟之后客户端退出，回显如下：
 
-```ColdFusion
+```output
 Could not connect to Redis at 192.168.**.***:****: Connection timed out
 WARN: could not fetch server CONFIG
 Writing to socket: Connection timed out
@@ -26,7 +26,7 @@ vim /etc/knet/knet_comm.log
 
 可以观察到如下报错：
 
-```ColdFusion
+```output
 Rpc client failed, ret -1
 K-NET rpc client socket failed to be connected, clientFd: xx, error: 111
 ```
@@ -38,7 +38,7 @@ K-NET rpc client socket failed to be connected, clientFd: xx, error: 111
 
 ### 处理步骤
 
-关闭K-NET所有的业务进程，然后重新启动knet_mp_daemon进程，再启动从进程业务。业务启动命令参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
+关闭K-NET所有的业务进程，然后重新启动knet_mp_daemon进程，再启动从进程业务。业务启动命令请参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
 
 ## 启动业务进程失败提示“error allocating core states array”
 
@@ -46,7 +46,7 @@ K-NET rpc client socket failed to be connected, clientFd: xx, error: 111
 
 启动业务进程失败，提示“error allocating core states array”。
 
-![](../figures/zh-cn_image_0000002503868578.png)
+![启动业务进程失败提示error allocating core states array的现象截图，展示大页内存使用率过高导致的告警报错信息](../figures/zh-cn_image_0000002503868578.png)
 
 在服务端查看K-NET日志：
 
@@ -56,13 +56,13 @@ vim /etc/knet/knet_comm.log
 
 可以观察到如下报错（当前默认大页内存使用超过75%时会打印此告警）：
 
-```ColdFusion
+```output
 Socket SOCKET_ID: Memory usage is too high: 0.xx
 ```
 
 或者如下报错（当前默认mbuf内存池使用超过70%时会打印此告警）：
 
-```ColdFusion
+```output
 Mbuf pool usage is too high: 0.xx
 ```
 
@@ -81,7 +81,7 @@ Mbuf pool usage is too high: 0.xx
 
 启动业务进程长时间阻塞且knet_comm.log无错误日志输出。
 
-![](../figures/zh-cn_image_0000002535748371.png)
+![启动业务进程长时间阻塞且knet_comm.log无错误日志输出的现象截图，展示进程启动卡死特征](../figures/zh-cn_image_0000002535748371.png)
 
 ### 原因
 
@@ -91,7 +91,7 @@ Mbuf pool usage is too high: 0.xx
 
 上述问题可以通过两个方法解决：
 
-- 方案1：关闭K-NET knet_mp_daemon进程以及所有的业务进程，然后重新启动，业务启动命令参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
+- 方案1：关闭K-NET knet_mp_daemon进程以及所有的业务进程，然后重新启动，业务启动命令请参见[多进程加速功能](../feature_guide/multi_process_model_acceleration.md)。
 - 方案2：将dpdk源码中的rte_spinlock_lock修改为pthread的锁实现，可以保证进程异常退出之后可以释放锁。
 
 用户可以根据实际情况选择相应的方法。

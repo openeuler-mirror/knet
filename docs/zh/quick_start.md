@@ -1,8 +1,10 @@
 # 快速入门
 
+本文档介绍Redis单进程加速示例学习快速使用K-NET进行网络加速的方法，涵盖环境准备、软件安装与性能验证。您将完成K-NET部署并通过与内核态性能对比体验加速效果，需要服务端与客户端完成Yum源配置及网卡驱动安装等前置准备。
+
 ## K-NET介绍
 
-Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络加速套件，提供统一的软件框架，发挥软硬协同优势，释放网卡硬件性能。
+Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加速套件）是一款网络加速套件，提供统一的软件框架，发挥软硬协同优势，释放网卡硬件性能。
 本快速入门基于SP670网卡，以在物理机环境上，root用户运行Redis单进程加速任务为例，教您如何快速使用K-NET进行网络加速。
 
 ## 快速安装K-NET
@@ -21,7 +23,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     回显示例如下：
 
-    ![网卡配置模板](./figures/zh-cn_image_0000002487030394.png)
+    ![cfg_template命令回显截图：展示Current Info字段中Cfg template index的取值为0或3，用于确认网卡末班时NIC_2X100G或ROCE_2X100G](./figures/zh-cn_image_0000002487030394.png)
 
     “Current Info”字段中的“Cfg template index”显示为“0”或者“3”表示模板正确。若模板不对需要自行切换，这里以切换到“0”为例：
 
@@ -37,13 +39,13 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     ldd --version
     ```
 
-- 服务端已开启ASLR（地址空间随机化）。可执行以下命令检查：
+- 服务端已开启ASLR（Address Space Layout Randomzation，内存地址随机化机制）。可执行以下命令检查：
     
     ```bash
     cat /proc/sys/kernel/randomize_va_space
     ```
     
-    若结果不为2，请执行以下命令开启ASLR：
+    若结果不等于2，请执行以下命令开启ASLR：
     
     ```bash
     bash -c 'echo 2 >/proc/sys/kernel/randomize_va_space'
@@ -59,7 +61,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
 请在服务端和客户端均执行以下操作：
 
-1. 安装DPDK 21.11.7。
+1. 安装DPDK（Data Plane Development Kit，数据平面开发套件）21.11.7。
     1. 安装编译依赖。
         
         ```bash
@@ -74,8 +76,8 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         wget https://fast.dpdk.org/rel/dpdk-21.11.7.tar.xz
         ```
 
-        > [!NOTE]说明 
-        > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”。
+        > [!NOTE]说明
+        > 若执行**wget**命令出现错误“ERROR: The certificate of ‘xxxxx’ is not trusted”，请在命令末尾增加“--no-check-certificate”参数。
 
     3. 解压软件包。
         
@@ -111,7 +113,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         ![ninja安装结果](./figures/zh-cn_image_0000002503798182.png)
 
 2. 安装dpdk-hinic3驱动。
-    1. 获取hinic3 PMD源码。
+    1. 获取hinic3 PMD（Poll Mode Driver，轮询模式驱动）源码。
        
         ```bash
         cd /home/opt
@@ -120,7 +122,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         预期结果如下：
        
-        ```text
+        ```output
         Cloning into 'dpdk-hinic3_master'...
         remote: Enumerating objects: 3643, done.
         remote: Counting objects: 100% (1483/1483), done.
@@ -196,7 +198,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     python3 build.py rpm
     ```
 
-5. 安装RPM包。
+5. 安装RPM（Red Hat Package Manager，一种Linux软件包格式）包。
    
     ```bash
     rpm -ivh build/rpmbuild/RPMS/knet-1.0.0.aarch64.rpm
@@ -204,7 +206,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     安装成功，预期结果如下：
 
-    ```text
+    ```output
     Verifying...                          ################################# [100%]
     Preparing...                          ################################# [100%]
     Updating / installing...
@@ -237,7 +239,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     
     预期结果如下，需确认版本号为6.0.20：
 
-    ```text
+    ```output
     Redis server v=6.0.20 sha=de0d9632:0 malloc=jemalloc-5.1.0 bits=64 build=be9cd4aae109acff
     ```
 
@@ -251,7 +253,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例如下：
 
-        ```text
+        ```output
         Card num:1
         Device Information:
             Card         PCIe Function
@@ -260,7 +262,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         |--------0000:04:00.1(NIC:enp4s0f1)
         ```
 
-        通过回显获取BDF和网口信息，请根据实际情况选用网口，这里选择BDF号：0000:04:00.0，网口名：enp4s0f0。
+        通过回显获取BDF（Bus/Device/Function，总线/设备/功能）和网口信息，请根据实际情况选用网口，这里选择BDF号：0000:04:00.0，网口名：enp4s0f0。
     2. 查看网卡IP地址和MAC地址。
         
         ```bash
@@ -269,7 +271,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例片段如下：
 
-        ```text
+        ```output
         ...
         2: enp4s0f0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
             link/ether ac:dc:ca:xx:xx:xx brd ff:ff:ff:ff:ff:ff
@@ -286,7 +288,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         > ```
 
         根据网口enp4s0f0获取的IP地址：192.168.1.58，MAC地址：ac:dc:ca:xx:xx:xx。
-    3. 查看网卡所在的NUMA节点与CPU信息。
+    3. 查看网卡所在的NUMA（Non-Uniform Memory Access，非统一内存访问）节点与CPU信息。
         查看NUMA信息，以BDF 0000:04:00.0为例：
         
         ```bash
@@ -295,7 +297,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例如下，表示网卡所在NUMA节点为node 0：
         
-        ```text
+        ```output
         NUMA node: 0
         ```
 
@@ -307,7 +309,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例如下，NUMA node0所用CPU为0-23：
 
-        ```text
+        ```output
         NUMA node(s):                       4
         NUMA node0 CPU(s):                  0-23
         NUMA node1 CPU(s):                  24-47
@@ -334,7 +336,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     回显示例如下：
 
-    ```text
+    ```output
     Node Pages Size Total
     0    2     1Gb    2Gb
         
@@ -355,7 +357,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     回显示例如下，表示网络是连通的。
 
-    ```text
+    ```output
     PING 192.168.1.58 (192.168.1.58) 56(84) bytes of data.
     64 bytes from 192.168.1.58: icmp_seq=1 ttl=64 time=0.197 ms
     64 bytes from 192.168.1.58: icmp_seq=2 ttl=64 time=0.041 ms
@@ -374,7 +376,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     观察到如下输出，表示启动成功：
 
-    ```text
+    ```output
      * Ready to accept connections
     ```
 
@@ -393,7 +395,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
     
         回显示例如下：
         
-        ```text
+        ```output
         ====== SET ======
         10000000 requests completed in 60.53 seconds
         1000 parallel clients
@@ -422,7 +424,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例如下：
         
-        ```text
+        ```output
         ====== GET ======
         100000000 requests completed in 562.22 seconds
         1000 parallel clients
@@ -454,7 +456,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     按“i”进入编辑模式，修改配置项，示例如下：
 
-    ```text
+    ```json
     "common": {
         "mode": 0, #1. 运行模式，0表示单进程模式
         ...
@@ -496,7 +498,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         > [!NOTE]说明
         > enp4s0f0：K-NET配置文件中填写的网口名称，后续会由DPDK接管。
 
-    2. 加载VFIO驱动。
+    2. 加载VFIO（Virtual Function I/O，虚拟功能输入输出）驱动。
     
         ```bash
         modprobe vfio enable_unsafe_noiommu_mode=1
@@ -512,7 +514,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显部分示例如下，表示DPDK接管网卡成功：
 
-        ```text
+        ```output
         Network devices using DPDK-compatible driver
         ============================================
         0000:04:00.0 'Device 0222' drv=vfio-pci unused=hisdk3
@@ -534,7 +536,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
     观察到如下输出，表示启动成功：
 
-    ```text
+    ```output
      * Ready to accept connections
     ```
 
@@ -552,7 +554,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
         
         回显示例如下：
         
-        ```text
+        ```output
         ====== SET ======
         10000000 requests completed in 30.68 seconds
         1000 parallel clients
@@ -580,7 +582,7 @@ Data Acceleration Kit K-NET（K-Network，网络加速套件）是一款网络�
 
         回显示例如下：
         
-        ```text
+        ```output
         ====== GET ======
         100000000 requests completed in 300.59 seconds
         1000 parallel clients

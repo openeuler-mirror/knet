@@ -6,7 +6,7 @@
 
 直接启用抓包时出现以下报错信息：
 
-```ColdFusion
+```output
 EAL: Multi-process socket /var/run/dpdk/(null)/mp_socket_3884565_28c50010577fe
 EAL: failed to send to (/var/run/dpdk/(null)/mp_socket) due to Connection refused
 EAL: Fail to send request /var/run/dpdk/(null)/mp_socket:bus_vdev_mp
@@ -36,25 +36,25 @@ K-NET未启动。
 
 抓包无法打开配置：
 
-![](../figures/zh-cn_image_0000002535469325.png)
+![抓包工具无法打开配置的报错截图，展示因未设置XDG_RUNTIME_DIR环境变量导致的配置加载失败现象](../figures/zh-cn_image_0000002535469325.png)
 
 ### 原因
 
-非root用户进入工具前需设置“XDG\_RUNTIME\_DIR”环境变量。“/tmp/dpdk/knet/config”是临时目录，表明未设置启动的环境变量。
+非root用户进入工具前需设置“XDG_RUNTIME_DIR”环境变量。“/tmp/dpdk/knet/config”是临时目录，表明未设置启动的环境变量。
 
 ### 处理步骤
 
-1. 设置“XDG\_RUNTIME\_DIR”启动环境变量，普通用户未设置该变量会产生错误。
+1. 设置“XDG_RUNTIME_DIR”启动环境变量，普通用户未设置该变量会产生错误。
 
-    > [!NOTE]说明  
-    >用户名使用KNET\_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
+    > [!NOTE]说明
+    > 用户名使用KNET_USER作为通配符进行示例，运行时请将其替换为实际用户名。环境变量路径涉及的权限及安全需要用户保证。
 
     用户可以根据需要选择永久或者临时配置环境变量。如果用户选择临时配置环境变量，需要在每个终端会话执行相关命令。
 
     - 永久配置环境变量。
 
-        > [!NOTE]说明  
-        >配置完成之后重新切换到该用户时无需重新配置环境变量。
+        > [!NOTE]说明
+        > 配置完成之后重新切换到该用户时无需重新配置环境变量。
 
         1. 创建环境变量路径。
 
@@ -69,13 +69,13 @@ K-NET未启动。
             vi ~/.profile
             ```
 
-        3. 按“i“进入编辑模式，在末尾加上：
+        3. 按“i”进入编辑模式，在末尾加上：
 
             ```bash
             export XDG_RUNTIME_DIR=/home/KNET_USER/knet
             ```
 
-        4. 按“Esc“键退出编辑模式，输入**:wq!**，按“Enter“键保存并退出文件。
+        4. 按“Esc”键退出编辑模式，输入**:wq!**，按“Enter”键保存并退出文件。
 
             ```bash
             sh -c "source ~/.profile" 
@@ -84,7 +84,7 @@ K-NET未启动。
 
     - 临时配置环境变量。
 
-        > [!NOTE]说明  
+        > [!NOTE]说明
         >- 服务端环境关闭或重启后，或者退出普通用户再重新切换到该用户，均需要重新执行步骤。
         >- 通过设置环境变量指定运行时目录，路径依据不同用户名会有差异。
 
@@ -108,7 +108,7 @@ K-NET未启动。
 
 抓包程序请求抓包被拒绝，提示操作不被允许：
 
-![](../figures/zh-cn_image_0000002504028426.png)
+![抓包程序请求抓包被主进程拒绝的报错截图，展示操作不被允许的权限不足现象](../figures/zh-cn_image_0000002504028426.png)
 
 ### 原因
 
@@ -129,7 +129,7 @@ setcap cap_sys_rawio,cap_dac_read_search,cap_sys_admin+ep dumpcap
 
 抓包程序如果想开启混杂模式，会产生错误输出提醒，出现如下问题：
 
-```ColdFusion
+```output
 port X set promiscuous enable failed: xx
 ```
 
@@ -147,9 +147,9 @@ K-NET默认关闭混杂模式，如果用户修改了程序，出现混杂模式
 
 在生成BPF过滤表达式的时候会输出如下信息，DPDK示例程序同样存在该输出。
 
-![](../figures/zh-cn_image_0000002503868592.png)
+![抓包生成BPF过滤表达式时主进程输出错误代码的现象截图，展示JIT即时编译不可用的提示信息](../figures/zh-cn_image_0000002503868592.png)
 
-![](../figures/zh-cn_image_0000002535748381.png)
+![BPF过滤表达式生成时主进程输出的错误代码详情，展示JIT编译相关提示信息及可忽略的告警特征](../figures/zh-cn_image_0000002535748381.png)
 
 ### 原因
 
@@ -165,7 +165,7 @@ K-NET默认关闭混杂模式，如果用户修改了程序，出现混杂模式
 
 关闭抓包后，业务进程输出错误日志。
 
-```ColdFusion
+```output
 No existing rx/tx callback for port and queue
 Pdump cbs failed to be set, ret -22
 ```
@@ -188,11 +188,11 @@ LD_PRELOAD=librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默
 
 抓包发现没有可用设备。
 
-![](../figures/zh-cn_image_0000002478457346.png)
+![抓包工具找不到可用设备的报错截图，展示普通用户无法访问硬件设备导致无可用设备的现象](../figures/zh-cn_image_0000002478457346.png)
 
 ### 原因
 
-普通用户无法通过/usr/lib64下的库访问硬件设备，因此需要root用户或者sudo权限赋予驱动和程序权限后，直接运行不带/usr/lib64前缀的librte\_net\_sp600.so驱动。
+普通用户无法通过/usr/lib64下的库访问硬件设备，因此需要root用户或者sudo权限赋予驱动和程序权限后，直接运行不带/usr/lib64前缀的librte_net_hinic3.so驱动。
 
 ### 处理步骤
 

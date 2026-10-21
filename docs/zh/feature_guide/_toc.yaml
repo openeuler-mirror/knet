@@ -33,3 +33,5 @@ sections:
     href: ./traffic_bifurcation_sp670.md
   - label: 修订记录
     href: ./change_history.md
+  - label: 缩略语
+    href: ./abbreviations.md

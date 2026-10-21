@@ -1,5 +1,7 @@
 # 使用前配置
 
+本文档介绍K-NET使用前配置。涵盖BIOS配置、Yum源配置、网卡驱动、VF直通、大页内存、内核参数与DPDK（Data Plane Development Kit，数据平面开发套件）接管网卡等环境准备步骤。
+
 ## 配置大页内存
 
 > [!NOTE]说明
@@ -16,7 +18,7 @@
 
     回显类似如下：
 
-    ```ColdFusion
+    ```output
     Node 0 AnonHugePages:         0 kB
     Node 0 ShmemHugePages:        0 kB
     Node 0 HugePages_Total:     0
@@ -52,7 +54,7 @@
     -rw-r--r--. 1 root root 0 Sep 1 10:30 hugepages-2048kB
     ```
 
-3. 更改Linux默认启动内核版本，修改GRUB设置。
+3. 更改Linux默认启动内核版本，修改GRUB（Grand Unified BootLoader，统一引导加载器）设置。
     - 系统架构为aarch64场景时：
 
         ```bash
@@ -65,7 +67,7 @@
         vi /etc/grub2.cfg
         ```
 
-4. 在Linux行输入以下配置。若无需永久默认配置可跳过此步骤，跳转至[步骤8](#确认所用网口)。
+4. 在Linux行输入以下配置。若无需永久默认配置可跳过此步骤，跳转至[配置大页内存的步骤8](#确认所用网口)。
     
     按“i”进入编辑模式，在文件的Linux行后输入以下内容。
 
@@ -73,7 +75,7 @@
     default_hugepagesz=1G hugepagesz=1G  hugepages=2 iommu.passthrough=1 pci=realloc
     ```
 
-    ![修改内容](../figures/zh-cn_image_0000002503997586.png)
+    ![Linux内核启动参数修改界面截图：展示default_hugepagesz=1G hugepagesz=1G hugepages=2 iommu.passthrough=1 pci=realloc等大页与IOMMU直通参数的填写](../figures/zh-cn_image_0000002503997586.png)
 
     按“Esc”键退出编辑模式，输入 **:wq!**，按“Enter”键保存并退出文件。
 
@@ -93,7 +95,7 @@
     cat /proc/sys/vm/nr_hugepages # 回显显示数量为2
     ```
 
-7. 在Host侧查看各个NUMA节点上的大页分配情况。
+7. 在Host侧查看各个NUMA（Non-Uniform Memory Access，非统一内存访问架构）节点上的大页分配情况。
 
     ```bash
     cat /sys/devices/system/node/node*/meminfo | grep Huge
@@ -116,9 +118,9 @@
     hinicadm5 info 
     ```
 
-    回显示例如下，获取到可用网口设备为“enp6s0”，BDF号为“0000:06:00.0”。
+    回显示例如下，获取到可用网口设备为“enp6s0”，BDF（Bus/Device/Function，总线/设备/功能）号为“0000:06:00.0”。
 
-    ```text
+    ```output
     Card num:1
     Device Information:
         Card        PCIe Function
@@ -133,7 +135,7 @@
     ip a
     ```
 
-    ![网卡信息](../figures/zh-cn_image_0000002510321009.png)
+    ![网卡配置信息查询回显截图：展示enp4s0f0网口的IPv4地址、MAC地址及link状态](../figures/zh-cn_image_0000002510321009.png)
 
     （可选）若网口不存在IP地址可手动配置：
 
@@ -160,7 +162,7 @@
         
         回显示例如下，此处说明所在NUMA为1。
 
-        ![查看NUMA](../figures/zh-cn_image_0000002503837758.png)
+        ![网卡ens6f0所在NUMA节点的查询命令回显，显示该网卡归属NUMA 1，用于大页内存配置前确认网卡NUMA归属](../figures/zh-cn_image_0000002503837758.png)
 
         ```bash
         echo never > /sys/kernel/mm/transparent_hugepage/enabled # 关闭透明大页
@@ -196,7 +198,7 @@
 
     回显示例如下：
 
-    ```text
+    ```output
     Node Pages Size Total
     1    2     1Gb  2Gb
     ```
@@ -216,7 +218,7 @@
     ```
 
     若为非root用户：
-    用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，将1GB类型大页挂载到“/home/KNET\_USER/hugepages”目录下。
+    用户名以KNET_USER为占位符进行示例，用户组名以KNET_USER_GROUP为占位符进行示例，运行时请将其替换为实际用户名和用户组名，如果创建普通用户时未指定属组，KNET_USER和KNET_USER_GROUP是同名的，将1GB类型大页挂载到“/home/KNET_USER/hugepages”目录下。
     > [!NOTICE]须知
     >为避免业务冲突，请用户执行此步骤将大页挂载到K-NET业务大页路径，否则会导致大页挂载到默认的大页路径/dev/hugepages。
 
@@ -234,7 +236,7 @@
 
     回显示例如下，表示成功使能1GB大页：
 
-    ```ColdFusion
+    ```output
     cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
     hugetlbfs on /dev/hugepages type hugetlbfs (rw,relatime,pagesize=2M)
     hugetlbfs on /home/KNET_USER/hugepages type hugetlbfs (rw,relatime,pagesize=1024M)
@@ -318,7 +320,7 @@
         ip link set dev enp6s0 down
         ```
 
-    2. 加载VFIO驱动。
+    2. 加载VFIO（Virtual Function I/O，虚拟功能输入输出）驱动。
 
         ```bash
         modprobe vfio enable_unsafe_noiommu_mode=1
@@ -334,7 +336,7 @@
 
         回显如下，表示成功接管网卡：
 
-        ![接管网卡](../figures/zh-cn_image_0000002478201086.png)
+        ![DPDK通过vfio-pci接管网卡成功回显截图：展示Network devices using DPDK-compatible driver列表与BDF号绑定状态](../figures/zh-cn_image_0000002478201086.png)
 
         > [!NOTE]说明
         >如果想要取消DPDK接管网卡，执行：

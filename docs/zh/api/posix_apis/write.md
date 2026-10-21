@@ -1,14 +1,16 @@
 # write
 
+介绍K-NET的write接口，面向应用开发工程师。涵盖写入数据到指定文件描述符的功能、参数说明、返回值及错误码，并说明发送端TCP优雅断链相关行为。适用于业务数据发送场景。
+
 ## 接口名称
 
-**write(int fd, const void \*buf, size\_t count\)**
+**write(int fd, const void \*buf, size_t count)**
 
 ## 接口描述
 
 写入数据到指定文件描述符。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >K-NET用户态TCP/IP协议栈数据发送端支持TCP协议优雅断链，当对端异常关闭时，发送端需要借用TCP重传超时机制/保活机制断链。
 
 ## 参数说明
@@ -21,7 +23,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 非负数：实际写入的数据长度，表示成功
 - -1：表示失败，并设置errno以指示错误类型
@@ -40,5 +42,5 @@
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|入参count大于SSIZE_MAX。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
-|EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
+|EINVAL|共线程部署模式时，socket描述符的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
 |ENOMEM|内存申请失败。|

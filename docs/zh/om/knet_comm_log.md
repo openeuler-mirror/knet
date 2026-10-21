@@ -1,5 +1,7 @@
 # 日志工具knet_comm.log
 
+介绍K-NET日志工具knet_comm.log的功能与使用方法，涵盖日志查看方式与命令参数说明、使用示例，以及日志级别配置和rsyslog服务异常时的检查与恢复方法。阅读本指南后，您将能借助日志记录快速定位K-NET运行问题。
+
 ## 工具功能
 
 记录K-NET运行期间程序行为，提供错误跟踪、告警记录等基础功能。当K-NET出现异常时，用户能借助日志记录快速定位问题。
@@ -32,7 +34,7 @@ tail <option> /var/log/knet/knet_comm.log
 
 ## 使用示例
 
-- 通过vim命令回溯查看knet\_comm.log
+- 通过vim命令回溯查看knet_comm.log
 
     ```bash
     vim /var/log/knet/knet_comm.log
@@ -46,7 +48,7 @@ tail <option> /var/log/knet/knet_comm.log
 
 ## 日志管理
 
-日志记录于/var/log/knet/knet\_comm.log当中，根据/etc/knet/knet\_comm.conf配置中log\_level配置输出相应级别日志，可选级别包括ERROR、WARNING、INFO、DEBUG。日志仅会输出小于等于设置的级别。例如设置WARNING级别，仅会记录ERROR和WARNING级别日志。
+日志记录于/var/log/knet/knet_comm.log当中，根据/etc/knet/knet_comm.conf配置中log_level配置输出相应级别日志，可选级别包括ERROR、WARNING、INFO、DEBUG。日志仅会输出小于等于设置的级别。例如设置WARNING级别，仅会记录ERROR和WARNING级别日志。
 
 1. 检查系统日志健康状态。
 
@@ -56,7 +58,7 @@ tail <option> /var/log/knet/knet_comm.log
 
     示例显示如下：
 
-    ```ColdFusion
+    ```output
     rsyslog.service - System Logging Service
          Loaded: loaded (/usr/lib/systemd/system/rsyslog.service; enabled; vendor preset: enabled)
          Active: active (running) since Mon 2024-11-25 17:24:56 CST; 4h 56min ago

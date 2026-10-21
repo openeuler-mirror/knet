@@ -1,5 +1,7 @@
 # 零拷贝功能
 
+本文档介绍零拷贝功能。零拷贝功能通过减少数据在内核态与用户态间的拷贝提升传输性能，适用于对大报文或高吞吐场景有性能优化需求的业务开发与运维人员。
+
 ## 功能描述
 
 提供零拷贝定制接口，支持用户调用零拷贝接口，避免应用于用户态协议栈之间的内存拷贝，显著降低CPU开销与内存带宽消耗。
@@ -46,7 +48,7 @@
     knet_zwritev(sockfd, &iov, 1);    // 发送成功，对端可以收到正确的数据报文
     ```
 
-    业务应自定义合理的iov的释放回调，或使用knet\_mp\_free来作为iov的free\_cb，否则会导致内存泄漏，甚至是段错误。
+    业务应自定义合理的iov的释放回调，或使用knet_mp_free来作为iov的free_cb，否则会导致内存泄漏，甚至是段错误。
 
     ```c
     // 错误场景一：调用knet_zwritev时，free_cb指向非法的地址
@@ -80,7 +82,7 @@
     knet_zreadv(sockfd, &iov, 1);   // 读取成功，knet_zreadv接口填充iov的各个字段
     uint8_t *data = (uint8_t *)iov.iov_base;
     for (size_t i = 0; i < iov.iov_len + 1000; i++) {     // 读越界，可能导致读取错误数据或者出现段错误！
-        printf("%02X ", iov[i]);
+        printf("%02X ", data[i]);
         if ((i + 1) % 16 == 0) {
             printf("\n");
         }
@@ -97,7 +99,7 @@
 >零拷贝功能指K-NET提供特殊的读写接口，使用零拷贝的读写接口可以消除用户缓冲区到mbuf间的内存拷贝，以提高读写的性能。
 >具有如下约束：
 >
->- 业务使用K-NET零拷贝接口，需保证配置项“zcopy_enable”为1，即已使能。
+>- 业务使用K-NET零拷贝接口，需保证配置项`zcopy_enable`为1，即已使能。
 >- 业务使用零拷贝写接口时的iov_len不得超过配置项“zcopy_sge_len”的值，该配置项建议设置为希望发送的最大iov_len的值。
 >- 业务单次调用零拷贝写接口写入的数据总长度不得大于“def_sendbuf”的值。
 >- “zcopy_sge_num”推荐按照[用户态TCP/IP协议栈配置项](../configuration_reference_items.md#用户态tcpip协议栈配置项)中的zcopy_sge_num的计算公式配置。
@@ -105,7 +107,7 @@
 >- 业务使用零拷贝写接口时，应该调用写缓冲区申请接口knet_mp_alloc来申请写缓冲区。
 >- 零拷贝写接口的发送操作具有原子性，要么全部发送成功，要么全部发送失败。
 >- 通过设置socket fd的属性可以设置零拷贝接口的阻塞模式和非阻塞模式。零拷贝读接口支持阻塞模式和非阻塞模式，零拷贝写接口仅支持非阻塞模式。
->- 为保证零拷贝接口性能正常，建议开启配置中的tso和lro选项。
+>- 为保证零拷贝接口性能正常，建议开启配置中的tso（TCP Segmentation Offload，TCP分段卸载）选项和lro（Large Receive Offload，大接受分段卸载）选项。
 
 1. 业务适配<term>K-NET</term>零拷贝接口。
     - 以下为业务使用K-NET零拷贝读接口的伪代码。
@@ -191,12 +193,12 @@
         
         // 调用用户自建内存池的申请函数申请写缓冲区，free_cb和opaque设置为合理的内容，用于将写缓冲区释放回用户自定义的内存池中
         int cnt;
-        for(cnt = 0; i < iovcnt; ++cnt) {
-            iov[i].iov_base = MempoolGet(poolId, iovlen);    // 用户自定义内存池的get函数
-            assert(iov[i].iov_base != NULL);
-            iov[i].iov_len = iovlen;
-            iov[i].free_cb = FreeCb;     // 用户自定义释放回调
-            iov[i].opaque = poolId;      // 释放回调所需的自定义参数
+        for(cnt = 0; cnt < iovcnt; ++cnt) {
+            iov[cnt].iov_base = MempoolGet(poolId, iovlen);    // 用户自定义内存池的get函数
+            assert(iov[cnt].iov_base != NULL);
+            iov[cnt].iov_len = iovlen;
+            iov[cnt].free_cb = FreeCb;     // 用户自定义释放回调
+            iov[cnt].opaque = poolId;      // 释放回调所需的自定义参数
         }
         
         // 往写缓冲区中填充数据
@@ -208,7 +210,7 @@
         ssize_t ret = knet_zwritev(sockfd, iov, cnt);
         if (ret <= 0) {
             // 写接口返回值小于等于零表示失败，进行错误处理，需手动调用iov的free_cb来保证写缓冲区的正常释放
-            for(int i = 0; i< iovcnt; ++i) {
+            for(int i = 0; i < cnt; ++i) {
                 if (iov[i].free_cb != NULL) {
                     iov[i].free_cb(iov[i].iov_base, iov[i].opaque);
                 }
@@ -222,7 +224,7 @@
     1. 添加编译选项：指定头文件搜索路径与链接的库名称，以iPerf3为例。
        在Makefile.am文件中加入以下编译选项。
 
-        ```text
+        ```makefile
         libiperf_la_LIBADD = -lknet_frame
         AM_CPPFLAGS = -I/usr/include/knet
         ```
@@ -241,7 +243,7 @@
         vi /etc/knet/knet_comm.conf
         ```
 
-    将“zcopy_enable”设置为1，使能零拷贝；开启tso、lro选项，保证def_sendbuf的值大于单次发送的数据总长度，在本示例中大于65535 \* 1即可；确保“zcopy_sge_len”为写缓冲区iov的iov_len的最大值，本示例中配置为发送包长的大小，即65535；按照推荐公式计算“zcopy_sge_num”的值，本示例中低于最小值8192，故配置为8192，当发送包长很小时，此配置项需要比较大的配置。
+    将`zcopy_enable`设置为1，使能零拷贝；开启tso、lro选项，保证def_sendbuf的值大于单次发送的数据总长度，在本示例中大于65535 \* 1即可；确保`zcopy_sge_len`为写缓冲区iov的iov_len的最大值，本示例中配置为发送包长的大小，即65535；按照推荐公式计算`zcopy_sge_num`的值，本示例中低于最小值8192，故配置为8192，当发送包长很小时，此配置项需要比较大的配置。
 
         ```json
         {
