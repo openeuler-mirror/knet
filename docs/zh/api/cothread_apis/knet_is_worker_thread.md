@@ -1,8 +1,10 @@
-# knet\_is\_worker\_thread
+# knet_is_worker_thread
+
+介绍K-NET的knet_is_worker_thread接口，面向应用开发工程师。接口用于在共线程模式下确定当前线程是否为worker线程，涵盖参数说明及返回值。适用于共线程部署场景下的线程角色判断。
 
 ## 接口名称
 
-**knet\_is\_worker\_thread(void\)**
+**knet_is_worker_thread(void)**
 
 ## 接口描述
 

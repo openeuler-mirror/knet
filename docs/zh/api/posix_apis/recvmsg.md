@@ -1,8 +1,10 @@
 # recvmsg
 
+介绍K-NET的recvmsg接口，面向应用开发工程师。涵盖接收数据的功能、参数说明、返回值及错误码，并说明接收标志与消息结构的支持范围约束。适用于业务数据接收场景。
+
 ## 接口名称
 
-**recvmsg(int sockfd, struct msghdr \*msg, int flags\)**
+**recvmsg(int sockfd, struct msghdr \*msg, int flags)**
 
 ## 接口描述
 
@@ -18,7 +20,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 正数：实际接收的数据长度，表示成功
 
@@ -35,7 +37,7 @@
 |ENOTCONN|套接字未连接。|
 |EOPNOTSUPP|flags不支持，当前仅支持MSG_DONTWAIT、MSG_PEEK。|
 |EFAULT|入参接收缓冲区在用户的地址空间之外。|
-|EINVAL|入参msg结构体的iov_len或iov_len值之和大于SSIZE_MAX。|
+|EINVAL|入参msg结构体的msg_iovlen或msg_iovlen值之和大于SSIZE_MAX。|
 |EINTR|被信号中断。|
 |ELIBBAD|系统符号加载失败。|
 |EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|

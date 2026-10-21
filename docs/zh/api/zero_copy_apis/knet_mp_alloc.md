@@ -1,8 +1,8 @@
-# knet\_mp\_alloc
+# knet_mp_alloc
 
 ## 接口名称
 
-**knet\_mp\_alloc(size\_t size\)**
+**knet_mp_alloc(size_t size\)**
 
 ## 接口描述
 

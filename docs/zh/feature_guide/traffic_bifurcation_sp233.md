@@ -1,18 +1,20 @@
 # 网卡流量分叉功能（SP233网卡）
 
+本文档介绍SP233网卡流量分叉功能。SP233网卡在SP670基础上扩展了PF bar_size与适配能力。
+
 ## 功能描述
 
 提供流量分叉能力开关，通过流表进程流量分发，支持内核态与<term>K-NET</term>应用的同时使能。
 
 > [!NOTE]说明
 >
-> - SP233网卡流量分叉功能支持在Kylin-V10-SP3-2403-release系统上使用。
-> - SP233网卡支持流量分叉功能，通过hinicadm5工具将队列分组，每组队列数为最大支持的队列数减去工具分配给用户态的队列数，至多创建8个分组。
-> - 开启流量分叉时，支持使用SP233 Bond全卸载功能。
-> - 业务IP配置约束：非Bond卸载场景下，业务IP（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond全卸载场景下，在指定物理端口创建卸载bond后，这些端口对应的function共享端口在Bond模式的能力（模式4下，流量会对每个port负载均衡）。网卡各function仍保持独立使用，仅其出端口的转发模式发生变化。
-> - 流表规格为单Function最大1024条，ARP流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
+>- SP233网卡流量分叉功能支持在Kylin-V10-SP3-2403-release系统上使用。
+>- SP233网卡支持流量分叉功能，通过hinicadm5工具将队列分组，每组队列数为最大支持的队列数减去工具分配给用户态的队列数，至多创建8个分组。
+>- 开启流量分叉时，支持使用SP233 Bond全卸载功能。
+>- 业务IP配置约束：非Bond卸载场景下，业务IP（配置于 `/etc/knet/knet_comm.conf` 的 `interface->ip` 字段）必须绑定至K-NET使用的网卡（配置于同文件的 `interface->bdf_nums` 字段对应的网口）；Bond全卸载场景下，在指定物理端口创建卸载bond后，这些端口对应的function共享端口在Bond模式的能力（模式4下，流量会对每个port负载均衡）。网卡各function仍保持独立使用，仅其出端口的转发模式发生变化。
+>- 流表规格为单Function最大1024条，ARP（Address Resolution Protocol，地址解析协议）流表会占用3个表项，用户规划流表容量时需考虑ARP表项的占用。
 
-流量分叉能使DPDK无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
+流量分叉能使DPDK（Data Plane Development Kit，数据平面开发套件）无需接管网卡即可使用K-NET网络加速特性。使用前需使能网卡的流量分叉功能和K-NET流量分叉配置。
 
 ## 前提条件
 
@@ -38,7 +40,7 @@
 
     回显中“Card”字段显示的即为网卡名称，示例如下：
 
-    ```text
+    ```output
     Card num:1
     Device Information:
         Card        PCIe Function
@@ -53,7 +55,7 @@
     >- enp1s0f0与enp1s0f1为hinic0网卡的两个网口。
 
 2. （服务端）启用网卡流量分叉功能。
-    SP233配置流量分叉时需要将网卡down掉，先修改内核态队列个数，保证有队列预留给用户态，执行ethtool -L相关命令进行修改；使用hinicadm5  traffic_bifur设置用户态队列个数和查询用户态队列信息。配置完成后，需要将网卡up起来。
+    SP233配置流量分叉时需要将网卡down掉，先修改内核态队列个数，保证有队列预留给用户态，执行`ethtool -L`相关命令进行修改；使用`hinicadm5  traffic_bifur`设置用户态队列个数和查询用户态队列信息。配置完成后，需要将网卡up起来。
 
     ```bash
     ip link set dev enp1s0f0 down
@@ -63,11 +65,11 @@
     ```
 
     > [!NOTE]说明
-    >- enp1s0f0：使用的网口，根据实际情况替换，下同。
+    > enp1s0f0：使用的网口，根据实际情况替换，下同。
 
     有以下回显则代表设置成功。
 
-    ```text
+    ```output
     Set qpooling group success, group is 2
     ```
 
@@ -104,7 +106,7 @@
     > [!NOTE]说明
     > bind的地址为服务端配置文件中配置的业务IP地址。
 
-    ![启动回显](../figures/zh-cn_image_0000002477733316.png)
+    ![流量分叉基础功能回显图](../figures/zh-cn_image_0000002477733316.png)
 
 5. （服务端）启动内核态iPerf3（另开一个终端）。
 
@@ -124,13 +126,13 @@
 
     K-NET和内核态iPerf3均会收到流量。
 
-    ![打流测试](../figures/zh-cn_image_0000002509653267.png)
+    ![流量分叉基础功能打流回显图](../figures/zh-cn_image_0000002509653267.png)
 
 7. 测试完成后，在服务端使用`Ctrl+C`退出所有iPerf3进程。
 
 ### 流量分叉支持Bond卸载
 
-流量分叉场景支持网卡Bond卸载功能。Bond全卸载配置请参考[《SP230 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100575890/7e4bd2d6)中“hinicadm5管理工具命令参考/NIC命令/bond”章节。Bond卸载功能仅支持LACP动态协商聚合（IEEE 802.3ad Dynamic link aggregation）和Bond mode 4。K-NET不支持Bond mode 1的bond卸载，由于Bond机制问题无法从K-NET软件侧拦截，请勿配置为Bond mode 1。
+流量分叉场景支持网卡Bond卸载功能。Bond全卸载配置请参考[《SP230 标准网卡 用户指南》](https://support.huawei.com/enterprise/zh/doc/EDOC1100575890/7e4bd2d6)中“hinicadm5管理工具命令参考/NIC命令/bond”章节。Bond卸载功能仅支持LACP（Link Aggregation Control Protocol，链路聚合控制协议）动态协商聚合（IEEE 802.3ad Dynamic link aggregation）和Bond mode 4。K-NET不支持Bond mode 1的bond卸载，由于Bond机制问题无法从K-NET软件侧拦截，请勿配置为Bond mode 1。
 
 （服务端和客户端）配置Bond：
 
@@ -162,7 +164,7 @@ lacp timeout fast #启用lacp超时时间为fast
 commit #保存配置
 ```
 
-> [!NOTE]说明  
+> [!NOTE]说明
 > 服务端和客户端的bond配置需添加lacp_rate fast，交换机的trunk口配置需添加lacp timeout fast，以实现网口故障快速切换。
 
 1. （服务端）启用网卡流量分叉功能。
@@ -210,6 +212,6 @@ commit #保存配置
     iperf3 -c 192.168.*.* -t 10 -p 10001 -b 0 -l 64 -P 1
     ```
 
-    ![打流测试](../figures/zh-cn_image_0000002477573338.png)
+    ![流量分叉支持Bond卸载的打流回显图](../figures/zh-cn_image_0000002477573338.png)
 
 5. 测试完成后，在服务端使用`Ctrl+C`退出iPerf3进程。

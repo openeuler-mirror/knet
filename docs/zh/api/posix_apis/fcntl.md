@@ -1,8 +1,10 @@
 # fcntl
 
+介绍K-NET的fcntl接口，面向应用开发工程师。涵盖文件控制功能、参数说明、返回值及错误码，并说明支持的控制命令与标志范围约束。适用于对socket描述符进行属性控制的场景。
+
 ## 接口名称
 
-**fcntl(int fd, int cmd, ...\)**
+**fcntl(int fd, int cmd, ...)**
 
 ## 接口描述
 
@@ -30,4 +32,4 @@
 |EINVAL|入参arg大于INT32_MAX或小于0|
 |EINVAL|入参cmd不支持，当前仅支持F_GETFL、F_SETFL、F_GETFD和F_SETFD。|
 |ELIBBAD|系统符号加载失败。|
-|EINVAL|套接字存在，但是套接字对应的数据结构存在异常。|
+|EINVAL|socket存在，但是socket对应的数据结构存在异常。|

@@ -16,7 +16,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
     display qos queue statistics interface interface-type interface-number
     ```
 
-    > [!NOTE]说明  
+    > [!NOTE]说明
     >- interface-type表示接口的类型。
     >- interface-number表示接口的编号。
 
@@ -53,7 +53,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
 
     回显示例如下：
 
-    ![](../figures/zh-cn_image_0000002486509776.png)
+    ![交换机丢包统计信息查询回显示例，展示Dropped与Drop Rate字段取值用于判断交换机是否丢包](../figures/zh-cn_image_0000002486509776.png)
 
     “Dropped(Packet/Byte)”与“Drop Rate(pps/bps)”不为0，表示交换机已经丢包。
 
@@ -75,7 +75,7 @@ K-NET加速应用，TCP单连接性能波动、不稳定。
     display qos buffer-usage interface 100GE 1/0/1
     ```
 
-    ```ColdFusion
+    ```output
     Total         : 105102 cells (26275 KBytes)
     Current used  : 0 cells (0 KBytes)
     Remained      : 105102 cells (26275 KBytes)

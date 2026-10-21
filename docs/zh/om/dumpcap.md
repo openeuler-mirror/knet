@@ -1,9 +1,11 @@
 # 抓包工具dumpcap
 
+本文档介绍K-NET保留的抓包工具dumpcap，包括工具的保留原因、授权使用场景与安全说明，适用于需要使用该工具抓取业务数据包进行网络故障定位于性能分析的运维人员。
+
 > [!NOTE]说明
 >
 >- 请用户先参见[安装抓包工具](../installation/installation.md#可选安装抓包工具)后再参考本章节进行使用。
->- K-NET使用的DPDK版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
+>- K-NET使用的DPDK（Data Plane Development Kit，数据平面开发套件）版本必须与抓包依赖的DPDK版本保持一致。当前仅支持21.11.7版本，该程序会随版本变更，需确保在正确版本下使用抓包工具。
 >- SP670网卡用户抓包时需要使用**LD_PRELOAD=/usr/lib64/librte_net_hinic3.so**。
 
 ## 抓包工具保留说明
@@ -12,15 +14,15 @@
 
 K-NET保留抓包工具`dumpcap`的主要原因是为了支持网络故障诊断和性能分析：
 
-- **网络故障定位**：当业务出现网络连接问题、数据包丢失、建链失败等异常情况时，抓包工具可以帮助运维人员捕获并分析网络流量，快速定位问题根因。
-- **性能分析**：通过分析捕获的数据包，可以评估网络延迟、吞吐量、协议效率等性能指标，为性能优化提供数据支撑。
+- 网络故障定位：当业务出现网络连接问题、数据包丢失、建链失败等异常情况时，抓包工具可以帮助运维人员捕获并分析网络流量，快速定位问题根因。
+- 性能分析：通过分析捕获的数据包，可以评估网络延迟、吞吐量、协议效率等性能指标，为性能优化提供数据支撑。
 
 ### 使用场景
 
 抓包工具仅限以下授权场景使用：
 
-- **问题排查阶段**：在明确的网络故障或性能问题发生时，由运维人员使用。
-- **测试验证阶段**：在测试环境中进行功能验证、性能测试或兼容性测试。
+- 问题排查阶段：在明确的网络故障或性能问题发生时，由运维人员使用。
+- 测试验证阶段：在测试环境中进行功能验证、性能测试或兼容性测试。
 
 ### 安全风险
 
@@ -29,7 +31,7 @@ K-NET保留抓包工具`dumpcap`的主要原因是为了支持网络故障诊断
 ## 命令格式
 
 ```shell
-LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port>] [-c <packet_num_>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>_][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
+LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port>] [-c <packet_num>] [-f "<filter expression>"] [-w <file_name>] [-a <stop_condition>][-g] [-n] [-q] [-v] [-d] [-s] [-p] [-P]
 ```
 
 ## 参数说明
@@ -67,24 +69,33 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port
 - 进入“dpdk-stable-21.11.7/app/dumpcap”目录再使用抓包定位K-NET劫持的业务。
 
     ```bash
-    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 使用默认DPDK接管网口，抓取K-NET业务数据包，写入/home/KNET_USER用户目录下，文件名为tx.pcap
-    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap -f "host 192.168.1.11 && port 6380" # 使用默认DPDK接管网口，在以上条件基础上新增host和port过滤条件, 192.168.1.11为抓包想要过滤的主机IP地址，6380为想要过滤主机的端口
+    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap
+    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap -f "host 192.168.1.11 && port 6380" 
     ```
 
-- 如果dumpcap被意外终止，例如被执行**pkill -9 dumpcap**或**pkill dumpcap**命令。为了恢复使用，请启动-关闭-重启dumpcap，以恢复抓包定位能力。
+    > [!NOTE] 说明
+    >
+    >- LD_PRELOAD=/usr/lib64/librte_net_hinic3.so：使用默认DPDK接管网口。
+    >- -w /home/KNET_USER/tx.pcap：抓取的业务数据包写入/home/KNET_USER用户目录下，文件名为tx.pcap。
+    >- -f "host 192.168.1.11 && port 6380"：在以上条件基础上新增host和port过滤条件，192.168.1.11为抓包想要过滤的主机IP地址，6380为想要过滤主机的端口
+
+- 如果dumpcap被意外终止，例如被执行`pkill -9 dumpcap`或`pkill dumpcap`命令。为了恢复使用，请启动-关闭-重启dumpcap，以恢复抓包定位能力。
 
     以下是意外终止并恢复模拟：
 
-    ```bash
-    pkill -9 dumpcap
-    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 第一次启动
-    ```
+    1. 第一次启动
 
-    “Ctrl+C”正常退出：
+        ```bash
+        pkill -9 dumpcap
+        LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap
+        ```
 
-    ```bash
-    LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap # 重启后恢复
-    ```
+    2. 按“Ctrl+C”正常退出。
+    3. 重启后恢复。
+        
+        ```bash
+        LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/KNET_USER/tx.pcap
+        ```
 
 ### 获取网络包
 
@@ -96,11 +107,11 @@ LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap [-D] [-h] [-i <pci_bdf_port
     LD_PRELOAD=/usr/lib64/librte_net_hinic3.so ./dumpcap -w /home/<username>/tx.pcap
     ```
 
-2. 抓包完成后，“Ctrl + C”结束，在/home/**_<username\>_**/下生成tx.pcap。
+2. 抓包完成后，“Ctrl+C”结束，在/home/**<username\>**/下生成tx.pcap。
 3. 可使用`tcpdump -r /home/<username>/tx.pcap -v`查看抓包文件或使用Wireshark打开查看。
 4. 使用`tcpdump -r /home/<username>/tx.pcap`读取数据包，查看数据包详情，操作示例如下：
 
-    ![](../figures/zh-cn_image_0000002535828395.png)
+    ![tcpdump命令读取抓包文件的数据包详情回显示例，展示ARP请求与回应等建链包内容](../figures/zh-cn_image_0000002535828395.png)
 
-    - 正常情况应该有ARP建链包，如上图存在ARP请求和回应。
+    - 正常情况应该有ARP（Address Resolution Protocol，地址解析协议）建链包，如上图存在ARP请求和回应。
     - 若存在无法建链、丢包、无法接收数据包等异常情况，请先在ping场景下抓包测试，确保网络链路正常，进一步再通过数据包细节排查。

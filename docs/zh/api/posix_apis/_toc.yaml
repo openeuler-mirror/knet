@@ -73,8 +73,6 @@ sections:
     href: ./signal.md
   - label: socket
     href: ./socket.md
-  - label: socket选项
-    href: ./socket_opt.md
   - label: write
     href: ./write.md
   - label: writev

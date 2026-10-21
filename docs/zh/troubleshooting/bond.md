@@ -1,12 +1,12 @@
 # Bond故障
 
-## Bond场景下启动业务失败，日志报错“ BondPort 2 wait slaves activate failed”
+## Bond场景下启动业务失败，日志报错“BondPort 2 wait slaves activate failed”
 
 ### 现象描述
 
-Bond场景下启动业务失败，日志可以看到“ BondPort 2 wait slaves activate failed”。
+Bond场景下启动业务失败，日志可以看到“BondPort 2 wait slaves activate failed”。
 
-![](../figures/zh-cn_image_0000002535828403.png)
+![Bond场景启动业务失败的日志报错截图，展示BondPort 2 wait slaves activate failed错误信息特征](../figures/zh-cn_image_0000002535828403.png)
 
 ### 原因
 
@@ -20,7 +20,7 @@ Bond场景下启动业务失败，日志可以看到“ BondPort 2 wait slaves a
 ethtool enp125s0f0  # 网口名根据用户具体使用的网口进行修改
 ```
 
-![](../figures/zh-cn_image_0000002504028422.png)
+![Bond故障排查中网口状态检测命令回显，展示网口链路不通的状态信息用于判断组网问题](../figures/zh-cn_image_0000002504028422.png)
 
 以上回显说明网口链路不通，需要先解决组网问题。
 

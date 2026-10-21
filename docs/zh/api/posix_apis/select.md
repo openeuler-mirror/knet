@@ -1,14 +1,16 @@
 # select
 
+介绍K-NET的select接口，面向应用开发工程师。涵盖接口功能、参数说明、返回值及错误码，并说明轮询侦听特性，适用于文件描述符读写及异常事件侦听的开发场景。
+
 ## 接口名称
 
-**select(int nfds, fd\_set \*readfds, fd\_set \*writefds, fd\_set \*exceptfds, struct timeval \*timeout\)**
+**select(int nfds, fd_set \*readfds, fd_set \*writefds, fd_set \*exceptfds, struct timeval \*timeout)**
 
 ## 接口描述
 
 一段指定时间内，侦听用户感兴趣的文件描述符的可读、可写和异常事件。
 
-> [!NOTE]说明  
+> [!NOTE]说明
 >只支持轮询侦听。调用select期间，select会占用100%的CPU。
 
 ## 参数说明
@@ -25,9 +27,9 @@
 
 类型：int
 
-- 正数：就绪的文件描述符的个数，表示成功
-- 0：表示在达到超时之前，没有准备好的文件描述符
-- -1：表示失败，并设置errno以指示错误类型
+- 正数：就绪的文件描述符的个数，表示成功。
+- 0：表示在达到超时之前，没有准备好的文件描述符。
+- -1：表示失败，并设置errno以指示错误类型。
 
 ## 错误码
 

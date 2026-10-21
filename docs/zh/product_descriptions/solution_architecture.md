@@ -1,11 +1,13 @@
 # 方案架构
 
+介绍K-NET网络加速套件的方案架构，包括面向通用协议加速、网络安全加速等业务场景的定位，以及通信协议加速子系统由框架层、用户态TCP/IP协议栈、硬件加速层组成的分层结构，并简述运维管理与硬件平台信息。适用于了解K-NET整体架构与核心组成的用户。
+
 ## 架构描述
 
 <term>K-NET</term>网络加速套件，主要面向通用协议加速、网络安全加速业务场景，同时也面向通用计算业务、安全通信业务，基于SP670/SP233网卡，提供用户态TCP/IP协议栈加速。
 网络安全加速详情介绍和使用请参见[https://atomgit.com/src-openeuler/strongswan](https://atomgit.com/src-openeuler/strongswan)。
 
-![](../figures/knetall.png)
+![K-NET网络加速套件整体架构图，展示基于SP670网卡的用户态TCP/IP协议栈加速方案及通用协议加速、网络安全加速等业务场景](../figures/knetall.png)
 
 TM280相关内容请参见[历史版本](https://gitcode.com/openeuler/knet/blob/docs_archive_260330/docs/zh/product_descriptions/solution_architecture.md)。
 
@@ -13,15 +15,15 @@ TM280相关内容请参见[历史版本](https://gitcode.com/openeuler/knet/blob
 
 K-NET通信协议加速子系统中包含框架层、用户态TCP/IP协议栈、硬件加速层。
 
-- 框架层：提供标准的POSIX API接口，可以直接对业务标准的POSIX Socket接口重定向，替换为协议栈Socket接口；同时提供扩展socket接口，通过使用诸如零拷贝的扩展socket接口，可以得到更优性能。
+- 框架层：提供标准的POSIX（Portable Operation System Interface，可移植操作系统接口）API接口，可以直接对业务标准的POSIX Socket接口重定向，替换为协议栈Socket接口；同时提供扩展socket接口，通过使用诸如零拷贝的扩展socket接口，可以得到更优性能。
 - 用户态TCP/IP协议：用户态协议栈加速核心，提供标准TCP/IP协议能力，将原生内核态协议栈切到用户态协议栈进行加速。
 - 硬件加速层：提供高性能的报文转发能力，含控制面和数据面；结合鲲鹏SP670/SP233释放网卡硬件能力。
 
-![](../figures/om_arch.png)
+![K-NET通信协议加速子系统架构图，展示框架层、用户态TCP/IP协议栈、硬件加速层三层结构与各层职责关系](../figures/om_arch.png)
 
 其中用户态TCP/IP协议栈结构如下：
 
-![](../figures/IP.png)
+![K-NET用户态TCP/IP协议栈内部结构图，展示协议栈各模块组成与层次关系](../figures/IP.png)
 
 ## 运维管理
 

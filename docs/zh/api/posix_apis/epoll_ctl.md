@@ -1,8 +1,10 @@
-# epoll\_ctl
+# epoll_ctl
+
+介绍K-NET的epoll_ctl接口，面向应用开发工程师。涵盖给epoll文件描述符配置事件信息的功能、参数说明、返回值及错误码，并说明支持的操作与事件类型约束。适用于事件注册与管理场景。
 
 ## 接口名称
 
-**epoll\_ctl(int epfd, int op, int fd, struct epoll\_event \*event)**
+**epoll_ctl(int epfd, int op, int fd, struct epoll_event \*event)**
 
 ## 接口描述
 
@@ -29,7 +31,7 @@
 |错误码|定义|
 |--|--|
 |EINVAL|入参event无效。|
-|EINVAL|共线程部署模式时，sockfd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
+|EINVAL|共线程部署模式时，fd的worker id和当前线程的worker id不一致，即socket跨worker线程调用。|
 |EEXIST|入参op为EPOLL_CTL_ADD时，该fd已经在epoll侦听列表中。|
 |EINVAL|入参epfd不是epoll描述符，或者入参fd与epfd相同，或者入参op不在支持范围内。|
 |ENOENT|op是EPOLL_CTL_MOD或者EPOLL_CTL_DEL时，fd没有注册epoll。|

@@ -8,3 +8,5 @@
   - [抓包工具dumpcap](./dumpcap.md)
   - [配置文件合并脚本merge_conf.sh](./merge_conf.md)
   - [运维信息收集脚本collect.sh](./collect.md)
+- [缩略语](./abbreviations.md)
+- [修订记录](./change_history.md)

@@ -1,8 +1,10 @@
-# epoll\_wait
+# epoll_wait
+
+介绍K-NET的epoll_wait接口，面向应用开发工程师。接口用于在epoll文件描述符上等待I/O事件，涵盖参数说明、返回值及错误码。适用于业务开发中事件监听与多路复用处理的场景。
 
 ## 接口名称
 
-**epoll\_wait(int epfd, struct epoll\_event \*events, int maxevents, int timeout\)**
+**epoll_wait(int epfd, struct epoll_event \*events, int maxevents, int timeout)**
 
 ## 接口描述
 

@@ -1,8 +1,10 @@
 # recv
 
+介绍K-NET的recv接口，面向应用开发工程师。涵盖接收数据的功能、参数说明、返回值及错误码，适用于通过套接字接收数据的开发场景。
+
 ## 接口名称
 
-**recv(int sockfd, void \*buf, size\_t len, int flags\)**
+**recv(int sockfd, void \*buf, size_t len, int flags\)**
 
 ## 接口描述
 
@@ -19,7 +21,7 @@
 
 ## 返回值
 
-类型：ssize\_t
+类型：ssize_t
 
 - 正数：实际接收的数据长度，表示成功
 - -1：表示失败，并设置errno以指示错误类型

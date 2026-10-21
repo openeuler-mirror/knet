@@ -1,5 +1,7 @@
 # 特性支持
 
+本文档介绍K-NET特性支持矩阵。涵盖单进程/多进程加速、流量分叉、零拷贝、共线程、用户态网卡Bond、内核流量转发、本地流量环回等所有特性的支持范围与配套关系。
+
 |序号|特性|描述|支持网卡和OS|支持软件|
 |--|--|--|--|--|
 |1|[单进程加速功能](./single_process_model_acceleration.md)|提供高性能用户态协议栈处理能力，支持针对单进程业务场景进行网络加速。|SP670：openEuler 22.03 LTS SP4 ARM、 CTyunos-2.0.1-220311-aarch64、 openEuler 24.03 LTS SP3 ARM、 openEuler 22.03 LTS SP1 X86 <br>SP233：Kylin-Sever-V10-SP3-2403-Release|Redis 6.0.20|

@@ -4,9 +4,9 @@
 
 ### 现象描述
 
-启动业务进程失败，knet\_comm.log有如下日志输出：
+启动业务进程失败，knet_comm.log有如下日志输出：
 
-```ColdFusion
+```output
 [ERR] K-NET port range [49152, 65024], which may conflict with Kernel local port range [1024, 49999]. Please modify knet_comm.conf or Kernel port range.
 ```
 
@@ -24,7 +24,7 @@
     echo "1024 36180" > /proc/sys/net/ipv4/ip_local_port_range
     ```
 
-- 方案2：修改K-NET配置文件中"min\_port"与"max\_port"配置项，使其不与内核端口范围冲突。
+- 方案2：修改K-NET配置文件中`min_port`与`max_port`配置项，使其不与内核端口范围冲突。
 
 用户可以根据实际情况选择相应的方法，并再次启动业务即可。
 
@@ -71,14 +71,14 @@ taskset -c 32-63  iperf3 -c 192.168.*.* -b 0 -p 10000 -P 1 -t 0 -l 65535
 
 过一段时间后客户端回显错误信息：
 
-```ColdFusion
+```output
 iperf3: error - unable to connect to server - server may have stopped running or use a different port, firewall issue, etc.: Connection timed out
 ```
 
 ### 原因
 
-共线程业务线程的个数小于配置文件中"max\_worker\_num"，使得未使用全部队列，即创建了小于"max\_worker\_num"个数的共线程业务线程。因为共线程模式下仅能在共线程业务线程的队列上收发包，所以内核态的iPerf3应用打流随机散列到了不是worker线程的其他队列上，导致该队列的数据包无法处理，从而内核应用无法建链打流。
+共线程业务线程的个数小于配置文件中`max_worker_num`，使得未使用全部队列，即创建了小于`max_worker_num`个数的共线程业务线程。因为共线程模式下仅能在共线程业务线程的队列上收发包，所以内核态的iPerf3应用打流随机散列到了不是worker线程的其他队列上，导致该队列的数据包无法处理，从而内核应用无法建链打流。
 
 ### 处理步骤
 
-需要用户保证配置文件中"max\_worker\_num"与实际启用的worker线程数目强一致，即实际使用几个共线程业务线程，"max\_worker\_num"就设置为多少。避免实际使用线程数小于"max\_worker\_num"的情况。
+需要用户保证配置文件中`max_worker_num`与实际启用的共线程业务线程数强一致，即实际使用几个共线程业务线程，`max_worker_num`就设置为多少。避免实际使用线程数小于`max_worker_num`的情况。

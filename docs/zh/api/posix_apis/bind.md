@@ -1,19 +1,21 @@
 # bind
 
+介绍K-NET的bind接口，面向应用开发工程师。涵盖地址绑定功能说明、参数说明、返回值及错误码，并说明REUSEPORT行为、地址绑定结果等与Linux的差异。适用于需要为socket绑定本地地址的应用开发场景。
+
 ## 接口名称
 
-**bind(int sockfd, const struct sockaddr \*addr, socklen\_t addrlen\)**
+**bind(int sockfd, const struct sockaddr \*addr, socklen_t addrlen)**
 
 ## 接口描述
 
 给socket绑定地址信息。
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- 设置REUSEADDR后的行为与设置REUSEPORT一致，以下只描述REUSEPORT。
 >- socket绑定一个地址，未开启REUSEPORT选项，另外一个socket绑定重复地址，返回绑定失败。
 >- socket设置REUSEPORT后，允许多个socket绑定完全相同的IP和端口。
->- REUSEPORT不支持抢占TIME\_WAIT状态的连接地址，Linux支持。
+>- REUSEPORT不支持抢占TIME_WAIT状态的连接地址，Linux支持。
 >- socket设置绑定0.0.0.0和端口后，其它侦听socket不能够绑定到任何一个本地接口和相同端口，除非开启REUSEPORT。
 >- REUSEPORT不支持socket间的负载均衡，与Linux存在行为不一致。存在多个socket bind相同的地址和端口的socket时，TCP侦听场景不支持accept链接时候的负载均衡，只有1个socket可以收到新的连接，UDP场景不支持接收UDP报文场景的负载均衡，只有1个socket可以收到报文。
 >- 当端口为0时，协议栈分配随机端口，随机端口空间默认为[49152-65535]，可以通过预配置修改范围。

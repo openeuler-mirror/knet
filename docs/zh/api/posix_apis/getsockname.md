@@ -1,8 +1,10 @@
 # getsockname
 
+介绍K-NET的getsockname接口，用于获取socket连接地址信息。涵盖参数说明、返回值与错误码。适用于基于K-NET开发需查询套接字地址信息的应用场景。
+
 ## 接口名称
 
-**getsockname(int sockfd, struct sockaddr \*addr, socklen\_t \*addrlen\)**
+**getsockname(int sockfd, struct sockaddr \*addr, socklen_t \*addrlen)**
 
 ## 接口描述
 

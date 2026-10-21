@@ -1,5 +1,7 @@
 # 共线程功能
 
+本文档面向使用K-NET加速业务的开发人员，介绍共线程模式的功能定义与使用约束，并通过服务端/客户端伪代码示例指导完成适配、编译选项设置、knet_comm.conf配置修改及端口范围规划，使业务线程可直接驱动用户态协议栈。
+
 ## 功能说明
 
 提供共线程定制接口，支持在业务线程直接驱动协议栈，具有节省转发CPU核的优势。
@@ -16,14 +18,14 @@
 >共线程功能指K-NET用户态协议栈与业务在同一个线程中运行，并在此业务线程中进行数据包的收发、事件处理和数据读写。
 >具有如下约束：
 >
->- 业务需适配非阻塞socket接口，带有超时时间的接口（例如epoll\_wait）必须使接口立即返回，如果违反约束可能导致线程阻塞。
->- 业务编译的时候，建议优先链接-lknet\_frame，再链接其他库，如-lpthread、-lc。
->- 业务线程的绑核由业务控制，建议K-NET worker业务绑核要在调用knet\_worker\_init\(\)之前执行，且不与“ctrl\_vcpu\_ids”共核；共线程场景下，“core\_list\_global”配置不生效。
+>- 业务需适配非阻塞socket接口，带有超时时间的接口（例如epoll_wait）必须使接口立即返回，如果违反约束可能导致线程阻塞。
+>- 业务编译的时候，建议优先链接-lknet_frame，再链接其他库，如-lpthread、-lc。
+>- 业务线程的绑核由业务控制，建议K-NET worker业务绑核要在调用knet_worker_init()之前执行，且不与“ctrl_vcpu_ids”共核；共线程场景下，“core_list_global”配置不生效。
 >- K-NET worker业务线程之间不得共享与跨线程操作socket fd、epoll fd。
 >- 主动建链时，非K-NET的进程不得使用分配给K-NET使用的随机端口，即与K-NET端口区间不要交叉，配置方式见[步骤4](#step4)。
->- K-NET worker业务线程个数与配置项中的“max\_worker\_num”一致，超过“max\_worker\_num”部分线程执行knet\_worker\_init\(\)会失败。
+>- K-NET worker业务线程个数与配置项中的`max_worker_num`一致，超过`max_worker_num`部分线程执行knet_worker_init()会失败。
 >- 共线程场景下，如需使用非K-NET worker线程或进程，需要开启“bifur_enable”并设置为2使能内核流量转发，约束用户必须创建并初始化所有K-NET worker线程，并保证常驻运行，否则可能导致非K-NET worker线程或进程无法成功建链、打流，失败时可参考[共线程故障](../troubleshooting/cothread.md)。
->- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind\(\)，需要保证输入IP地址非0，为业务IP地址。
+>- 共线程场景下，开启流分叉“bifur_enable”设置为1，或者“max_worker_num”大于1时，启动业务时会下流表，此时bind()，需要保证输入IP地址非0，为业务IP地址。
 
 1. 业务适配<term>K-NET</term>共线程模式。
     - 以下为业务服务端使用共线程模式时的伪代码：
@@ -51,7 +53,7 @@
             int flags = fcntl(listen_fd, F_GETFL, 0);
             fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK);
         
-            bind(listen_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr);
+            bind(listen_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
             listen(listen_fd, 20);
             epfd = epoll_create1(0);
             struct epoll_event ev, events[MAX_EVENTS];
@@ -152,7 +154,7 @@
 
     - 总结
 
-        上述伪代码的核心在于：引入knet\_socket\_api.h头文件，在业务进程初始化中进行knet\_init\(\)，设置线程CPU亲和性，注意需与“ctrl\_vcpu\_ids”不同；在业务线程运行时，首先进行knet\_worker\_init\(\)初始化worker，并可以通过knet\_is\_worker\_thread\(\)判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet\_worker\_run\(\)一直被调用。
+        上述伪代码的核心在于：引入knet_socket_api.h头文件，在业务进程初始化中进行knet_init()，设置线程CPU亲和性，注意需与`ctrl_vcpu_ids`不同；在业务线程运行时，首先进行knet_worker_init()初始化worker，并可以通过knet_is_worker_thread()判断当前线程是否在用户态协议栈线程中；其次需要保证创建的socket fd均为非阻塞状态；再次需要保证knet_worker_run()一直被调用。
 
 2. 业务编译。
     - 添加编译选项：指定头文件搜索路径与链接的库名称：
@@ -168,7 +170,7 @@
         ldd test
         ```
 
-        ```ColdFusion
+        ```output
         linux-vdso.so.1 (0x0000ffff3ae80000)
         libknet_frame.so.2 => /lib64/libknet_frame.so.2 (0x0000ffff3ae10000)
         libpthread.so.0 => /lib64/libpthread.so.0 (0x0000ffff3add0000)
@@ -182,8 +184,7 @@
     vi /etc/knet/knet_comm.conf
     ```
 
-    ```text
-    #common配置项
+    ```json
         "common": {
             "cothread_enable": 1
         }
@@ -193,6 +194,12 @@
             ...
         }
     ```
+
+    > [!NOTE] 说明
+    >
+    >- cothread_enable：1表示开启共线程模式。
+    >- min_port：端口限制起始值为49152。
+    >- max_port：端口限制终止值为65535。
 
     开启共线程模式，确定端口范围。
 
@@ -205,7 +212,7 @@
 
         回显示例如下：
 
-        ```ColdFusion
+        ```output
         55535 65535
         ```
 

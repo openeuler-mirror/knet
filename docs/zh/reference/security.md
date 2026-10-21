@@ -1,5 +1,7 @@
 # 安全管理
 
+介绍K-NET的安全管理内容，涵盖防病毒例行检查、漏洞修复、日志管理与转储约束、Capability权限机制及SELinux（Security-Enhanced Linux，安全增强型Linux）配置方法。阅读本指南后，您将能落实K-NET运行所需的安全要求。
+
 ## 防病毒软件例行检查
 
 定期进行对集群的防病毒扫描，防病对软件例行检查会帮助集群免受病毒、恶意代码、间谍软件以及恶意程序侵害，减少系统瘫痪、信息泄露等安全风险。可以使用业界主流的防病毒软件进行防病毒检查。
@@ -9,7 +11,7 @@
 为了保证生产环境的安全，降低被供给的风险，请定期修复以下漏洞：
 
 - 操作系统漏洞
-- DPDK漏洞
+- DPDK（Data Plane Development Kit，数据平面开发套件）漏洞
 
 ## 安全配置基线
 
@@ -19,7 +21,7 @@
 
 ### 日志使用
 
-安装K-NET RPM包后，K-NET日志是通过rsyslog重定向输出到/var/log/knet/knet_comm.log中，由操作系统的rsyslog服务管理。其中K-NET日志重定向配置文件默认在/etc/rsyslog.d/knet_rsyslog/conf。
+安装K-NET的RPM包后，K-NET日志是通过rsyslog重定向输出到/var/log/knet/knet_comm.log中，由操作系统的rsyslog服务管理。其中K-NET日志重定向配置文件默认在/etc/rsyslog.d/knet_rsyslog.conf。
 
 日志查看方式如下：
 
@@ -31,13 +33,13 @@
 
   回显如下：
 
-  ```CodeFusion
+  ```output
   knet_comm.log.1.gz:         98.6%  --  replaced with knet_comm.log.1
   ```
 
   解压后文件名：
 
-  ```CodeFusion
+  ```output
   -r------- 1 root root 2097381 Mar 14 09:06 knet_comm.log.1
   ```
 
@@ -88,7 +90,7 @@
 
 为消减安全风险，根据最小权限原则，K-NET业务进程使用非root用户运行。但部分需要root用户权限的操作使用了Capability机制，具体使用的Capability如下：
 
-- CAP_DAC_OVERRIDE：忽略文件的DAC访问控制。初始化DPDK、DPDK大页内存申请和释放操作。
+- CAP_DAC_OVERRIDE：忽略文件的DAC（Discretionary Access Control，自主访问控制）。初始化DPDK、DPDK大页内存申请和释放操作。
 - CAP_DAC_READ_SEARCH：忽略文件读权限检查，忽略目录搜索权限，用于绕过文件访问控制权限，访问/proc/self/pagemaps。
 - CAP_IPC_LOCK：允许锁定共享内存片段，用于DPDK初始化的内存大页锁定操作。
 - CAP_SYS_ADMIN：允许执行系统管理任务，加载或卸载文件系统，设置磁盘等，用于DPDK初始化时读取/proc/self/pagemaps。
@@ -97,9 +99,7 @@
 - CAP_NET-RAW：允许硬件进行数据通信、通道初始化时，需要CAP_NET_RAW权限。
 
 安装时仅配置了“Permitted”，这些Capability不会随进程启动生效。仅在初始化和管理面操作时，业务进程会自动配置“Effective”，使用完成后会立即删除Effective配置。
-K-NET业务进程使用非root用户运行，由于redis-server设置了Capability，需要给libknet_frame.so设置set-user-id权限才能够使LD_PRELOAD生效。
-
-- set-user-id：ld.so要确保只有被系统明确允许、能够提升权限的动态库才能被preload。
+K-NET业务进程使用非root用户运行，由于redis-server设置了Capability，需要给libknet_frame.so设置set-user-id权限才能够使LD_PRELOAD生效。（set-user-id：ld.so要确保只有被系统明确允许、能够提升权限的动态库才能被preload。）
 
 当可执行程序被设置了Capability，Linux的安全特性要求，LD_PRELOAD环境变量使用需满足以下三个条件：
 
@@ -109,7 +109,7 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
 
 ## SELinux配置
 
-> [!NOTE]说明 
+> [!NOTE]说明
 >
 >- Linux系统默认开启的SELinux安全机制会显示K-NET部分功能，导致无法正常使用K-NET业务。这是Linux OS本身的行为。如果用户需在自己系统中使用SELinux，则需自行寻找解决方法。
 >- 针对此限制，提供快速禁用SELinux的方法。
@@ -131,9 +131,9 @@ K-NET业务进程使用非root用户运行，由于redis-server设置了Capabili
     sestatus
     ```
 
-    回显中的“SELinux Status”为“enabled”,"Current mode"变为“permissive”。
+    回显中的“SELinux Status”为“enabled”,“Current mode”变为“permissive”。
 
-    ```CodeFusion
+    ```output
     SELinux Status:       enabled  
     Current mode:         permissive
     ```

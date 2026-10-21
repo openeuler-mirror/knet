@@ -1,7 +1,7 @@
 isManual: true
 label: K-NET文档中心
 sections:
-  - label: Release Note
+  - label: 版本配套表
     href: ./release_note.md
   - label: 产品描述
     sections:
@@ -25,15 +25,13 @@ sections:
   - label: 附录
     sections:
       - href: ./reference/_toc.yaml
-  - label: Summary
-    href: ./desgin_docs_reference.md
   - label: API 接口
     href: ./api/api_menu.md
   - label: 共线程接口
     href: ./api/cothread_apis/cothread_api_menu.md
   - label: accept
     href: ./api/posix_apis/accept.md
-  - label: knet\_iovec
+  - label: knet_iovec
     href: ./api/zero_copy_apis/knet_iovec.md
   - label: accept4
     href: ./api/posix_apis/accept4.md
@@ -41,8 +39,6 @@ sections:
     href: ./api/cothread_apis/cothread_list.md
   - label: knet\_mp\_alloc
     href: ./api/zero_copy_apis/knet_mp_alloc.md
-  - label: 执行UT用例
-    href: ./dev_guide/ut_test.md
   - label: 共线程功能
     href: ./feature_guide/cothread.md
   - label: 运维信息收集脚本collect.sh
@@ -73,9 +69,9 @@ sections:
     href: ./reference/reference_menu.md
   - label: close
     href: ./api/posix_apis/close.md
-  - label: knet\_is\_worker\_thread
+  - label: knet_is_worker_thread
     href: ./api/cothread_apis/knet_is_worker_thread.md
-  - label: knet\_zreadv
+  - label: knet_zreadv
     href: ./api/zero_copy_apis/knet_zreadv.md
   - label: 特性指南
     href: ./feature_guide/feature_menu.md
@@ -95,3 +91,29 @@ sections:
     href: ./reference/security.md
   - label: 用户指南
     href: ./user_guide.md
+  - label: 缩略语
+    href: ./api/abbreviations.md
+  - label: 缩略语
+    href: ./installation/abbreviations.md
+  - label: 缩略语
+    href: ./om/abbreviations.md
+  - label: 缩略语
+    href: ./feature_guide/abbreviations.md
+  - label: 缩略语
+    href: ./product_descriptions/abbreviations.md
+  - label: 修订记录
+    href: ./api/change_history.md
+  - label: 修订记录
+    href: ./installation/change_history.md
+  - label: 修订记录
+    href: ./feature_guide/change_history.md
+  - label: 修订记录
+    href: ./om/change_history.md
+  - label: 修订记录
+    href: ./product_descriptions/change_history.md
+  - label: 缩略语
+    href: ./reference/abbreviations.md
+  - label: 修订记录
+    href: ./reference/change_history.md
+  - label: 缩略语
+    href: ./troubleshooting/abbreviations.md

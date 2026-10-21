@@ -1,5 +1,7 @@
 # read
 
+介绍K-NET的read接口，面向应用开发工程师。涵盖数据读取功能说明、参数说明、返回值及错误码。适用于从socket接收数据的应用开发场景。
+
 ## 接口名称
 
 **read(int fd, void *buf, size_t count)**
