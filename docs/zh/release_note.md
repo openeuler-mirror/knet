@@ -6,7 +6,7 @@ K-NET网络加速套件发布说明，包含产品版本信息、鲲鹏与x86环
 
 |  产品名称      |   软件名称   | 软件版本 | K-NET版本|
 |------------|-------------|-------------|-----|
-| Data Acceleration Kit | 网络加速套件（K-NET）   | [26.1.RC1](https://gitcode.com/openeuler/knet/tags/knet-26.1.rc1-0630)  |1.4.0|
+| Data Acceleration Kit | 网络加速套件（K-NET）   | [26.2.0](https://gitcode.com/openeuler/knet/tags/knet-26.2.0-1030)  |1.4.0|
 
 ## 版本配套关系
 
@@ -44,7 +44,7 @@ K-NET网络加速套件发布说明，包含产品版本信息、鲲鹏与x86环
 | iPerf3  | 3.16  |[iPerf3开源仓](https://github.com/esnet/iperf/releases/tag/3.16)|
 | SockPerf  | 3.10  |[SockPerf源码包下载](https://github.com/Mellanox/sockperf/archive/3c65ad99cd385e18f8a2a655c19826e81a4d17e8.zip)|
 | TPerf  | 1.0  |[TPerf源码包下载](https://github.com/bytedance/libtpa/archive/3c9f05df7b7c8ebc46bfebc83c316ec50f149e1c.zip)|
-| dpdk-hinic3 | hinic3-26.1.rc1-0630|[dpdk-hinic3开源仓](https://atomgit.com/openeuler/dpdk/tags/hinic3-26.1.rc1-0630.r1) |
+| dpdk-hinic3 | hinic3-26.2.0-1030.r1 |[dpdk-hinic3开源仓](https://gitcode.com/openeuler/dpdk/tags/hinic3-26.2.0-1030.r1) |
 
 ## K-NET 1.4.0
 
@@ -96,4 +96,4 @@ K-NET作为网络协议加速框架，北向提供统一的Socket API，南向�
 
 |发布版本| 发布日期   | 修订说明  |
 |------|------|-------|
-|  01    | 2026-09-30  | 第一次正式发布。|
+|  01    | 2026-10-30  | 第一次正式发布。|
