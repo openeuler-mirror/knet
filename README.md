@@ -3,7 +3,7 @@
 
 ## 最新消息
 
-- [2026-09-30]：新增Kylin-Server-V10-SP3-2403-Release版本与SP233网卡的支持；支持Socket同时被epoll/poll/select侦听。
+- [2026-10-30]：新增Kylin-Server-V10-SP3-2403-Release版本与SP233网卡的支持；支持Socket同时被epoll/poll/select侦听。
 - [2026-06-30]：K-NET新增支持DPDK 23.11.6版本。
 - [2026-03-30]：K-NET首次发布到openEuler社区。
 

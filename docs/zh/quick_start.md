@@ -620,4 +620,4 @@ Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加
 
 |发布版本| 发布日期   | 修订说明  |
 |------|------|-------|
-|  01    | 2026-09-30  | 第一次正式发布。|
+|  01    | 2026-10-30  | 第一次正式发布。|
