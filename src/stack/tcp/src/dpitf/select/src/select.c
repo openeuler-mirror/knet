@@ -304,18 +304,18 @@ static int EnableNotify(int fd, SelectCtx_t* ctx)
 
     sk = (Sock_t*)skFile->priv;
 
-    SOCK_Lock(sk);
+    SOCK_NotifyLock(sk);
 
     if (SetEvents(fd, ctx, sk->state) == 0) {
         // 还没有事件
         if (SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_SELECT, ctx, fd) != 0) {
             DP_LOG_DBG("EnableNotify failed.");
-            SOCK_Unlock(sk);
+            SOCK_NotifyUnlock(sk);
             FD_Put(skFile);
             return -1;
         }
     }
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
 
     FD_Put(skFile);
 
@@ -324,7 +324,7 @@ static int EnableNotify(int fd, SelectCtx_t* ctx)
 
 static void DisableNotifySafe(Sock_t *sk, SelectCtx_t *ctx)
 {
-    SOCK_Lock(sk);
+    SOCK_NotifyLock(sk);
     SockNotify_t *notify = NULL;
     SockNotify_t *next = NULL;
     for (notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
@@ -335,7 +335,7 @@ static void DisableNotifySafe(Sock_t *sk, SelectCtx_t *ctx)
             break;
         }
     }
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
 }
 
 static void DisableNotify(SelectCtx_t* ctx, int fd)

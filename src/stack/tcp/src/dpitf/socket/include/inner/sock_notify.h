@@ -20,19 +20,6 @@ extern "C" {
 
 int SOCK_NotifyHookCreate(SOCK_NotifyFn_t hook);
 
-static inline void SOCK_NotifyHookSetCtx(Sock_t* sk, void* ctx)
-{
-    SOCK_Lock(sk);
-    SockNotify_t* notify = NULL;
-    LIST_FOREACH(&sk->notifyList, notify, node)
-    {
-        if(notify->notifyType == SOCK_NOTIFY_TYPE_HOOK) {
-            notify->notifyCtx = ctx;
-        }
-    }
-    SOCK_Unlock(sk);
-}
-
 #ifndef DPITF_EPOLL
 #define EPOLL_NOTIFY_ATTR ATTR_WEAK
 #else

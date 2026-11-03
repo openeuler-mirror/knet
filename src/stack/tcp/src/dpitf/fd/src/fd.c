@@ -18,13 +18,15 @@
 #include "utils_base.h"
 #include "utils_cfg.h"
 #include "utils_log.h"
+#include <pthread.h>
+
 #include "utils_spinlock.h"
 #include "dp_socket_types_api.h"
 
 typedef struct FdNode {
     struct FdNode* next;
     Fd_t*          file;
-    Spinlock_t     lock;
+    pthread_rwlock_t lock;
     bool           isClosed;
 } ALIGNED_TO(CACHE_LINE) FdNode_t;
 
@@ -59,6 +61,13 @@ static int InitFdNodes(FdTbl_t* tbl)
     }
 
     (void)memset_s(tbl->nodes, allocSize, 0, allocSize);
+
+    for (int i = 0; i < maxFdCnt; i++) {
+        if (pthread_rwlock_init(&tbl->nodes[i].lock, NULL) != 0) {
+            DP_LOG_ERR("pthread_rwlock_init failed for fdNode %d.", i);
+            return -1;
+        }
+    }
 
     node = &tbl->nodes[0];
     for (int i = 0; i < maxFdCnt - 1; i++, node++) {
@@ -103,14 +112,24 @@ static inline void UnlockFdTbl(void)
     return SPINLOCK_DoUnlock(&g_fdTbl.lock);
 }
 
-static inline void LockFdNode(FdNode_t* node)
+static inline void LockFdNodeRd(FdNode_t* node)
 {
-    SPINLOCK_Lock(&node->lock);
+    pthread_rwlock_rdlock(&node->lock);
 }
 
-static inline void UnlockFdNode(FdNode_t* node)
+static inline void UnlockFdNodeRd(FdNode_t* node)
 {
-    SPINLOCK_Unlock(&node->lock);
+    pthread_rwlock_unlock(&node->lock);
+}
+
+static inline void LockFdNodeWr(FdNode_t* node)
+{
+    pthread_rwlock_wrlock(&node->lock);
+}
+
+static inline void UnlockFdNodeWr(FdNode_t* node)
+{
+    pthread_rwlock_unlock(&node->lock);
 }
 
 static FdNode_t* GetUnusedNode(FdTbl_t* tbl)
@@ -213,11 +232,11 @@ static int FdClose(int realFd)
     Fd_t* file;
     FdNode_t* node = &g_fdTbl.nodes[realFd];
 
-    LockFdNode(node);
+    LockFdNodeWr(node);
 
     file = node->file;
     if (file == NULL || node->isClosed || (file->ops->canClose(file->priv) != 1)) {
-        UnlockFdNode(node);
+        UnlockFdNodeWr(node);
 
         DP_LOG_DBG("FdClose failed, fd is invalid.");
         return -EBADF;
@@ -225,7 +244,7 @@ static int FdClose(int realFd)
 
     node->isClosed = true;
 
-    UnlockFdNode(node);
+    UnlockFdNodeWr(node);
 
     FD_Put(file);
 
@@ -262,7 +281,7 @@ static int FdGet(int realFd, int type, Fd_t** out, int refOp)
     FdNode_t* node = &g_fdTbl.nodes[realFd];
 
     if (refOp != DP_FD_OP_NOREF) {
-        LockFdNode(node);
+        LockFdNodeRd(node);
     }
 
     file = node->file;
@@ -289,7 +308,7 @@ static int FdGet(int realFd, int type, Fd_t** out, int refOp)
 
 end:
     if (refOp != DP_FD_OP_NOREF) {
-        UnlockFdNode(node);
+        UnlockFdNodeRd(node);
     }
     return ret;
 }
@@ -405,6 +424,9 @@ void FD_Deinit(void)
     FdTbl_t *tbl = &g_fdTbl;
 
     if (tbl->nodes != NULL) {
+        for (int i = 0; i < tbl->maxFdCnt; i++) {
+            (void)pthread_rwlock_destroy(&tbl->nodes[i].lock);
+        }
         MEM_FREE(tbl->nodes, DP_MEM_FIX);
         tbl->nodes = NULL;
     }

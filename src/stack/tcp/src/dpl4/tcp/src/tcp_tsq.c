@@ -223,8 +223,7 @@ static void TcpTsqProcException(Sock_t* sk, uint32_t tsqFlags)
     SOCK_WakeupRdSem(sk);
     SOCK_WakeupWrSem(sk);
     SOCK_SetState(sk,
-        SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_EXCEPTION | SOCK_STATE_CANTRCVMORE | SOCK_STATE_CANTSENDMORE |
-        SOCK_STATE_READ_ET | SOCK_STATE_WRITE_ET);
+        SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_EXCEPTION | SOCK_STATE_CANTRCVMORE | SOCK_STATE_CANTSENDMORE);
 
     if (TcpState(tcp) >= TCP_ESTABLISHED && tcp->parent == NULL) {
         if ((tsqFlags & TCP_TSQ_RECV_RST) != 0) {
@@ -266,8 +265,7 @@ static void TcpTsqProcRecvFin(Sock_t* sk, uint32_t* tsqFlags)
 {
     SOCK_CLR_RECV_MORE(sk);
     SOCK_WakeupRdSem(sk);
-    SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_CANTRCVMORE | SOCK_STATE_READ_ET |
-        SOCK_STATE_WRITE_ET);
+    SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_WRITE | SOCK_STATE_CANTRCVMORE);
 
     if (TcpSK(sk)->parent != NULL) {
         return;
@@ -328,7 +326,7 @@ static int TcpTsqProcSkEv(Sock_t* sk, uint32_t tsqFlags)
         SOCK_SET_CONNECTED(sk);
 
         SOCK_WakeupWrSem(sk);
-        SOCK_SetState(sk, SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET);
+        SOCK_SetState(sk, SOCK_STATE_WRITE);
         TcpNotifyEvent(sk, SOCK_EVENT_WRITE, TcpSK(sk)->tsqNested);
     }
 
@@ -339,7 +337,7 @@ static int TcpTsqProcSkEv(Sock_t* sk, uint32_t tsqFlags)
     if ((tempFlags & TCP_TSQ_RECV_DATA) != 0) {
         if (sk->rcvBuf.bufLen >= sk->rcvLowat) {
             SOCK_WakeupRdSem(sk);
-            SOCK_SetState(sk, SOCK_STATE_READ | SOCK_STATE_READ_ET);
+            SOCK_SetState(sk, SOCK_STATE_READ);
             if (TcpSK(sk)->parent == NULL) {
                 TcpNotifyEvent(sk, SOCK_EVENT_READ, TcpSK(sk)->tsqNested);
             }
@@ -395,7 +393,7 @@ static int TcpProcSkEv(Sock_t* sk, uint32_t tsqFlags)
 
     if ((tsqFlags & TCP_TSQ_SET_WRITABLE) != 0) {
         if ((sk->state & SOCK_STATE_WRITE) == 0) {
-            SOCK_SetState(sk, SOCK_STATE_WRITE | SOCK_STATE_WRITE_ET);
+            SOCK_SetState(sk, SOCK_STATE_WRITE);
             SOCK_WakeupWrSem(sk);    // 通知用户可写
             TcpNotifyEvent(sk, SOCK_EVENT_WRITE, TcpSK(sk)->tsqNested);
         }

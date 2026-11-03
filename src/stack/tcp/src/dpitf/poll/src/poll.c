@@ -30,6 +30,7 @@ typedef struct {
     struct DP_Pollfd* fds;
     DP_Nfds_t         nfds;
     int               readyFds;
+    uint8_t wakeupCnt;
     DP_PollNotify_t  userNotify;
 } PollCtx_t;
 
@@ -60,6 +61,7 @@ static int InitPollCtx(PollCtx_t* ctx, struct DP_Pollfd* fds, DP_Nfds_t nfds)
 
     SPINLOCK_Init(&ctx->lock);
 
+    // 在AllocPollCtx函数有清零，这里无需再清零
     ctx->fds     = fds;
     ctx->nfds    = nfds;
     ctx->readyFds = 0;
@@ -157,10 +159,17 @@ void POLL_Notify(Sock_t* sk, void* ctx, uint8_t oldState, uint8_t newState, uint
     if (pollFd->revents != 0) {
         pollCtx->readyFds++;
     }
+
+    /* 性能优化：只有当有就绪事件且之前没有唤醒时才需要唤醒，避免重复唤醒 */
+    bool needWakeup = false;
+    if (pollCtx->readyFds != 0 && pollCtx->wakeupCnt == 0) {
+        pollCtx->wakeupCnt++; // poll唤醒处理完后就会销毁上下文，所以wakeupCnt无需清零
+        needWakeup = true;
+    }
     
     SPINLOCK_Unlock(&pollCtx->lock);
 
-    if (pollCtx->readyFds != 0) {
+    if (needWakeup) {
         if (pollCtx->userNotify.fn != NULL) {
             pollCtx->userNotify.fn(pollCtx->userNotify.data);
         } else {
@@ -183,19 +192,19 @@ static int EnableNotify(struct DP_Pollfd* pollFd, PollCtx_t* ctx)
 
     sk = (Sock_t*)skFile->priv;
 
-    SOCK_Lock(sk);
+    SOCK_NotifyLock(sk);
 
     if (SetRevents(pollFd, sk->state) == 0) {
         // 还没有事件
         if (SOCK_EnableNotify(sk, SOCK_NOTIFY_TYPE_POLL, ctx, (uint64_t)(uintptr_t)pollFd) != 0) {
             DP_LOG_DBG("EnableNotify failed.");
-            SOCK_Unlock(sk);
+            SOCK_NotifyUnlock(sk);
             FD_Put(skFile);
             return -1;
         }
     }
 
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
 
     FD_Put(skFile);
 
@@ -204,7 +213,7 @@ static int EnableNotify(struct DP_Pollfd* pollFd, PollCtx_t* ctx)
 
 static void DisableNotifySafe(Sock_t *sk, struct DP_Pollfd *pollFd)
 {
-    SOCK_Lock(sk);
+    SOCK_NotifyLock(sk);
     SockNotify_t *notify = NULL;
     SockNotify_t *next = NULL;
     for (notify = LIST_FIRST(&sk->notifyList); notify != NULL; notify = next) {
@@ -215,7 +224,7 @@ static void DisableNotifySafe(Sock_t *sk, struct DP_Pollfd *pollFd)
             break;
         }
     }
-    SOCK_Unlock(sk);
+    SOCK_NotifyUnlock(sk);
 }
 
 static void DisableNotify(struct DP_Pollfd *pollFd)
@@ -388,9 +397,10 @@ int DP_Poll(struct DP_Pollfd* fds, DP_Nfds_t nfds, int timeout)
         return -1;
     }
 
-    if (timeout == 0) {
-        // 只是查询 fd 的状态
-        return PollOnce(fds, nfds);
+    // 不论是否睡眠，都先轮询一次，检查是否有就绪的fd（避免信号量阻塞流程额外的CPU消耗）
+    ret = PollOnce(fds, nfds);
+    if (ret != 0 || timeout == 0) {
+        return ret;
     }
 
     if (CreatePollCtx(fds, nfds, &ctx) != 0) {
