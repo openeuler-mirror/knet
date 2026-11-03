@@ -1,0 +1,129 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2026. All rights reserved.
+ 
+ * K-NET is licensed under the Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+      http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+#ifndef __KNET_DTOE_TCP_H__
+#define __KNET_DTOE_TCP_H__
+
+#include <stdbool.h>
+#include <sys/queue.h>
+#include <sys/epoll.h>
+
+#include "flexda_dtoe_interface.h"
+#include "knet_dtoe_events.h"
+#include "knet_dtoe_api.h"
+#include "knet_dtoe_sock.h"
+#include "knet_dtoe_epoll.h"
+#include "knet_lock.h"
+
+#define KNET_INVALID_FD (-1)
+#define KNET_INVALID_EVENT_INDEX (-1)
+
+enum KNET_OFFLOAD_STATUS {
+    KNET_OFFLOAD_INVALID, // 未卸载
+    KNET_OFFLOAD_STARTED,
+    KNET_OFFLOAD_ASYNC_DONE,
+    KNET_OFFLOAD_PREPARE_CLOSING,
+    KNET_OFFLOAD_PREPARE_CLOSED_DONE,
+    KNET_OFFLOAD_CLOSING,
+    KNET_OFFLOAD_CLOSED_DONE,
+};
+
+/* 涉及多线程，成员变更考虑伪共享 */
+struct KnetTcp {
+    struct KnetSock sk;
+
+    void *dtoe_conn;
+    struct KnetSendChannel *send_channel;
+    struct {
+        uint16_t last_sn; // 上一个已完成的req的send_sn
+        uint16_t comp_sn; // send_complete对应的finish_msn
+        struct KnetReqListHead unack_req;
+        struct KnetReqListHead free_req;
+    } send;
+    KNET_SpinLock send_lock;
+
+    struct KnetRecvChannel *recv_channel;
+    int recvEventIndex; // 一次knet_poll_recv_channel调用中，该sockfd第一次事件触发对应结果数组的下标
+
+    int32_t leakSize;
+    TAILQ_ENTRY(KnetTcp) leakNode; // leak漏包节点
+    void *leakBuf;
+
+    void *user_data;
+    uint32_t recv_sn;
+    uint8_t olStatus; // offload status. see enum KNET_OFFLOAD_STATUS
+};
+
+/**
+ * @brief 设置fd属性
+ * @param sockfd [IN] 连接的fd
+ * @param in [IN] 连接卸载需要的连接信息
+ * @param out [IN] 连接卸载后DTOE返回的连接信息
+ * @retval null
+ */
+void KNET_SetFdState(int sockfd, struct knet_offload_in *in, flexda_dtoe_offload_out_s *out);
+
+/**
+ * @brief 初始化freereq链表
+ * @param sockfd [IN] 连接的fd
+ * @retval 0成功，-1失败
+ */
+int KNET_InitFreeReq(int sockfd);
+
+/**
+ * @brief 去初始化freereq链表
+ * @param sockfd [IN] 连接的fd
+ * @retval void
+ */
+void KNET_UninitFreeReq(int sockfd);
+
+/**
+ * @brief 获取fd的userdata属性
+ * @param sockfd [IN] 连接的fd
+ * @retval knet user_data地址, 即fd map中的地址
+ */
+struct KnetTcp *KNET_GetFdConnUserData(int sockfd);
+
+/**
+ * @brief 获取fd的conn
+ * @param osFd [IN] 连接的fd
+ * @retval void *连接卸载后DTOE返回的连接信息
+ */
+void *KNET_GetConnBySock(int sockfd);
+
+/**
+ * @brief 初始化sock漏包相关资源
+ * @param sock [IN]
+ */
+int KNET_SockLeakResInit(struct KnetTcp *sock);
+
+/**
+ * @brief 销毁sock漏包相关资源
+ * @param sock [IN]
+ * @note 仅回收未移交(leakSize>0)的漏包缓冲，已移交的由用户经knet_recv_mem_loopback归还
+ */
+void KNET_SockLeakedResUninit(struct KnetTcp *sock);
+
+/**
+ * @brief 用户归还已移交的漏包缓冲（knet_recv_mem_loopback检测到leakBuf指针时调用）
+ * @param sock [IN]
+ */
+void KNET_SockLeakResRelease(struct KnetTcp *sock);
+
+/**
+ * @brief 重置文件描述符的状态
+ *
+ * @param sockfd [IN] int。osFd 操作系统文件描述符
+ */
+void KNET_ResetFdState(int sockfd);
+
+#endif

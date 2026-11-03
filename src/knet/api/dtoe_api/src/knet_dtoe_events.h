@@ -20,12 +20,14 @@
 
 struct KnetSendChannel {
     struct knet_send_channel channel;
+    uint8_t schdMode; // see enum knet_schd_type
 };
 
-TAILQ_HEAD(KnetLeakListHead, KNET_Fd);
+TAILQ_HEAD(KnetLeakListHead, KnetTcp);
 
 struct KnetRecvChannel {
     struct knet_recv_channel channel;
+    uint8_t schdMode; // see enum knet_schd_type
     /* 以下是knet需要的结构 */
     struct knet_recv_events* events;
     uint32_t maxevents;
@@ -44,5 +46,8 @@ typedef struct KnetReqNode {
 } KnetReqNode;
 
 TAILQ_HEAD(KnetReqListHead, KnetReqNode);
+
+void KnetPollSendChannel(struct KnetSendChannel* send_channel, uint32_t maxevents);
+void KnetPollRecvChannel(struct KnetRecvChannel* recv_channel, uint32_t maxevents);
 
 #endif
