@@ -193,10 +193,29 @@ Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加
     ```
 
 4. 构建RPM包。
-    
-    ```bash 
-    python3 build.py rpm
-    ```
+
+    DPDK 来源由环境变量 `KNET_DPDK_PATH` 控制。可先执行 `echo $KNET_DPDK_PATH` 查看当前是否已设置该变量，再按实际环境二选一：
+
+    - **设置 `KNET_DPDK_PATH`**：build.py 直接软链复用 `KNET_DPDK_PATH` 指向的已安装/已编译 DPDK，跳过 DPDK 编译。建议先按[安装DPDK](installation/installation.md#安装dpdk)章节完成 DPDK 的编译安装（含 dpdk-hinic3 驱动），随后通过 `KNET_DPDK_PATH` 复用该 DPDK，避免重复编译。
+
+        > [!NOTE]说明
+        > DPDK 版本兼容性由用户自行保证，knet 不做版本校验。请确保 `KNET_DPDK_PATH` 指向的 DPDK 已打入 dpdk-hinic3 驱动 patch，否则 knet 运行时将无法加载 hinic3 网卡驱动。
+        >
+        > `KNET_DPDK_PATH` 指向的 DPDK 需包含 `lib64/pkgconfig/libdpdk.pc`，且构建机已安装 `pkg-config`，build.py 依赖该文件生成 `libdpdk.so`。按[安装DPDK](installation/installation.md#安装dpdk)章节编译安装的 DPDK 已满足该条件；若为手工拷贝或裁剪安装，缺少 `.pc` 文件时 build.py 会报错退出。
+        >
+        > 请使用绝对路径。使用相对路径时，以执行 `python3 build.py` 时所在目录为基准，切换目录后该取值会随之变化。
+
+        ```bash
+        echo $KNET_DPDK_PATH              # 查看当前 KNET_DPDK_PATH 取值，为空表示未设置
+        export KNET_DPDK_PATH=/usr        # 指向已安装 DPDK 的根目录
+        python3 build.py rpm
+        ```
+
+    - **未设置 `KNET_DPDK_PATH`**：build.py 从源码 clone + meson/ninja 编译 DPDK（含 dpdk-hinic3 驱动 patch）。无需任何前置条件，直接执行：
+
+        ```bash
+        python3 build.py rpm
+        ```
 
 5. 安装RPM（Red Hat Package Manager，一种Linux软件包格式）包。
    
