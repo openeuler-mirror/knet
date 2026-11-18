@@ -26,7 +26,7 @@ sections:
   - label: telemetry故障
     href: ./telemetry.md
   - label: 故障处理
-    href: ./troubleshooting_menu.md
+    href: ./0_troubleshooting_menu.md
   - label: 重启虚拟机失败进入shell界面
     href: ./vm_restart.md
   - label: 零拷贝故障

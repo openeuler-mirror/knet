@@ -18,7 +18,7 @@ K-NET的目标是面向网络场景，打造的一套柔性的高性能协议框
 | redis get  | 1000  | redis-benchmark默认大小 | 161480.45 | 505816.66 |
 | redis set  | 1000  | redis-benchmark默认大小    | 141693.23 | 376067.09 |
 
-具体请参见[K-NET产品描述](./docs/zh/product_descriptions/descriptions_menu.md)。
+具体请参见[K-NET产品描述](./docs/zh/product_descriptions/0_descriptions_menu.md)。
 
 
 ## 版本说明
@@ -55,12 +55,12 @@ git clone https://atomgit.com/openeuler/knet.git
 
 ## 安装部署
 
-K-NET的组网规划、详细环境搭建和安装部署等操作请参见[安装](./docs/zh/installation/installation_menu.md)。
+K-NET的组网规划、详细环境搭建和安装部署等操作请参见[安装](./docs/zh/installation/0_installation_menu.md)。
 
 
 ## 特性使用
 
-K-NET加速特性的详细使用方式、注意事项等请参见[特性指南](./docs/zh/feature_guide/feature_menu.md)。
+K-NET加速特性的详细使用方式、注意事项等请参见[特性指南](./docs/zh/feature_guide/0_feature_menu.md)。
 
 ### 硬件支持
 
@@ -79,20 +79,20 @@ K-NET支持Huawei SP670/SP233网卡，网卡驱动和固件可通过support官�
 
 ## 运维管理
 
-工具运维相关请参见[运维管理](./docs/zh/om/om_menu.md)。
+工具运维相关请参见[运维管理](./docs/zh/om/0_om_menu.md)。
 
 
 ## 故障处理
 
-故障处理详情请参见[故障处理](./docs/zh/troubleshooting/troubleshooting_menu.md)。
+故障处理详情请参见[故障处理](./docs/zh/troubleshooting/0_troubleshooting_menu.md)。
 
 ## API接口
 
-API接口说明请参见[API接口](./docs/zh/api/api_menu.md)。
+API接口说明请参见[API接口](./docs/zh/api/0_api_menu.md)。
 
 ## Reference
 
-附录参考请参见[附录](./docs/zh/reference/reference_menu.md)。
+附录参考请参见[附录](./docs/zh/reference/0_reference_menu.md)。
 
 ## License
 

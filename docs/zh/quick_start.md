@@ -9,7 +9,7 @@ Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加
 
 ## 快速安装K-NET
 
-本文提供在物理机上快速安装K-NET的操作，如果您需要详细或在虚拟机上安装的操作步骤请参考[《安装指南》](./installation/installation_menu.md)。单进程加速至少需要一个服务端和一个客户端，请注意操作平台。
+本文提供在物理机上快速安装K-NET的操作，如果您需要详细或在虚拟机上安装的操作步骤请参考[《安装指南》](./installation/0_installation_menu.md)。单进程加速至少需要一个服务端和一个客户端，请注意操作平台。
 
 ### 环境要求
 
@@ -524,6 +524,9 @@ Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加
         modprobe vfio-pci
         ```
 
+        > [!NOTE]说明
+        > 若系统没有硬件IOMMU支持或处于虚拟化环境下，执行modprobe vfio enable_unsafe_noiommu_mode=1将加载VFIO模块时开启“no-IOMMU"模式，让VFIO框架在缺乏IOMMU硬件隔离的情况下可以运行
+
     3. DPDK接管网卡。
     
         ```bash
@@ -633,7 +636,7 @@ Data Acceleration Kit K-NET（Kunpeng Network Acceleration Kit，鲲鹏网络加
 
 ## 更多功能
 
-关于K-NET多进程加速、零拷贝和共线程等更多特性详细使用方式请参见[特性使用](./feature_guide/feature_menu.md)。
+关于K-NET多进程加速、零拷贝和共线程等更多特性详细使用方式请参见[特性使用](./feature_guide/0_feature_menu.md)。
 
 ## 修订记录
 

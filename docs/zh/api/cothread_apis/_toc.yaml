@@ -2,7 +2,7 @@ isManual: true
 label: 共线程接口
 sections:
   - label: 共线程接口
-    href: ./cothread_api_menu.md
+    href: ./0_cothread_api_menu.md
   - label: knet\_init
     href: ./knet_init.md
   - label: knet\_is\_worker\_thread

@@ -6,13 +6,13 @@ sections:
   - label: 常用操作
     href: ./common_operations/_toc.yaml
   - label: 附录
-    href: ./reference_menu.md
+    href: ./0_reference_menu.md
   - label: 批量运维
     href: ./common_operations/batch_om.md
   - label: BIOS调优
     href: ./performance_tuning/bios_tuning.md
   - label: 常用操作
-    href: ./common_operations/common_menu.md
+    href: ./common_operations/0_common_menu.md
   - label: 绑核与网卡所在NUMA一致
     href: ./performance_tuning/cpu_core_pinning_consistent_with_nic_numa_node.md
   - label: 安全管理

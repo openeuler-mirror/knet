@@ -6,7 +6,7 @@ sections:
   - label: 运维架构
     href: ./om_architecture.md
   - label: 运维管理
-    href: ./om_menu.md
+    href: ./0_om_menu.md
   - label: 运维信息收集脚本collect.sh
     href: ./collect.md
   - label: 遥测工具dpdk-telemetry

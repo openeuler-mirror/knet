@@ -4,4 +4,4 @@ sections:
   - label: 批量运维
     href: ./batch_om.md
   - label: 常用操作
-    href: ./common_menu.md
+    href: ./0_common_menu.md
