@@ -6,7 +6,7 @@ sections:
   - label: 使用前配置
     href: ./environment_configuration.md
   - label: 特性指南
-    href: ./feature_menu.md
+    href: ./0_feature_menu.md
   - label: 特性支持
     href: ./feature_overview.md
   - label: 内核流量转发功能

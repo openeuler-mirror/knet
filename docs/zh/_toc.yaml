@@ -26,9 +26,9 @@ sections:
     sections:
       - href: ./reference/_toc.yaml
   - label: API 接口
-    href: ./api/api_menu.md
+    href: ./api/0_api_menu.md
   - label: 共线程接口
-    href: ./api/cothread_apis/cothread_api_menu.md
+    href: ./api/cothread_apis/0_cothread_api_menu.md
   - label: accept
     href: ./api/posix_apis/accept.md
   - label: knet_iovec
@@ -46,7 +46,7 @@ sections:
   - label: 环境准备
     href: ./installation/environment_setup.md
   - label: K-NET 产品描述
-    href: ./product_descriptions/descriptions_menu.md
+    href: ./product_descriptions/0_descriptions_menu.md
   - label: bind
     href: ./api/posix_apis/bind.md
   - label: knet\_init
@@ -66,7 +66,7 @@ sections:
   - label: BIOS调优
     href: ./reference/performance_tuning/bios_tuning.md
   - label: 附录
-    href: ./reference/reference_menu.md
+    href: ./reference/0_reference_menu.md
   - label: close
     href: ./api/posix_apis/close.md
   - label: knet_is_worker_thread
@@ -74,13 +74,13 @@ sections:
   - label: knet_zreadv
     href: ./api/zero_copy_apis/knet_zreadv.md
   - label: 特性指南
-    href: ./feature_guide/feature_menu.md
+    href: ./feature_guide/0_feature_menu.md
   - label: 常用操作
-    href: ./reference/common_operations/common_menu.md
+    href: ./reference/common_operations/0_common_menu.md
   - label: 遥测工具dpdk-telemetry
     href: ./om/dpdk_telemetry.md
   - label: 安装
-    href: ./installation/installation_menu.md
+    href: ./installation/0_installation_menu.md
   - label: 产品定位和特点
     href: ./product_descriptions/product_positioning_and_highlights.md
   - label: Bond故障

@@ -18,7 +18,7 @@ K-NET is designed as a flexible and high-performance protocol framework that evo
 | redis get  | 1000  | Default size of redis-benchmark| 161480.45 | 505816.66 |
 | redis set  | 1000  | Default size of redis-benchmark   | 141693.23 | 376067.09 |
 
-For details, see [K-NET Product Description](./docs/zh/product_descritions/descritions_menu.md).
+For details, see [K-NET Product Description](./docs/zh/product_descriptions/0_descriptions_menu.md).
 
 ## Release Notes
 
@@ -58,7 +58,7 @@ For details about the networking planning, environment setup, installation and d
 
 ## Feature Use
 
-For details about how to use the K-NET acceleration feature and precautions, see [Feature Guide](./docs/zh/feature_guide/feature_menu.md).
+For details about how to use the K-NET acceleration feature and precautions, see [Feature Guide](./docs/zh/feature_guide/0_feature_menu.md).
 
 ### Hardware Support
 
@@ -76,15 +76,15 @@ K-NET supports Huawei SP670 NICs. You can obtain the NIC driver and firmware fro
 
 ## APIs
 
-For details about APIs, see [APIs](./docs/zh/api/api_menu.md).
+For details about APIs, see [APIs](./docs/zh/api/0_api_menu.md).
 
 ## Reference
 
-For appendix references, see [References](./docs/zh/reference/reference_menu.md).
+For appendix references, see [References](./docs/zh/reference/0_reference_menu.md).
 
 ## Troubleshooting
 
-For details about troubleshooting, see [Troubleshooting](./docs/zh/troubleshooting/troubleshooting_menu.md).
+For details about troubleshooting, see [Troubleshooting](./docs/zh/troubleshooting/0_troubleshooting_menu.md).
 
 ## License
 

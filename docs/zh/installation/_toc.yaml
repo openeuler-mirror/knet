@@ -6,7 +6,7 @@ sections:
   - label: 安装
     href: ./installation.md
   - label: 安装
-    href: ./installation_menu.md
+    href: ./0_installation_menu.md
   - label: 组网规划
     href: ./installation_planning.md
   - label: 卸载K-NET
